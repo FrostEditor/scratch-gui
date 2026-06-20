@@ -1,7 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import classNames from 'classnames';
-import { Icon } from '@blueprintjs/core';
 
 import Box from '../box/box.jsx';
 import DOMElementRenderer from '../../containers/dom-element-renderer.jsx';
@@ -21,7 +20,7 @@ const StageComponent = props => {
         customStageSize,
         dragRef,
         isColorPicking,
-        isFullScreen, // 编辑器全屏模式（非原生）
+        isFullScreen,
         isPlayerOnly,
         isStarted,
         isRtl,
@@ -39,7 +38,7 @@ const StageComponent = props => {
     // ===== 舞台窗口状态 =====
     const [isMinimized, setIsMinimized] = useState(false);
     const [windowPos, setWindowPos] = useState({ x: 100, y: 100 });
-    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false); // 原生全屏状态
+    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
     const windowRef = useRef(null);
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
 
@@ -340,7 +339,7 @@ const StageComponent = props => {
                                         pointerEvents: 'auto',
                                     }}
                                 >
-                                    <span><Icon icon="timeline-area-chart" /> FPS</span>
+                                    <span>📊 FPS</span>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -358,7 +357,7 @@ const StageComponent = props => {
                                         }}
                                         title="折叠"
                                     >
-                                        <Icon icon="minus" />
+                                        ➖
                                     </button>
                                 </div>
                                 <div
@@ -407,7 +406,6 @@ const StageComponent = props => {
     );
 
     // ===== 渲染舞台窗口 =====
-    // 全屏时覆盖整个视口，圆角消失，标题栏隐藏
     const isFullscreen = isNativeFullscreen;
     return (
         <div
@@ -449,7 +447,7 @@ const StageComponent = props => {
                         fontFamily: 'Segoe UI, sans-serif',
                     }}
                 >
-                    <span><Icon icon="applications" /> 舞台</span>
+                    <span>🖥️ 舞台</span>
                     <div style={{ display: 'flex', gap: '6px' }}>
                         <button
                             onClick={toggleFullscreen}
@@ -464,7 +462,7 @@ const StageComponent = props => {
                             }}
                             title="全屏"
                         >
-                            <Icon icon="fullscreen" />
+                            ⛶
                         </button>
                         <button
                             onClick={toggleMinimize}
@@ -479,7 +477,7 @@ const StageComponent = props => {
                             }}
                             title={isMinimized ? '展开舞台' : '最小化舞台'}
                         >
-                            {isMinimized ? <Icon icon="maximize" /> : <Icon icon="minimize" />}
+                            {isMinimized ? '➕' : '➖'}
                         </button>
                     </div>
                 </div>
@@ -498,7 +496,7 @@ const StageComponent = props => {
                 {stageContent}
             </div>
 
-            {/* 全屏时显示一个悬浮的退出全屏按钮（在右上角） */}
+            {/* 全屏时显示退出按钮 */}
             {isFullscreen && (
                 <button
                     onClick={toggleFullscreen}
@@ -518,7 +516,7 @@ const StageComponent = props => {
                     }}
                     title="退出全屏"
                 >
-                    <Icon icon="fullscreen-exit" />
+                    ⛶
                 </button>
             )}
         </div>
