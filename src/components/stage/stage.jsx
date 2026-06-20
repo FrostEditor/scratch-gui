@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import classNames from 'classnames';
+import { Icon } from '@blueprintjs/core'; // 使用 Blueprint 图标库
 
 import Box from '../box/box.jsx';
 import DOMElementRenderer from '../../containers/dom-element-renderer.jsx';
@@ -36,31 +37,57 @@ const StageComponent = props => {
     } = props;
 
     // ===== 舞台窗口状态 =====
-    const [isMinimized, setIsMinimized] = useState(false); // true 表示最小化（仅显示标题栏）
-    const [windowPos, setWindowPos] = useState({ x: 100, y: 100 }); // 窗口左上角位置（相对视口）
+    const [isMinimized, setIsMinimized] = useState(false);
+    const [windowPos, setWindowPos] = useState({ x: 100, y: 100 });
     const windowRef = useRef(null);
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
 
-    // ===== 舞台尺寸（原有） =====
+    // ===== FPS 小窗口状态 =====
+    const [fps, setFps] = useState(0);
+    const [isFpsCollapsed, setIsFpsCollapsed] = useState(false);
+    const [fpsPos, setFpsPos] = useState({ x: 20, y: 20 });
+    const fpsRef = useRef(null);
+    const fpsDragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
+    const fpsTitleRef = useRef(null);
+    const fpsBallRef = useRef(null);
+
+    // ===== FPS 测量 =====
+    useEffect(() => {
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let rafId = null;
+        const measure = () => {
+            const now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 1000) {
+                setFps(frameCount);
+                frameCount = 0;
+                lastTime = now;
+            }
+            rafId = requestAnimationFrame(measure);
+        };
+        measure();
+        return () => cancelAnimationFrame(rafId);
+    }, []);
+
+    // ===== 舞台尺寸 =====
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen
         ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
         : {};
 
-    // ===== 窗口拖拽逻辑（原生事件，只作用于标题栏） =====
+    // ===== 舞台窗口拖拽（标题栏） =====
     useEffect(() => {
         const titleBar = document.querySelector('.stage-window-titlebar');
         if (!titleBar || !windowRef.current) return;
 
         const onDragStart = (e) => {
-            // 只允许鼠标左键或触摸
             if (e.type === 'mousedown' && e.button !== 0) return;
             const rect = windowRef.current.getBoundingClientRect();
             const clientX = e.clientX || e.touches?.[0]?.clientX;
             const clientY = e.clientY || e.touches?.[0]?.clientY;
             if (clientX == null) return;
-
             dragData.current = {
                 isDragging: true,
                 offsetX: clientX - rect.left,
@@ -73,11 +100,8 @@ const StageComponent = props => {
                 const cx = ev.clientX || ev.touches?.[0]?.clientX;
                 const cy = ev.clientY || ev.touches?.[0]?.clientY;
                 if (cx == null) return;
-
                 let newX = cx - dragData.current.offsetX;
                 let newY = cy - dragData.current.offsetY;
-
-                // 边界约束（视口）
                 const winWidth = windowRef.current.offsetWidth;
                 const winHeight = windowRef.current.offsetHeight;
                 newX = Math.max(0, Math.min(newX, window.innerWidth - winWidth));
@@ -106,14 +130,80 @@ const StageComponent = props => {
             titleBar.removeEventListener('mousedown', onDragStart);
             titleBar.removeEventListener('touchstart', onDragStart);
         };
-    }, []); // 只绑定一次
+    }, []);
 
-    // ===== 最小化切换 =====
+    // ===== FPS 小窗口拖拽 =====
+    useEffect(() => {
+        const target = isFpsCollapsed ? fpsBallRef.current : fpsTitleRef.current;
+        if (!target || !fpsRef.current) return;
+
+        const container = fpsRef.current.parentElement;
+        if (!container) return;
+
+        const onFpsDragStart = (e) => {
+            if (isFpsCollapsed) return;
+            e.preventDefault();
+            const rect = fpsRef.current.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (clientX == null) return;
+            fpsDragData.current = {
+                isDragging: true,
+                offsetX: clientX - rect.left,
+                offsetY: clientY - rect.top,
+            };
+
+            const onMove = (ev) => {
+                if (!fpsDragData.current.isDragging) return;
+                const cx = ev.clientX || ev.touches?.[0]?.clientX;
+                const cy = ev.clientY || ev.touches?.[0]?.clientY;
+                if (cx == null) return;
+                const containerRect = container.getBoundingClientRect();
+                const winWidth = fpsRef.current.offsetWidth;
+                const winHeight = fpsRef.current.offsetHeight;
+                let newX = cx - containerRect.left - fpsDragData.current.offsetX;
+                let newY = cy - containerRect.top - fpsDragData.current.offsetY;
+                const maxX = Math.max(0, containerRect.width - winWidth);
+                const maxY = Math.max(0, containerRect.height - winHeight);
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                setFpsPos({ x: newX, y: newY });
+            };
+
+            const onUp = () => {
+                fpsDragData.current.isDragging = false;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onUp);
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
+        };
+
+        target.addEventListener('mousedown', onFpsDragStart);
+        target.addEventListener('touchstart', onFpsDragStart, { passive: false });
+
+        return () => {
+            target.removeEventListener('mousedown', onFpsDragStart);
+            target.removeEventListener('touchstart', onFpsDragStart);
+        };
+    }, [isFpsCollapsed]);
+
+    // ===== 切换舞台最小化 =====
     const toggleMinimize = useCallback(() => {
         setIsMinimized(prev => !prev);
     }, []);
 
-    // ===== 窗口内容（舞台原有内容） =====
+    // ===== 切换 FPS 折叠 =====
+    const toggleFpsCollapse = useCallback(() => {
+        setIsFpsCollapsed(prev => !prev);
+    }, []);
+
+    // ===== 舞台原有内容（含 FPS 小窗口） =====
     const stageContent = (
         <>
             <Box
@@ -145,11 +235,128 @@ const StageComponent = props => {
                     {isColorPicking && colorInfo ? <Loupe colorInfo={colorInfo} /> : null}
                 </Box>
 
-                {/* 原有 stageOverlays 内容（麦克风、问题等） */}
+                {/* ===== stageOverlays（包含 FPS 小窗口） ===== */}
                 <Box
                     className={classNames(styles.stageOverlays, { [styles.fullScreen]: isFullScreen })}
-                    style={transformStyle}
+                    style={{
+                        position: 'relative',
+                        ...transformStyle
+                    }}
                 >
+                    {/* ===== FPS 小窗口 ===== */}
+                    <div
+                        ref={fpsRef}
+                        style={{
+                            position: 'absolute',
+                            left: fpsPos.x,
+                            top: fpsPos.y,
+                            zIndex: 9999,
+                            userSelect: 'none',
+                            fontFamily: 'Segoe UI, sans-serif',
+                            pointerEvents: 'auto',
+                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            transform: isFpsCollapsed ? 'scale(0.7)' : 'scale(1)',
+                            opacity: 1,
+                        }}
+                    >
+                        {isFpsCollapsed ? (
+                            // 折叠：圆形悬浮球
+                            <div
+                                ref={fpsBallRef}
+                                onClick={toggleFpsCollapse}
+                                style={{
+                                    width: '56px',
+                                    height: '56px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(30,30,30,0.85)',
+                                    backdropFilter: 'blur(4px)',
+                                    border: '2px solid rgba(0,255,0,0.5)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#0f0',
+                                    fontSize: '18px',
+                                    fontWeight: 'bold',
+                                    fontFamily: 'monospace',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+                                    cursor: 'pointer',
+                                    pointerEvents: 'auto',
+                                }}
+                                title="展开 FPS"
+                            >
+                                {fps}
+                            </div>
+                        ) : (
+                            // 展开：完整窗口
+                            <div
+                                style={{
+                                    width: '160px',
+                                    backgroundColor: 'rgba(30,30,30,0.85)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                                    backdropFilter: 'blur(8px)',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    pointerEvents: 'auto',
+                                }}
+                            >
+                                <div
+                                    ref={fpsTitleRef}
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '8px 12px',
+                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        borderRadius: '8px 8px 0 0',
+                                        cursor: 'grab',
+                                        color: '#ddd',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        userSelect: 'none',
+                                        pointerEvents: 'auto',
+                                    }}
+                                >
+                                    <span><Icon icon="timeline-area-chart" /> FPS</span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsFpsCollapsed(true);
+                                        }}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#aaa',
+                                            fontSize: '18px',
+                                            cursor: 'pointer',
+                                            padding: '0 4px',
+                                            lineHeight: 1,
+                                            pointerEvents: 'auto',
+                                        }}
+                                        title="折叠"
+                                    >
+                                        <Icon icon="minus" />
+                                    </button>
+                                </div>
+                                <div
+                                    style={{
+                                        padding: '14px 10px 16px',
+                                        textAlign: 'center',
+                                        color: '#0f0',
+                                        fontFamily: 'monospace',
+                                        fontSize: '28px',
+                                        fontWeight: 'bold',
+                                        letterSpacing: '1px',
+                                        textShadow: '0 0 12px rgba(0,255,0,0.3)',
+                                    }}
+                                >
+                                    {fps}
+                                    <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ===== 原有底部内容 ===== */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{ width: stageDimensions.width, height: stageDimensions.height }}
@@ -175,6 +382,7 @@ const StageComponent = props => {
         </>
     );
 
+    // ===== 渲染舞台窗口（含标题栏和内容，带展开/折叠动画） =====
     return (
         <div
             ref={windowRef}
@@ -187,12 +395,10 @@ const StageComponent = props => {
                 borderRadius: '8px',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                 overflow: 'hidden',
-                // 最小化时高度只显示标题栏，否则为内容高度
                 height: isMinimized ? '36px' : 'auto',
-                transition: 'height 0.25s ease, width 0.25s ease',
-                width: isMinimized ? 'auto' : stageDimensions.width + 2, // 加边框宽度
+                transition: 'height 0.3s ease',
+                width: isMinimized ? 'auto' : stageDimensions.width + 2,
                 minWidth: isMinimized ? '200px' : 'auto',
-                resize: 'none',
                 pointerEvents: 'auto',
                 border: '1px solid rgba(255,255,255,0.1)',
             }}
@@ -216,7 +422,7 @@ const StageComponent = props => {
                     fontFamily: 'Segoe UI, sans-serif',
                 }}
             >
-                <span>🎬 舞台</span>
+                <span><Icon icon="applications" /> 舞台</span>
                 <button
                     onClick={toggleMinimize}
                     style={{
@@ -230,14 +436,18 @@ const StageComponent = props => {
                     }}
                     title={isMinimized ? '展开舞台' : '最小化舞台'}
                 >
-                    {isMinimized ? '⬆' : '➖'}
+                    {isMinimized ? <Icon icon="maximize" /> : <Icon icon="minimize" />}
                 </button>
             </div>
 
-            {/* 舞台内容区域（最小化时隐藏） */}
+            {/* 舞台内容区域（最小化时隐藏，带淡入淡出 + 高度动画） */}
             <div
                 style={{
                     display: isMinimized ? 'none' : 'block',
+                    opacity: isMinimized ? 0 : 1,
+                    maxHeight: isMinimized ? 0 : '10000px',
+                    transition: 'opacity 0.3s ease, max-height 0.3s ease',
+                    overflow: 'hidden',
                 }}
             >
                 {stageContent}
