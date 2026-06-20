@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React, { useState, useEffect } from 'react'; // [FPS] 新增 hooks 导入
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // [FPS Window] 新增 useRef, useCallback
 import classNames from 'classnames';
 
 import Box from '../box/box.jsx';
@@ -35,9 +35,17 @@ const StageComponent = props => {
         ...boxProps
     } = props;
 
-    // [FPS] 状态和测量逻辑开始 ----------------
+    // ===== [FPS Window] 状态管理 =====
     const [fps, setFps] = useState(0);
+    const [isVisible, setIsVisible] = useState(true);      // 窗口是否显示
+    const [position, setPosition] = useState({ x: 20, y: 20 }); // 窗口左上角相对 stageOverlays 的位置
 
+    // 拖拽相关 refs
+    const dragRefLocal = useRef(null);        // 窗口根元素
+    const isDragging = useRef(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
+
+    // ===== FPS 测量 (不变) =====
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
@@ -57,8 +65,56 @@ const StageComponent = props => {
 
         return () => cancelAnimationFrame(rafId);
     }, []);
-    // [FPS] 结束 ---------------------------------
 
+    // ===== 拖拽事件处理 =====
+    const onMouseDown = useCallback((e) => {
+        // 只允许通过标题栏拖拽
+        if (!e.target.closest('.fps-window-title')) return;
+        isDragging.current = true;
+        const rect = dragRefLocal.current.getBoundingClientRect();
+        dragOffset.current = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        // 防止选中文本
+        e.preventDefault();
+    }, []);
+
+    useEffect(() => {
+        const onMouseMove = (e) => {
+            if (!isDragging.current) return;
+            // 计算新位置（相对于 stageOverlays 容器）
+            const container = dragRefLocal.current.parentElement;
+            if (!container) return;
+            const containerRect = container.getBoundingClientRect();
+            let newX = e.clientX - containerRect.left - dragOffset.current.x;
+            let newY = e.clientY - containerRect.top - dragOffset.current.y;
+            // 边界限制（防止拖出视野）
+            const winWidth = dragRefLocal.current.offsetWidth;
+            const winHeight = dragRefLocal.current.offsetHeight;
+            newX = Math.max(0, Math.min(newX, containerRect.width - winWidth));
+            newY = Math.max(0, Math.min(newY, containerRect.height - winHeight));
+            setPosition({ x: newX, y: newY });
+        };
+
+        const onMouseUp = () => {
+            isDragging.current = false;
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, []);
+
+    // ===== 窗口切换 =====
+    const toggleVisibility = useCallback(() => {
+        setIsVisible(prev => !prev);
+    }, []);
+
+    // ===== 舞台尺寸计算 (不变) =====
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen ? {
@@ -73,7 +129,6 @@ const StageComponent = props => {
                     {[styles.withColorPicker]: !isFullScreen && isColorPicking})}
                 onDoubleClick={onDoubleClick}
                 style={isPlayerOnly ? null : {
-                    // add 2 because a 1px border is shown around each side of the stage
                     minWidth: `${minWidth + 2}px`
                 }}
             >
@@ -117,7 +172,7 @@ const StageComponent = props => {
                     ) : null}
                 </Box>
 
-                {/* `stageOverlays` is for items that should *not* have their overflow contained within the stage */}
+                {/* ===== stageOverlays 区域 ===== */}
                 <Box
                     className={classNames(
                         styles.stageOverlays,
@@ -125,28 +180,108 @@ const StageComponent = props => {
                     )}
                     style={transformStyle}
                 >
-                    {/* [FPS] 浮动显示窗口 - 开始 */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            top: '10px',
-                            right: '10px',
-                            color: '#0f0',
-                            fontFamily: 'monospace',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            background: 'rgba(0, 0, 0, 0.7)',
-                            padding: '4px 10px',
-                            borderRadius: '4px',
-                            zIndex: 9999,
-                            pointerEvents: 'none',   // 鼠标穿透，不干扰舞台操作
-                            userSelect: 'none'
-                        }}
-                    >
-                        FPS: {fps}
-                    </div>
-                    {/* [FPS] 结束 */}
+                    {/* ===== [FPS Window] 浮动窗口 ===== */}
+                    {isVisible && (
+                        <div
+                            ref={dragRefLocal}
+                            onMouseDown={onMouseDown}
+                            style={{
+                                position: 'absolute',
+                                left: position.x,
+                                top: position.y,
+                                width: '160px',
+                                backgroundColor: 'rgba(30, 30, 30, 0.85)',
+                                borderRadius: '6px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                backdropFilter: 'blur(4px)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                zIndex: 9999,
+                                userSelect: 'none',
+                                fontFamily: 'Segoe UI, sans-serif',
+                                cursor: 'default'
+                            }}
+                        >
+                            {/* 标题栏 */}
+                            <div
+                                className="fps-window-title"
+                                style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '6px 10px',
+                                    backgroundColor: 'rgba(0,0,0,0.3)',
+                                    borderRadius: '6px 6px 0 0',
+                                    cursor: 'grab',
+                                    color: '#ccc',
+                                    fontSize: '13px',
+                                    fontWeight: 600
+                                }}
+                            >
+                                <span>📊 FPS</span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsVisible(false);
+                                    }}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#aaa',
+                                        fontSize: '16px',
+                                        cursor: 'pointer',
+                                        padding: '0 4px',
+                                        lineHeight: 1
+                                    }}
+                                    title="隐藏窗口"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            {/* 内容 */}
+                            <div
+                                style={{
+                                    padding: '12px 10px',
+                                    textAlign: 'center',
+                                    color: '#0f0',
+                                    fontFamily: 'monospace',
+                                    fontSize: '24px',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '1px',
+                                    textShadow: '0 0 8px rgba(0,255,0,0.3)'
+                                }}
+                            >
+                                {fps}
+                                <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
+                            </div>
+                        </div>
+                    )}
 
+                    {/* [FPS Window] 当窗口隐藏时，显示一个小的显示按钮（浮动） */}
+                    {!isVisible && (
+                        <div
+                            onClick={toggleVisibility}
+                            style={{
+                                position: 'absolute',
+                                bottom: '20px',
+                                right: '20px',
+                                backgroundColor: 'rgba(0,0,0,0.6)',
+                                color: '#0f0',
+                                padding: '6px 12px',
+                                borderRadius: '20px',
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                zIndex: 9999,
+                                fontFamily: 'monospace',
+                                border: '1px solid rgba(0,255,0,0.2)',
+                                backdropFilter: 'blur(4px)',
+                                userSelect: 'none'
+                            }}
+                        >
+                            📊 FPS
+                        </div>
+                    )}
+
+                    {/* 原有内容：stageBottomWrapper 等保持不变 */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{
@@ -195,6 +330,7 @@ const StageComponent = props => {
         </React.Fragment>
     );
 };
+
 StageComponent.propTypes = {
     canvas: PropTypes.instanceOf(Element).isRequired,
     customStageSize: PropTypes.shape({
