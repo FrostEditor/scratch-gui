@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import classNames from 'classnames';
-import { Icon } from '@blueprintjs/core'; // 使用 Blueprint 图标库
+import { Icon } from '@blueprintjs/core';
 
 import Box from '../box/box.jsx';
 import DOMElementRenderer from '../../containers/dom-element-renderer.jsx';
@@ -21,7 +21,7 @@ const StageComponent = props => {
         customStageSize,
         dragRef,
         isColorPicking,
-        isFullScreen,
+        isFullScreen, // 编辑器全屏模式（非原生）
         isPlayerOnly,
         isStarted,
         isRtl,
@@ -39,6 +39,7 @@ const StageComponent = props => {
     // ===== 舞台窗口状态 =====
     const [isMinimized, setIsMinimized] = useState(false);
     const [windowPos, setWindowPos] = useState({ x: 100, y: 100 });
+    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false); // 原生全屏状态
     const windowRef = useRef(null);
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
 
@@ -76,6 +77,15 @@ const StageComponent = props => {
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen
         ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
         : {};
+
+    // ===== 监听原生全屏变化 =====
+    useEffect(() => {
+        const onFullscreenChange = () => {
+            setIsNativeFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    }, []);
 
     // ===== 舞台窗口拖拽（标题栏） =====
     useEffect(() => {
@@ -201,6 +211,20 @@ const StageComponent = props => {
     // ===== 切换 FPS 折叠 =====
     const toggleFpsCollapse = useCallback(() => {
         setIsFpsCollapsed(prev => !prev);
+    }, []);
+
+    // ===== 全屏切换 =====
+    const toggleFullscreen = useCallback(async () => {
+        if (!windowRef.current) return;
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            } else {
+                await windowRef.current.requestFullscreen();
+            }
+        } catch (err) {
+            console.warn('全屏切换失败:', err);
+        }
     }, []);
 
     // ===== 舞台原有内容（含 FPS 小窗口） =====
@@ -382,76 +406,121 @@ const StageComponent = props => {
         </>
     );
 
-    // ===== 渲染舞台窗口（含标题栏和内容，带展开/折叠动画） =====
+    // ===== 渲染舞台窗口 =====
+    // 全屏时覆盖整个视口，圆角消失，标题栏隐藏
+    const isFullscreen = isNativeFullscreen;
     return (
         <div
             ref={windowRef}
             style={{
                 position: 'fixed',
-                left: windowPos.x,
-                top: windowPos.y,
+                left: isFullscreen ? 0 : windowPos.x,
+                top: isFullscreen ? 0 : windowPos.y,
                 zIndex: 10000,
                 backgroundColor: '#2a2a2a',
-                borderRadius: '8px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                borderRadius: isFullscreen ? '0' : '8px',
+                boxShadow: isFullscreen ? 'none' : '0 8px 32px rgba(0,0,0,0.6)',
                 overflow: 'hidden',
-                height: isMinimized ? '36px' : 'auto',
-                transition: 'height 0.3s ease',
-                width: isMinimized ? 'auto' : stageDimensions.width + 2,
-                minWidth: isMinimized ? '200px' : 'auto',
+                height: isMinimized && !isFullscreen ? '36px' : isFullscreen ? '100vh' : 'auto',
+                width: isMinimized && !isFullscreen ? 'auto' : isFullscreen ? '100vw' : stageDimensions.width + 2,
+                minWidth: isMinimized && !isFullscreen ? '200px' : 'auto',
                 pointerEvents: 'auto',
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: isFullscreen ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                transition: isFullscreen ? 'none' : 'height 0.3s ease, width 0.3s ease, left 0.3s ease, top 0.3s ease',
             }}
         >
-            {/* 标题栏 */}
-            <div
-                className="stage-window-titlebar"
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '4px 12px',
-                    height: '36px',
-                    backgroundColor: 'rgba(40,40,40,0.9)',
-                    borderBottom: isMinimized ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                    cursor: 'grab',
-                    userSelect: 'none',
-                    color: '#ddd',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    fontFamily: 'Segoe UI, sans-serif',
-                }}
-            >
-                <span><Icon icon="applications" /> 舞台</span>
-                <button
-                    onClick={toggleMinimize}
+            {/* 标题栏（全屏时隐藏） */}
+            {!isFullscreen && (
+                <div
+                    className="stage-window-titlebar"
                     style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#aaa',
-                        fontSize: '18px',
-                        cursor: 'pointer',
-                        padding: '0 6px',
-                        lineHeight: 1,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '4px 12px',
+                        height: '36px',
+                        backgroundColor: 'rgba(40,40,40,0.9)',
+                        borderBottom: isMinimized ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                        cursor: 'grab',
+                        userSelect: 'none',
+                        color: '#ddd',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        fontFamily: 'Segoe UI, sans-serif',
                     }}
-                    title={isMinimized ? '展开舞台' : '最小化舞台'}
                 >
-                    {isMinimized ? <Icon icon="maximize" /> : <Icon icon="minimize" />}
-                </button>
-            </div>
+                    <span><Icon icon="applications" /> 舞台</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                            onClick={toggleFullscreen}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#aaa',
+                                fontSize: '18px',
+                                cursor: 'pointer',
+                                padding: '0 4px',
+                                lineHeight: 1,
+                            }}
+                            title="全屏"
+                        >
+                            <Icon icon="fullscreen" />
+                        </button>
+                        <button
+                            onClick={toggleMinimize}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#aaa',
+                                fontSize: '18px',
+                                cursor: 'pointer',
+                                padding: '0 6px',
+                                lineHeight: 1,
+                            }}
+                            title={isMinimized ? '展开舞台' : '最小化舞台'}
+                        >
+                            {isMinimized ? <Icon icon="maximize" /> : <Icon icon="minimize" />}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* 舞台内容区域（最小化时隐藏，带淡入淡出 + 高度动画） */}
             <div
                 style={{
-                    display: isMinimized ? 'none' : 'block',
-                    opacity: isMinimized ? 0 : 1,
-                    maxHeight: isMinimized ? 0 : '10000px',
-                    transition: 'opacity 0.3s ease, max-height 0.3s ease',
+                    display: isMinimized && !isFullscreen ? 'none' : 'block',
+                    opacity: isMinimized && !isFullscreen ? 0 : 1,
+                    maxHeight: isMinimized && !isFullscreen ? 0 : '10000px',
+                    transition: isFullscreen ? 'none' : 'opacity 0.3s ease, max-height 0.3s ease',
                     overflow: 'hidden',
                 }}
             >
                 {stageContent}
             </div>
+
+            {/* 全屏时显示一个悬浮的退出全屏按钮（在右上角） */}
+            {isFullscreen && (
+                <button
+                    onClick={toggleFullscreen}
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        zIndex: 10001,
+                        backgroundColor: 'rgba(0,0,0,0.5)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '8px 12px',
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(4px)',
+                    }}
+                    title="退出全屏"
+                >
+                    <Icon icon="fullscreen-exit" />
+                </button>
+            )}
         </div>
     );
 };
