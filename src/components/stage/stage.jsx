@@ -35,65 +35,27 @@ const StageComponent = props => {
         ...boxProps
     } = props;
 
-    // 状态
-    const [fps, setFps] = useState(0);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    const [position, setPosition] = useState({ x: 20, y: 20 });
-
-    // refs
+    // ===== 舞台窗口状态 =====
+    const [isMinimized, setIsMinimized] = useState(false); // true 表示最小化（仅显示标题栏）
+    const [windowPos, setWindowPos] = useState({ x: 100, y: 100 }); // 窗口左上角位置（相对视口）
     const windowRef = useRef(null);
-    const titleRef = useRef(null);
-    const ballRef = useRef(null);
-    const dragData = useRef({
-        isDragging: false,
-        offsetX: 0,
-        offsetY: 0,
-    });
+    const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
 
-    // FPS 测量
-    useEffect(() => {
-        let frameCount = 0;
-        let lastTime = performance.now();
-        let rafId = null;
-        const measure = () => {
-            const now = performance.now();
-            frameCount++;
-            if (now - lastTime >= 1000) {
-                setFps(frameCount);
-                frameCount = 0;
-                lastTime = now;
-            }
-            rafId = requestAnimationFrame(measure);
-        };
-        measure();
-        return () => cancelAnimationFrame(rafId);
-    }, []);
-
-    // 舞台尺寸
+    // ===== 舞台尺寸（原有） =====
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen
         ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
         : {};
 
-    // 折叠时的右下角坐标
-    const collapsedX = stageDimensions.width - 56 - 20;
-    const collapsedY = stageDimensions.height - 56 - 20;
-    const currentPos = isCollapsed
-        ? { x: collapsedX, y: collapsedY }
-        : position;
-
-    // --- 原生拖拽事件绑定 ---
+    // ===== 窗口拖拽逻辑（原生事件，只作用于标题栏） =====
     useEffect(() => {
-        const targetElement = isCollapsed ? ballRef.current : titleRef.current;
-        if (!targetElement || !windowRef.current) return;
-
-        const container = windowRef.current.parentElement;
-        if (!container) return;
+        const titleBar = document.querySelector('.stage-window-titlebar');
+        if (!titleBar || !windowRef.current) return;
 
         const onDragStart = (e) => {
-            if (isCollapsed) return; // 折叠时不允许拖拽
-            e.preventDefault();
+            // 只允许鼠标左键或触摸
+            if (e.type === 'mousedown' && e.button !== 0) return;
             const rect = windowRef.current.getBoundingClientRect();
             const clientX = e.clientX || e.touches?.[0]?.clientX;
             const clientY = e.clientY || e.touches?.[0]?.clientY;
@@ -104,7 +66,7 @@ const StageComponent = props => {
                 offsetX: clientX - rect.left,
                 offsetY: clientY - rect.top,
             };
-            console.log('拖拽开始 (原生)');
+            e.preventDefault();
 
             const onMove = (ev) => {
                 if (!dragData.current.isDragging) return;
@@ -112,31 +74,19 @@ const StageComponent = props => {
                 const cy = ev.clientY || ev.touches?.[0]?.clientY;
                 if (cx == null) return;
 
-                const containerRect = container.getBoundingClientRect();
+                let newX = cx - dragData.current.offsetX;
+                let newY = cy - dragData.current.offsetY;
+
+                // 边界约束（视口）
                 const winWidth = windowRef.current.offsetWidth;
                 const winHeight = windowRef.current.offsetHeight;
-
-                // 调试：打印容器和窗口尺寸
-                console.log('容器尺寸:', containerRect.width, containerRect.height);
-                console.log('窗口尺寸:', winWidth, winHeight);
-
-                let newX = cx - containerRect.left - dragData.current.offsetX;
-                let newY = cy - containerRect.top - dragData.current.offsetY;
-
-                // 边界约束 – 允许在舞台内自由移动，若超出则 clamp
-                const maxX = Math.max(0, containerRect.width - winWidth);
-                const maxY = Math.max(0, containerRect.height - winHeight);
-                newX = Math.max(0, Math.min(newX, maxX));
-                newY = Math.max(0, Math.min(newY, maxY));
-
-                console.log('新位置:', newX, newY);
-
-                setPosition({ x: newX, y: newY });
+                newX = Math.max(0, Math.min(newX, window.innerWidth - winWidth));
+                newY = Math.max(0, Math.min(newY, window.innerHeight - winHeight));
+                setWindowPos({ x: newX, y: newY });
             };
 
             const onUp = () => {
                 dragData.current.isDragging = false;
-                console.log('拖拽结束');
                 window.removeEventListener('mousemove', onMove);
                 window.removeEventListener('mouseup', onUp);
                 window.removeEventListener('touchmove', onMove);
@@ -149,26 +99,28 @@ const StageComponent = props => {
             window.addEventListener('touchend', onUp);
         };
 
-        targetElement.addEventListener('mousedown', onDragStart);
-        targetElement.addEventListener('touchstart', onDragStart, { passive: false });
+        titleBar.addEventListener('mousedown', onDragStart);
+        titleBar.addEventListener('touchstart', onDragStart, { passive: false });
 
         return () => {
-            targetElement.removeEventListener('mousedown', onDragStart);
-            targetElement.removeEventListener('touchstart', onDragStart);
+            titleBar.removeEventListener('mousedown', onDragStart);
+            titleBar.removeEventListener('touchstart', onDragStart);
         };
-    }, [isCollapsed]);
+    }, []); // 只绑定一次
 
-    // 切换折叠
-    const toggleCollapse = useCallback(() => {
-        setIsCollapsed(prev => !prev);
+    // ===== 最小化切换 =====
+    const toggleMinimize = useCallback(() => {
+        setIsMinimized(prev => !prev);
     }, []);
 
-    return (
-        <React.Fragment>
+    // ===== 窗口内容（舞台原有内容） =====
+    const stageContent = (
+        <>
             <Box
                 className={classNames(
                     styles.stageWrapper,
-                    {[styles.withColorPicker]: !isFullScreen && isColorPicking})}
+                    {[styles.withColorPicker]: !isFullScreen && isColorPicking}
+                )}
                 onDoubleClick={onDoubleClick}
                 style={isPlayerOnly ? null : { minWidth: `${minWidth + 2}px` }}
             >
@@ -193,126 +145,11 @@ const StageComponent = props => {
                     {isColorPicking && colorInfo ? <Loupe colorInfo={colorInfo} /> : null}
                 </Box>
 
-                {/* stageOverlays – relative 定位 */}
+                {/* 原有 stageOverlays 内容（麦克风、问题等） */}
                 <Box
                     className={classNames(styles.stageOverlays, { [styles.fullScreen]: isFullScreen })}
-                    style={{
-                        position: 'relative',
-                        ...transformStyle
-                    }}
+                    style={transformStyle}
                 >
-                    {/* FPS 浮动窗口 */}
-                    <div
-                        ref={windowRef}
-                        style={{
-                            position: 'absolute',
-                            left: currentPos.x,
-                            top: currentPos.y,
-                            zIndex: 9999,
-                            userSelect: 'none',
-                            fontFamily: 'Segoe UI, sans-serif',
-                            pointerEvents: 'auto',
-                            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                            transform: isCollapsed ? 'scale(0.7)' : 'scale(1)',
-                            opacity: 1,
-                        }}
-                    >
-                        {isCollapsed ? (
-                            <div
-                                ref={ballRef}
-                                onClick={toggleCollapse}
-                                style={{
-                                    width: '56px',
-                                    height: '56px',
-                                    borderRadius: '50%',
-                                    background: 'rgba(30,30,30,0.85)',
-                                    backdropFilter: 'blur(4px)',
-                                    border: '2px solid rgba(0,255,0,0.5)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#0f0',
-                                    fontSize: '18px',
-                                    fontWeight: 'bold',
-                                    fontFamily: 'monospace',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
-                                    cursor: 'pointer',
-                                    pointerEvents: 'auto',
-                                }}
-                                title="点击展开 FPS 窗口"
-                            >
-                                {fps}
-                            </div>
-                        ) : (
-                            <div
-                                style={{
-                                    width: '160px',
-                                    backgroundColor: 'rgba(30,30,30,0.85)',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-                                    backdropFilter: 'blur(8px)',
-                                    border: '1px solid rgba(255,255,255,0.15)',
-                                    pointerEvents: 'auto',
-                                }}
-                            >
-                                <div
-                                    ref={titleRef}
-                                    style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        padding: '8px 12px',
-                                        backgroundColor: 'rgba(0,0,0,0.3)',
-                                        borderRadius: '8px 8px 0 0',
-                                        cursor: 'grab',
-                                        color: '#ddd',
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        userSelect: 'none',
-                                        pointerEvents: 'auto',
-                                    }}
-                                >
-                                    <span>📊 FPS</span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsCollapsed(true);
-                                        }}
-                                        style={{
-                                            background: 'transparent',
-                                            border: 'none',
-                                            color: '#aaa',
-                                            fontSize: '18px',
-                                            cursor: 'pointer',
-                                            padding: '0 4px',
-                                            lineHeight: 1,
-                                            pointerEvents: 'auto',
-                                        }}
-                                        title="折叠到右下角"
-                                    >
-                                        ➖
-                                    </button>
-                                </div>
-                                <div
-                                    style={{
-                                        padding: '14px 10px 16px',
-                                        textAlign: 'center',
-                                        color: '#0f0',
-                                        fontFamily: 'monospace',
-                                        fontSize: '28px',
-                                        fontWeight: 'bold',
-                                        letterSpacing: '1px',
-                                        textShadow: '0 0 12px rgba(0,255,0,0.3)',
-                                    }}
-                                >
-                                    {fps}
-                                    <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 原有底部内容 */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{ width: stageDimensions.width, height: stageDimensions.height }}
@@ -335,7 +172,77 @@ const StageComponent = props => {
                 )}
             </Box>
             {isColorPicking ? <Box className={styles.colorPickerBackground} onClick={onDeactivateColorPicker} /> : null}
-        </React.Fragment>
+        </>
+    );
+
+    return (
+        <div
+            ref={windowRef}
+            style={{
+                position: 'fixed',
+                left: windowPos.x,
+                top: windowPos.y,
+                zIndex: 10000,
+                backgroundColor: '#2a2a2a',
+                borderRadius: '8px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                overflow: 'hidden',
+                // 最小化时高度只显示标题栏，否则为内容高度
+                height: isMinimized ? '36px' : 'auto',
+                transition: 'height 0.25s ease, width 0.25s ease',
+                width: isMinimized ? 'auto' : stageDimensions.width + 2, // 加边框宽度
+                minWidth: isMinimized ? '200px' : 'auto',
+                resize: 'none',
+                pointerEvents: 'auto',
+                border: '1px solid rgba(255,255,255,0.1)',
+            }}
+        >
+            {/* 标题栏 */}
+            <div
+                className="stage-window-titlebar"
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '4px 12px',
+                    height: '36px',
+                    backgroundColor: 'rgba(40,40,40,0.9)',
+                    borderBottom: isMinimized ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                    cursor: 'grab',
+                    userSelect: 'none',
+                    color: '#ddd',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    fontFamily: 'Segoe UI, sans-serif',
+                }}
+            >
+                <span>🎬 舞台</span>
+                <button
+                    onClick={toggleMinimize}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#aaa',
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        padding: '0 6px',
+                        lineHeight: 1,
+                    }}
+                    title={isMinimized ? '展开舞台' : '最小化舞台'}
+                >
+                    {isMinimized ? '⬆' : '➖'}
+                </button>
+            </div>
+
+            {/* 舞台内容区域（最小化时隐藏） */}
+            <div
+                style={{
+                    display: isMinimized ? 'none' : 'block',
+                }}
+            >
+                {stageContent}
+            </div>
+        </div>
     );
 };
 
@@ -359,4 +266,5 @@ StageComponent.propTypes = {
     useEditorDragStyle: PropTypes.bool,
 };
 StageComponent.defaultProps = { dragRef: () => {} };
+
 export default StageComponent;
