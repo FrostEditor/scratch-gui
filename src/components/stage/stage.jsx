@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, { useState, useEffect } from 'react'; // [FPS] 新增 hooks 导入
 import classNames from 'classnames';
 
 import Box from '../box/box.jsx';
@@ -34,6 +34,30 @@ const StageComponent = props => {
         onQuestionAnswered,
         ...boxProps
     } = props;
+
+    // [FPS] 状态和测量逻辑开始 ----------------
+    const [fps, setFps] = useState(0);
+
+    useEffect(() => {
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let rafId = null;
+
+        const measureFPS = () => {
+            const now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 1000) {
+                setFps(frameCount);
+                frameCount = 0;
+                lastTime = now;
+            }
+            rafId = requestAnimationFrame(measureFPS);
+        };
+        measureFPS();
+
+        return () => cancelAnimationFrame(rafId);
+    }, []);
+    // [FPS] 结束 ---------------------------------
 
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
@@ -101,6 +125,28 @@ const StageComponent = props => {
                     )}
                     style={transformStyle}
                 >
+                    {/* [FPS] 浮动显示窗口 - 开始 */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: '10px',
+                            right: '10px',
+                            color: '#0f0',
+                            fontFamily: 'monospace',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            background: 'rgba(0, 0, 0, 0.7)',
+                            padding: '4px 10px',
+                            borderRadius: '4px',
+                            zIndex: 9999,
+                            pointerEvents: 'none',   // 鼠标穿透，不干扰舞台操作
+                            userSelect: 'none'
+                        }}
+                    >
+                        FPS: {fps}
+                    </div>
+                    {/* [FPS] 结束 */}
+
                     <div
                         className={styles.stageBottomWrapper}
                         style={{
