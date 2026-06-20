@@ -128,6 +128,29 @@ BooleanSetting.propTypes = {
     label: PropTypes.node.isRequired
 };
 
+// 新增：浮动舞台窗口设置
+const FloatingStageWindow = props => (
+    <BooleanSetting
+        {...props}
+        label={
+            <FormattedMessage
+                defaultMessage="Floating Stage Window"
+                description="Floating stage window setting"
+                id="tw.settingsModal.floatingStageWindow"
+            />
+        }
+        help={
+            <FormattedMessage
+                // eslint-disable-next-line max-len
+                defaultMessage="Make the stage a separate floating window that can be dragged, minimized, and fullscreened independently of the editor layout."
+                description="Floating stage window help"
+                id="tw.settingsModal.floatingStageWindowHelp"
+            />
+        }
+        slug="floating-stage-window"
+    />
+);
+
 const HighQualityPen = props => (
     <BooleanSetting
         {...props}
@@ -464,6 +487,20 @@ const SettingsModalComponent = props => (
                 value={props.warpTimer}
                 onChange={props.onWarpTimerChange}
             />
+
+            {/* 新增：浮动舞台窗口 */}
+            <Header>
+                <FormattedMessage
+                    defaultMessage="Window Mode"
+                    description="Settings modal section for window mode"
+                    id="tw.settingsModal.windowMode"
+                />
+            </Header>
+            <FloatingStageWindow
+                value={props.windowMode}
+                onChange={props.onWindowModeChange}
+            />
+
             <Header>
                 <FormattedMessage
                     defaultMessage="Remove Limits"
@@ -528,7 +565,10 @@ SettingsModalComponent.propTypes = {
     warpTimer: PropTypes.bool,
     onWarpTimerChange: PropTypes.func,
     disableCompiler: PropTypes.bool,
-    onDisableCompilerChange: PropTypes.func
+    onDisableCompilerChange: PropTypes.func,
+    // 新增
+    windowMode: PropTypes.bool,
+    onWindowModeChange: PropTypes.func
 };
 
 export default injectIntl(SettingsModalComponent);
