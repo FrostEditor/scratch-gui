@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // [FPS Window] 新增 useRef, useCallback
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import classNames from 'classnames';
 
 import Box from '../box/box.jsx';
@@ -35,23 +35,22 @@ const StageComponent = props => {
         ...boxProps
     } = props;
 
-    // ===== [FPS Window] 状态管理 =====
+    // --- FPS 状态 ---
     const [fps, setFps] = useState(0);
-    const [isVisible, setIsVisible] = useState(true);      // 窗口是否显示
-    const [position, setPosition] = useState({ x: 20, y: 20 }); // 窗口左上角相对 stageOverlays 的位置
+    const [isCollapsed, setIsCollapsed] = useState(false); // true=折叠成小球, false=完整窗口
+    const [position, setPosition] = useState({ x: 20, y: 20 });
 
-    // 拖拽相关 refs
-    const dragRefLocal = useRef(null);        // 窗口根元素
+    // --- 拖拽 refs ---
+    const windowRef = useRef(null);
     const isDragging = useRef(false);
     const dragOffset = useRef({ x: 0, y: 0 });
 
-    // ===== FPS 测量 (不变) =====
+    // --- FPS 测量 ---
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
         let rafId = null;
-
-        const measureFPS = () => {
+        const measure = () => {
             const now = performance.now();
             frameCount++;
             if (now - lastTime >= 1000) {
@@ -59,62 +58,74 @@ const StageComponent = props => {
                 frameCount = 0;
                 lastTime = now;
             }
-            rafId = requestAnimationFrame(measureFPS);
+            rafId = requestAnimationFrame(measure);
         };
-        measureFPS();
-
+        measure();
         return () => cancelAnimationFrame(rafId);
     }, []);
 
-    // ===== 拖拽事件处理 =====
-    const onMouseDown = useCallback((e) => {
-        // 只允许通过标题栏拖拽
-        if (!e.target.closest('.fps-window-title')) return;
-        isDragging.current = true;
-        const rect = dragRefLocal.current.getBoundingClientRect();
+    // --- 统一的拖拽处理（鼠标 + 触摸） ---
+    const startDrag = useCallback((e) => {
+        // 只有点击标题栏或悬浮球时才可拖拽
+        const target = e.target;
+        if (!target.closest('.fps-draggable-area')) return;
+        e.preventDefault(); // 防止选中文本
+
+        const rect = windowRef.current.getBoundingClientRect();
+        const clientX = e.clientX || e.touches?.[0]?.clientX;
+        const clientY = e.clientY || e.touches?.[0]?.clientY;
+        if (clientX == null) return;
+
         dragOffset.current = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: clientX - rect.left,
+            y: clientY - rect.top
         };
-        // 防止选中文本
-        e.preventDefault();
+        isDragging.current = true;
     }, []);
 
     useEffect(() => {
-        const onMouseMove = (e) => {
+        const onMove = (e) => {
             if (!isDragging.current) return;
-            // 计算新位置（相对于 stageOverlays 容器）
-            const container = dragRefLocal.current.parentElement;
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (clientX == null) return;
+
+            const container = windowRef.current.parentElement;
             if (!container) return;
             const containerRect = container.getBoundingClientRect();
-            let newX = e.clientX - containerRect.left - dragOffset.current.x;
-            let newY = e.clientY - containerRect.top - dragOffset.current.y;
-            // 边界限制（防止拖出视野）
-            const winWidth = dragRefLocal.current.offsetWidth;
-            const winHeight = dragRefLocal.current.offsetHeight;
+            const winWidth = windowRef.current.offsetWidth;
+            const winHeight = windowRef.current.offsetHeight;
+
+            let newX = clientX - containerRect.left - dragOffset.current.x;
+            let newY = clientY - containerRect.top - dragOffset.current.y;
+            // 边界约束
             newX = Math.max(0, Math.min(newX, containerRect.width - winWidth));
             newY = Math.max(0, Math.min(newY, containerRect.height - winHeight));
             setPosition({ x: newX, y: newY });
         };
 
-        const onMouseUp = () => {
+        const onEnd = () => {
             isDragging.current = false;
         };
 
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd);
         return () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onEnd);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onEnd);
         };
     }, []);
 
-    // ===== 窗口切换 =====
-    const toggleVisibility = useCallback(() => {
-        setIsVisible(prev => !prev);
+    // --- 切换折叠/展开 ---
+    const toggleCollapse = useCallback(() => {
+        setIsCollapsed(prev => !prev);
     }, []);
 
-    // ===== 舞台尺寸计算 (不变) =====
+    // --- 舞台尺寸 ---
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen ? {
@@ -172,7 +183,7 @@ const StageComponent = props => {
                     ) : null}
                 </Box>
 
-                {/* ===== stageOverlays 区域 ===== */}
+                {/* ===== 舞台覆盖层 ===== */}
                 <Box
                     className={classNames(
                         styles.stageOverlays,
@@ -180,108 +191,119 @@ const StageComponent = props => {
                     )}
                     style={transformStyle}
                 >
-                    {/* ===== [FPS Window] 浮动窗口 ===== */}
-                    {isVisible && (
-                        <div
-                            ref={dragRefLocal}
-                            onMouseDown={onMouseDown}
-                            style={{
-                                position: 'absolute',
-                                left: position.x,
-                                top: position.y,
-                                width: '160px',
-                                backgroundColor: 'rgba(30, 30, 30, 0.85)',
-                                borderRadius: '6px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                backdropFilter: 'blur(4px)',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                                zIndex: 9999,
-                                userSelect: 'none',
-                                fontFamily: 'Segoe UI, sans-serif',
-                                cursor: 'default'
-                            }}
-                        >
-                            {/* 标题栏 */}
+                    {/* ===== FPS 浮动窗口 ===== */}
+                    <div
+                        ref={windowRef}
+                        onMouseDown={startDrag}
+                        onTouchStart={startDrag}
+                        style={{
+                            position: 'absolute',
+                            left: position.x,
+                            top: position.y,
+                            zIndex: 9999,
+                            userSelect: 'none',
+                            fontFamily: 'Segoe UI, sans-serif',
+                            cursor: 'default',
+                            pointerEvents: 'auto', // 确保可以交互
+                        }}
+                    >
+                        {isCollapsed ? (
+                            // ----- 折叠状态：圆形悬浮球 -----
                             <div
-                                className="fps-window-title"
+                                className="fps-draggable-area"
+                                onClick={toggleCollapse}
                                 style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(30,30,30,0.85)',
+                                    backdropFilter: 'blur(4px)',
+                                    border: '1px solid rgba(0,255,0,0.3)',
                                     display: 'flex',
-                                    justifyContent: 'space-between',
                                     alignItems: 'center',
-                                    padding: '6px 10px',
-                                    backgroundColor: 'rgba(0,0,0,0.3)',
-                                    borderRadius: '6px 6px 0 0',
-                                    cursor: 'grab',
-                                    color: '#ccc',
-                                    fontSize: '13px',
-                                    fontWeight: 600
-                                }}
-                            >
-                                <span>📊 FPS</span>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsVisible(false);
-                                    }}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: '#aaa',
-                                        fontSize: '16px',
-                                        cursor: 'pointer',
-                                        padding: '0 4px',
-                                        lineHeight: 1
-                                    }}
-                                    title="隐藏窗口"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            {/* 内容 */}
-                            <div
-                                style={{
-                                    padding: '12px 10px',
-                                    textAlign: 'center',
+                                    justifyContent: 'center',
                                     color: '#0f0',
-                                    fontFamily: 'monospace',
-                                    fontSize: '24px',
+                                    fontSize: '16px',
                                     fontWeight: 'bold',
-                                    letterSpacing: '1px',
-                                    textShadow: '0 0 8px rgba(0,255,0,0.3)'
+                                    fontFamily: 'monospace',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                                    cursor: 'grab',
                                 }}
+                                title="展开FPS窗口"
                             >
                                 {fps}
-                                <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            // ----- 展开状态：完整窗口 -----
+                            <div
+                                style={{
+                                    width: '160px',
+                                    backgroundColor: 'rgba(30,30,30,0.85)',
+                                    borderRadius: '6px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                    backdropFilter: 'blur(4px)',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    pointerEvents: 'auto',
+                                }}
+                            >
+                                {/* 标题栏（可拖拽区域） */}
+                                <div
+                                    className="fps-draggable-area"
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '6px 10px',
+                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        borderRadius: '6px 6px 0 0',
+                                        cursor: 'grab',
+                                        color: '#ccc',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    <span>📊 FPS</span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsCollapsed(true); // 折叠成小球
+                                        }}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#aaa',
+                                            fontSize: '16px',
+                                            cursor: 'pointer',
+                                            padding: '0 4px',
+                                            lineHeight: 1,
+                                            pointerEvents: 'auto',
+                                        }}
+                                        title="最小化到悬浮球"
+                                    >
+                                        ➖
+                                    </button>
+                                </div>
+                                {/* 内容 */}
+                                <div
+                                    style={{
+                                        padding: '12px 10px',
+                                        textAlign: 'center',
+                                        color: '#0f0',
+                                        fontFamily: 'monospace',
+                                        fontSize: '24px',
+                                        fontWeight: 'bold',
+                                        letterSpacing: '1px',
+                                        textShadow: '0 0 8px rgba(0,255,0,0.3)',
+                                    }}
+                                >
+                                    {fps}
+                                    <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-                    {/* [FPS Window] 当窗口隐藏时，显示一个小的显示按钮（浮动） */}
-                    {!isVisible && (
-                        <div
-                            onClick={toggleVisibility}
-                            style={{
-                                position: 'absolute',
-                                bottom: '20px',
-                                right: '20px',
-                                backgroundColor: 'rgba(0,0,0,0.6)',
-                                color: '#0f0',
-                                padding: '6px 12px',
-                                borderRadius: '20px',
-                                fontSize: '13px',
-                                cursor: 'pointer',
-                                zIndex: 9999,
-                                fontFamily: 'monospace',
-                                border: '1px solid rgba(0,255,0,0.2)',
-                                backdropFilter: 'blur(4px)',
-                                userSelect: 'none'
-                            }}
-                        >
-                            📊 FPS
-                        </div>
-                    )}
-
-                    {/* 原有内容：stageBottomWrapper 等保持不变 */}
+                    {/* ===== 原有内容 ===== */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{
