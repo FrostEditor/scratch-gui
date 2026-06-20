@@ -37,15 +37,15 @@ const StageComponent = props => {
 
     // --- 状态 ---
     const [fps, setFps] = useState(0);
-    const [isCollapsed, setIsCollapsed] = useState(false); // 是否折叠成小球
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const [position, setPosition] = useState({ x: 20, y: 20 }); // 展开时的位置
-    const [collapsedPos, setCollapsedPos] = useState({ x: 0, y: 0 }); // 折叠时的右下角坐标（计算用）
 
-    // --- refs ---
+    // --- refs（用于拖拽）---
     const windowRef = useRef(null);
-    const dragRefLocal = useRef(null); // 用于拖拽判断
+    const dragOffset = useRef({ x: 0, y: 0 });
+    const isDragging = useRef(false);
 
-    // --- 测量FPS ---
+    // --- FPS 测量 ---
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
@@ -64,53 +64,62 @@ const StageComponent = props => {
         return () => cancelAnimationFrame(rafId);
     }, []);
 
-    // --- 计算折叠位置（右下角）---
-    useEffect(() => {
-        if (!windowRef.current) return;
-        const container = windowRef.current.parentElement;
-        if (!container) return;
-        const containerRect = container.getBoundingClientRect();
-        // 折叠小球尺寸约 56px
-        setCollapsedPos({
-            x: containerRect.width - 56 - 20,
-            y: containerRect.height - 56 - 20
-        });
-    }, [isFullScreen, stageSize]); // 当窗口大小变化时重新计算
+    // --- 舞台尺寸 ---
+    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
+    const minWidth = getMinWidth(stageSize);
+    const transformStyle = stageDimensions.width < minWidth && !isFullScreen ? {
+        transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)`
+    } : {};
 
-    // --- 拖拽逻辑（直接绑定在可拖拽元素上）---
-    const handleDragStart = useCallback((e) => {
-        // 只有点击标题栏或悬浮球才启动拖拽
-        const target = e.target;
-        if (!target.closest('.fps-draggable')) return;
-        e.preventDefault();
+    // --- 计算折叠时的右下角坐标（相对于 stageOverlays 容器）---
+    const collapsedX = stageDimensions.width - 56 - 20; // 小球宽56，距右侧20
+    const collapsedY = stageDimensions.height - 56 - 20;
+
+    // --- 获取当前实际位置（展开时用 position，折叠时用右下角）---
+    const currentPos = isCollapsed
+        ? { x: collapsedX, y: collapsedY }
+        : position;
+
+    // --- 拖拽处理（直接绑定在标题栏和悬浮球上）---
+    const startDrag = useCallback((e) => {
+        e.preventDefault(); // 防止文本选中
         const rect = windowRef.current.getBoundingClientRect();
         const clientX = e.clientX || e.touches?.[0]?.clientX;
         const clientY = e.clientY || e.touches?.[0]?.clientY;
         if (clientX == null) return;
 
-        const offsetX = clientX - rect.left;
-        const offsetY = clientY - rect.top;
+        dragOffset.current = {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+        isDragging.current = true;
 
         const onMove = (ev) => {
+            if (!isDragging.current) return;
             const cx = ev.clientX || ev.touches?.[0]?.clientX;
             const cy = ev.clientY || ev.touches?.[0]?.clientY;
             if (cx == null) return;
+
             const container = windowRef.current.parentElement;
             if (!container) return;
             const containerRect = container.getBoundingClientRect();
             const winWidth = windowRef.current.offsetWidth;
             const winHeight = windowRef.current.offsetHeight;
-            let newX = cx - containerRect.left - offsetX;
-            let newY = cy - containerRect.top - offsetY;
+
+            let newX = cx - containerRect.left - dragOffset.current.x;
+            let newY = cy - containerRect.top - dragOffset.current.y;
+            // 边界限制
             newX = Math.max(0, Math.min(newX, containerRect.width - winWidth));
             newY = Math.max(0, Math.min(newY, containerRect.height - winHeight));
-            // 只有展开时才允许拖拽移动位置（折叠时固定右下角）
+
+            // 只有展开时才更新 position（折叠时位置固定，无法拖动）
             if (!isCollapsed) {
                 setPosition({ x: newX, y: newY });
             }
         };
 
         const onUp = () => {
+            isDragging.current = false;
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
             window.removeEventListener('touchmove', onMove);
@@ -127,24 +136,6 @@ const StageComponent = props => {
     const toggleCollapse = useCallback(() => {
         setIsCollapsed(prev => !prev);
     }, []);
-
-    // --- 折叠时，强制使用右下角坐标 ---
-    const getCurrentPosition = () => {
-        if (isCollapsed) {
-            return collapsedPos;
-        } else {
-            return position;
-        }
-    };
-
-    // --- 舞台尺寸 ---
-    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
-    const minWidth = getMinWidth(stageSize);
-    const transformStyle = stageDimensions.width < minWidth && !isFullScreen ? {
-        transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)`
-    } : {};
-
-    const currentPos = getCurrentPosition();
 
     return (
         <React.Fragment>
@@ -208,8 +199,6 @@ const StageComponent = props => {
                     {/* ===== FPS 浮动窗口 ===== */}
                     <div
                         ref={windowRef}
-                        onMouseDown={handleDragStart}
-                        onTouchStart={handleDragStart}
                         style={{
                             position: 'absolute',
                             left: currentPos.x,
@@ -217,19 +206,18 @@ const StageComponent = props => {
                             zIndex: 9999,
                             userSelect: 'none',
                             fontFamily: 'Segoe UI, sans-serif',
-                            cursor: 'grab',
-                            pointerEvents: 'auto',
-                            // 平滑过渡动画
+                            pointerEvents: 'auto', // 确保可以交互
                             transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                            // 折叠时缩放变小，展开时正常
                             transform: isCollapsed ? 'scale(0.7)' : 'scale(1)',
                             opacity: 1,
                         }}
                     >
                         {isCollapsed ? (
-                            // ----- 折叠状态：圆形悬浮球（可拖拽）-----
+                            // ----- 折叠状态：圆形悬浮球 -----
                             <div
                                 className="fps-draggable"
+                                onMouseDown={startDrag}
+                                onTouchStart={startDrag}
                                 onClick={toggleCollapse}
                                 style={{
                                     width: '56px',
@@ -248,13 +236,14 @@ const StageComponent = props => {
                                     boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
                                     cursor: 'grab',
                                     transition: 'all 0.3s ease',
+                                    pointerEvents: 'auto',
                                 }}
                                 title="点击展开FPS窗口"
                             >
                                 {fps}
                             </div>
                         ) : (
-                            // ----- 展开状态：完整窗口（可拖拽）-----
+                            // ----- 展开状态：完整窗口 -----
                             <div
                                 style={{
                                     width: '160px',
@@ -270,6 +259,8 @@ const StageComponent = props => {
                                 {/* 标题栏（可拖拽区域） */}
                                 <div
                                     className="fps-draggable"
+                                    onMouseDown={startDrag}
+                                    onTouchStart={startDrag}
                                     style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
@@ -282,6 +273,7 @@ const StageComponent = props => {
                                         fontSize: '13px',
                                         fontWeight: 600,
                                         userSelect: 'none',
+                                        pointerEvents: 'auto',
                                     }}
                                 >
                                     <span>📊 FPS</span>
@@ -308,7 +300,7 @@ const StageComponent = props => {
                                         ➖
                                     </button>
                                 </div>
-                                {/* 内容 */}
+                                {/* FPS数值显示 */}
                                 <div
                                     style={{
                                         padding: '14px 10px 16px',
@@ -328,7 +320,7 @@ const StageComponent = props => {
                         )}
                     </div>
 
-                    {/* ===== 原有内容：舞台底部叠加层、麦克风、问题等 ===== */}
+                    {/* ===== 原有底部覆盖内容（麦克风、问题等） ===== */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{
