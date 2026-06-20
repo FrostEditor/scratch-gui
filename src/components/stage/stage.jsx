@@ -32,11 +32,31 @@ const StageComponent = props => {
         onDeactivateColorPicker,
         onDoubleClick,
         onQuestionAnswered,
-        windowMode, // 新增：是否启用浮动窗口模式
         ...boxProps
     } = props;
 
-    // ===== 原版内嵌内容（不包裹窗口） =====
+    // ===== 读取 localStorage 中的窗口模式设置 =====
+    const [windowMode, setWindowMode] = useState(() => {
+        return localStorage.getItem('stageWindowMode') === 'true';
+    });
+
+    // ===== 监听设置变化 =====
+    useEffect(() => {
+        const handler = (e) => {
+            setWindowMode(e.detail.enabled);
+        };
+        window.addEventListener('stageWindowModeChange', handler);
+        return () => window.removeEventListener('stageWindowModeChange', handler);
+    }, []);
+
+    // ===== 计算舞台尺寸（放在最前面，因为后续都会用到） =====
+    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
+    const minWidth = getMinWidth(stageSize);
+    const transformStyle = stageDimensions.width < minWidth && !isFullScreen
+        ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
+        : {};
+
+    // ===== 原版舞台内容（不包裹浮动窗口） =====
     const originalStageContent = (
         <Box
             className={classNames(
@@ -95,7 +115,9 @@ const StageComponent = props => {
         </Box>
     );
 
-    // ===== 浮动窗口模式（之前实现） =====
+    // ============================================================
+    // 浮动窗口模式的相关状态和逻辑（仅当 windowMode 为 true 时使用）
+    // ============================================================
     const [isMinimized, setIsMinimized] = useState(false);
     const [windowPos, setWindowPos] = useState({ x: 100, y: 100 });
     const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
@@ -103,7 +125,7 @@ const StageComponent = props => {
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
     const positionRef = useRef({ x: windowPos.x, y: windowPos.y });
 
-    // FPS 相关（同前，省略详细代码，但需保留）
+    // FPS 相关
     const [fps, setFps] = useState(0);
     const [isFpsCollapsed, setIsFpsCollapsed] = useState(false);
     const [fpsPos, setFpsPos] = useState({ x: 20, y: 20 });
@@ -112,6 +134,7 @@ const StageComponent = props => {
     const fpsTitleRef = useRef(null);
     const fpsBallRef = useRef(null);
 
+    // FPS 测量
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
@@ -130,12 +153,7 @@ const StageComponent = props => {
         return () => cancelAnimationFrame(rafId);
     }, []);
 
-    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
-    const minWidth = getMinWidth(stageSize);
-    const transformStyle = stageDimensions.width < minWidth && !isFullScreen
-        ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
-        : {};
-
+    // 监听原生全屏变化
     useEffect(() => {
         const onFullscreenChange = () => {
             setIsNativeFullscreen(!!document.fullscreenElement);
@@ -144,7 +162,7 @@ const StageComponent = props => {
         return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
     }, []);
 
-    // 拖拽事件（优化后）
+    // 舞台窗口拖拽
     useEffect(() => {
         const titleBar = document.querySelector('.stage-window-titlebar');
         if (!titleBar || !windowRef.current) return;
@@ -205,10 +223,74 @@ const StageComponent = props => {
         };
     }, [windowPos]);
 
-    // FPS 拖拽（同前，省略）
-    // ...（同上文中的 FPS 拖拽逻辑，因篇幅省略，实际使用时需包含）
+    // FPS 小窗口拖拽
+    useEffect(() => {
+        const target = isFpsCollapsed ? fpsBallRef.current : fpsTitleRef.current;
+        if (!target || !fpsRef.current) return;
 
-    // 切换函数
+        const container = fpsRef.current.parentElement;
+        if (!container) return;
+
+        const onFpsDragStart = (e) => {
+            if (isFpsCollapsed) return;
+            e.preventDefault();
+            const rect = fpsRef.current.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (clientX == null) return;
+            fpsDragData.current = {
+                isDragging: true,
+                offsetX: clientX - rect.left,
+                offsetY: clientY - rect.top,
+            };
+
+            const onMove = (ev) => {
+                if (!fpsDragData.current.isDragging) return;
+                const cx = ev.clientX || ev.touches?.[0]?.clientX;
+                const cy = ev.clientY || ev.touches?.[0]?.clientY;
+                if (cx == null) return;
+                const containerRect = container.getBoundingClientRect();
+                const winWidth = fpsRef.current.offsetWidth;
+                const winHeight = fpsRef.current.offsetHeight;
+                let newX = cx - containerRect.left - fpsDragData.current.offsetX;
+                let newY = cy - containerRect.top - fpsDragData.current.offsetY;
+                const maxX = Math.max(0, containerRect.width - winWidth);
+                const maxY = Math.max(0, containerRect.height - winHeight);
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                if (fpsRef.current) {
+                    fpsRef.current.style.left = newX + 'px';
+                    fpsRef.current.style.top = newY + 'px';
+                }
+                fpsDragData.current.lastPos = { x: newX, y: newY };
+            };
+
+            const onUp = () => {
+                fpsDragData.current.isDragging = false;
+                if (fpsDragData.current.lastPos) {
+                    setFpsPos(fpsDragData.current.lastPos);
+                }
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onUp);
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
+        };
+
+        target.addEventListener('mousedown', onFpsDragStart);
+        target.addEventListener('touchstart', onFpsDragStart, { passive: false });
+
+        return () => {
+            target.removeEventListener('mousedown', onFpsDragStart);
+            target.removeEventListener('touchstart', onFpsDragStart);
+        };
+    }, [isFpsCollapsed]);
+
     const toggleMinimize = useCallback(() => setIsMinimized(prev => !prev), []);
     const toggleFpsCollapse = useCallback(() => setIsFpsCollapsed(prev => !prev), []);
     const toggleFullscreen = useCallback(async () => {
@@ -224,7 +306,7 @@ const StageComponent = props => {
         }
     }, []);
 
-    // FPS 小窗口内容（同前）
+    // FPS 小窗口 JSX
     const fpsWindow = (
         <div
             ref={fpsRef}
@@ -337,7 +419,7 @@ const StageComponent = props => {
         </div>
     );
 
-    // 带FPS的舞台内容（用于窗口模式）
+    // 带 FPS 的舞台内容（用于浮动窗口）
     const stageContentWithFPS = (
         <>
             {originalStageContent}
@@ -487,11 +569,9 @@ StageComponent.propTypes = {
     question: PropTypes.string,
     stageSize: PropTypes.oneOf(Object.keys(STAGE_DISPLAY_SIZES)).isRequired,
     useEditorDragStyle: PropTypes.bool,
-    windowMode: PropTypes.bool, // 新增 prop
 };
 StageComponent.defaultProps = {
     dragRef: () => {},
-    windowMode: false, // 默认关闭（原版）
 };
 
 export default StageComponent;
