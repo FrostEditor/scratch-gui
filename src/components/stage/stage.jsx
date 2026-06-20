@@ -35,17 +35,22 @@ const StageComponent = props => {
         ...boxProps
     } = props;
 
-    // ===== 状态 =====
+    // 状态
     const [fps, setFps] = useState(0);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [position, setPosition] = useState({ x: 20, y: 20 });
 
-    // ===== refs =====
+    // refs
     const windowRef = useRef(null);
-    const isDragging = useRef(false);
-    const dragOffset = useRef({ x: 0, y: 0 });
+    const titleRef = useRef(null);
+    const ballRef = useRef(null);
+    const dragData = useRef({
+        isDragging: false,
+        offsetX: 0,
+        offsetY: 0,
+    });
 
-    // ===== FPS 测量 =====
+    // FPS 测量
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
@@ -64,83 +69,96 @@ const StageComponent = props => {
         return () => cancelAnimationFrame(rafId);
     }, []);
 
-    // ===== 计算舞台尺寸 =====
+    // 舞台尺寸
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
     const transformStyle = stageDimensions.width < minWidth && !isFullScreen
         ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
         : {};
 
-    // ===== 折叠右下角坐标（相对于 stageOverlays 容器） =====
-    const collapsedX = stageDimensions.width - 56 - 20;  // 小球56px，右边距20
+    // 折叠时的右下角坐标
+    const collapsedX = stageDimensions.width - 56 - 20;
     const collapsedY = stageDimensions.height - 56 - 20;
-
     const currentPos = isCollapsed
         ? { x: collapsedX, y: collapsedY }
         : position;
 
-    // ===== 拖拽逻辑 =====
-    const startDrag = useCallback((e) => {
-        // 只允许在展开状态下拖动
-        if (isCollapsed) {
-            // 如果点击的是悬浮球，点击事件会触发展开，这里不做拖拽
-            return;
-        }
+    // --- 原生拖拽事件绑定 ---
+    useEffect(() => {
+        const targetElement = isCollapsed ? ballRef.current : titleRef.current;
+        if (!targetElement || !windowRef.current) return;
 
-        // 阻止文本选中
-        e.preventDefault();
+        const container = windowRef.current.parentElement;
+        if (!container) return;
 
-        const rect = windowRef.current.getBoundingClientRect();
-        const clientX = e.clientX || e.touches?.[0]?.clientX;
-        const clientY = e.clientY || e.touches?.[0]?.clientY;
-        if (clientX == null) return;
+        const onDragStart = (e) => {
+            if (isCollapsed) return; // 折叠时不允许拖拽
+            e.preventDefault();
+            const rect = windowRef.current.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (clientX == null) return;
 
-        dragOffset.current = {
-            x: clientX - rect.left,
-            y: clientY - rect.top
+            dragData.current = {
+                isDragging: true,
+                offsetX: clientX - rect.left,
+                offsetY: clientY - rect.top,
+            };
+            console.log('拖拽开始 (原生)');
+
+            const onMove = (ev) => {
+                if (!dragData.current.isDragging) return;
+                const cx = ev.clientX || ev.touches?.[0]?.clientX;
+                const cy = ev.clientY || ev.touches?.[0]?.clientY;
+                if (cx == null) return;
+
+                const containerRect = container.getBoundingClientRect();
+                const winWidth = windowRef.current.offsetWidth;
+                const winHeight = windowRef.current.offsetHeight;
+
+                // 调试：打印容器和窗口尺寸
+                console.log('容器尺寸:', containerRect.width, containerRect.height);
+                console.log('窗口尺寸:', winWidth, winHeight);
+
+                let newX = cx - containerRect.left - dragData.current.offsetX;
+                let newY = cy - containerRect.top - dragData.current.offsetY;
+
+                // 边界约束 – 允许在舞台内自由移动，若超出则 clamp
+                const maxX = Math.max(0, containerRect.width - winWidth);
+                const maxY = Math.max(0, containerRect.height - winHeight);
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+
+                console.log('新位置:', newX, newY);
+
+                setPosition({ x: newX, y: newY });
+            };
+
+            const onUp = () => {
+                dragData.current.isDragging = false;
+                console.log('拖拽结束');
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onUp);
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
         };
-        isDragging.current = true;
 
-        console.log('拖拽开始'); // 调试日志
+        targetElement.addEventListener('mousedown', onDragStart);
+        targetElement.addEventListener('touchstart', onDragStart, { passive: false });
 
-        const onMove = (ev) => {
-            if (!isDragging.current) return;
-            const cx = ev.clientX || ev.touches?.[0]?.clientX;
-            const cy = ev.clientY || ev.touches?.[0]?.clientY;
-            if (cx == null) return;
-
-            const container = windowRef.current.parentElement;
-            if (!container) return;
-            const containerRect = container.getBoundingClientRect();
-            const winWidth = windowRef.current.offsetWidth;
-            const winHeight = windowRef.current.offsetHeight;
-
-            let newX = cx - containerRect.left - dragOffset.current.x;
-            let newY = cy - containerRect.top - dragOffset.current.y;
-
-            // 边界约束
-            newX = Math.max(0, Math.min(newX, containerRect.width - winWidth));
-            newY = Math.max(0, Math.min(newY, containerRect.height - winHeight));
-
-            setPosition({ x: newX, y: newY });
+        return () => {
+            targetElement.removeEventListener('mousedown', onDragStart);
+            targetElement.removeEventListener('touchstart', onDragStart);
         };
-
-        const onUp = () => {
-            isDragging.current = false;
-            console.log('拖拽结束');
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            window.removeEventListener('touchmove', onMove);
-            window.removeEventListener('touchend', onUp);
-        };
-
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onUp);
     }, [isCollapsed]);
 
-    // ===== 切换折叠/展开 =====
+    // 切换折叠
     const toggleCollapse = useCallback(() => {
         setIsCollapsed(prev => !prev);
     }, []);
@@ -175,15 +193,15 @@ const StageComponent = props => {
                     {isColorPicking && colorInfo ? <Loupe colorInfo={colorInfo} /> : null}
                 </Box>
 
-                {/* ===== stageOverlays – 设置 position: relative ===== */}
+                {/* stageOverlays – relative 定位 */}
                 <Box
                     className={classNames(styles.stageOverlays, { [styles.fullScreen]: isFullScreen })}
                     style={{
-                        position: 'relative',   // 关键：让子元素 absolute 相对此容器定位
+                        position: 'relative',
                         ...transformStyle
                     }}
                 >
-                    {/* ===== FPS 浮动窗口 ===== */}
+                    {/* FPS 浮动窗口 */}
                     <div
                         ref={windowRef}
                         style={{
@@ -200,9 +218,8 @@ const StageComponent = props => {
                         }}
                     >
                         {isCollapsed ? (
-                            // ----- 折叠：圆形悬浮球（点击展开） -----
                             <div
-                                className="fps-draggable"
+                                ref={ballRef}
                                 onClick={toggleCollapse}
                                 style={{
                                     width: '56px',
@@ -227,7 +244,6 @@ const StageComponent = props => {
                                 {fps}
                             </div>
                         ) : (
-                            // ----- 展开：完整窗口 -----
                             <div
                                 style={{
                                     width: '160px',
@@ -239,11 +255,8 @@ const StageComponent = props => {
                                     pointerEvents: 'auto',
                                 }}
                             >
-                                {/* 标题栏 – 绑定拖拽 */}
                                 <div
-                                    className="fps-draggable"
-                                    onMouseDown={startDrag}
-                                    onTouchStart={startDrag}
+                                    ref={titleRef}
                                     style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
@@ -280,7 +293,6 @@ const StageComponent = props => {
                                         ➖
                                     </button>
                                 </div>
-                                {/* FPS 数值 */}
                                 <div
                                     style={{
                                         padding: '14px 10px 16px',
@@ -300,7 +312,7 @@ const StageComponent = props => {
                         )}
                     </div>
 
-                    {/* ===== 原有底部内容 ===== */}
+                    {/* 原有底部内容 */}
                     <div
                         className={styles.stageBottomWrapper}
                         style={{ width: stageDimensions.width, height: stageDimensions.height }}
