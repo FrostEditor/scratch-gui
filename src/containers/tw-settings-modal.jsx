@@ -30,9 +30,29 @@ class UsernameModal extends React.Component {
             'handleStageWidthChange',
             'handleStageHeightChange',
             'handleDisableCompilerChange',
-            'handleStoreProjectOptions'
+            'handleStoreProjectOptions',
+            'handleWindowModeChange'
         ]);
+        // 从 localStorage 读取初始值
+        const storedWindowMode = localStorage.getItem('stageWindowMode') === 'true';
+        this.state = {
+            windowMode: storedWindowMode
+        };
     }
+
+    // 监听 storage 变化（其他标签页）
+    componentDidMount() {
+        window.addEventListener('storage', this.handleStorageChange);
+    }
+    componentWillUnmount() {
+        window.removeEventListener('storage', this.handleStorageChange);
+    }
+    handleStorageChange = (e) => {
+        if (e.key === 'stageWindowMode') {
+            this.setState({ windowMode: e.newValue === 'true' });
+        }
+    }
+
     handleFramerateChange (e) {
         this.props.vm.setFramerate(e.target.checked ? 60 : 30);
     }
@@ -85,6 +105,16 @@ class UsernameModal extends React.Component {
     handleStoreProjectOptions () {
         this.props.vm.storeProjectOptions();
     }
+
+    // 新增：处理窗口模式切换
+    handleWindowModeChange (e) {
+        const checked = e.target.checked;
+        this.setState({ windowMode: checked });
+        localStorage.setItem('stageWindowMode', String(checked));
+        // 触发自定义事件，通知其他组件（如舞台）
+        window.dispatchEvent(new CustomEvent('stageWindowModeChange', { detail: { enabled: checked } }));
+    }
+
     render () {
         const {
             /* eslint-disable no-unused-vars */
@@ -114,6 +144,9 @@ class UsernameModal extends React.Component {
                     this.props.customStageSize.height !== defaultStageSize.height
                 }
                 onStoreProjectOptions={this.handleStoreProjectOptions}
+                // 新增 props
+                windowMode={this.state.windowMode}
+                onWindowModeChange={this.handleWindowModeChange}
                 {...props}
             />
         );
