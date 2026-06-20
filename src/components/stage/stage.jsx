@@ -35,17 +35,17 @@ const StageComponent = props => {
         ...boxProps
     } = props;
 
-    // --- 状态 ---
+    // ===== 状态 =====
     const [fps, setFps] = useState(0);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const [position, setPosition] = useState({ x: 20, y: 20 }); // 展开时的位置
+    const [position, setPosition] = useState({ x: 20, y: 20 });
 
-    // --- refs（用于拖拽）---
+    // ===== refs =====
     const windowRef = useRef(null);
-    const dragOffset = useRef({ x: 0, y: 0 });
     const isDragging = useRef(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
 
-    // --- FPS 测量 ---
+    // ===== FPS 测量 =====
     useEffect(() => {
         let frameCount = 0;
         let lastTime = performance.now();
@@ -64,25 +64,32 @@ const StageComponent = props => {
         return () => cancelAnimationFrame(rafId);
     }, []);
 
-    // --- 舞台尺寸 ---
+    // ===== 计算舞台尺寸 =====
     const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
     const minWidth = getMinWidth(stageSize);
-    const transformStyle = stageDimensions.width < minWidth && !isFullScreen ? {
-        transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)`
-    } : {};
+    const transformStyle = stageDimensions.width < minWidth && !isFullScreen
+        ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
+        : {};
 
-    // --- 计算折叠时的右下角坐标（相对于 stageOverlays 容器）---
-    const collapsedX = stageDimensions.width - 56 - 20; // 小球宽56，距右侧20
+    // ===== 折叠右下角坐标（相对于 stageOverlays 容器） =====
+    const collapsedX = stageDimensions.width - 56 - 20;  // 小球56px，右边距20
     const collapsedY = stageDimensions.height - 56 - 20;
 
-    // --- 获取当前实际位置（展开时用 position，折叠时用右下角）---
     const currentPos = isCollapsed
         ? { x: collapsedX, y: collapsedY }
         : position;
 
-    // --- 拖拽处理（直接绑定在标题栏和悬浮球上）---
+    // ===== 拖拽逻辑 =====
     const startDrag = useCallback((e) => {
-        e.preventDefault(); // 防止文本选中
+        // 只允许在展开状态下拖动
+        if (isCollapsed) {
+            // 如果点击的是悬浮球，点击事件会触发展开，这里不做拖拽
+            return;
+        }
+
+        // 阻止文本选中
+        e.preventDefault();
+
         const rect = windowRef.current.getBoundingClientRect();
         const clientX = e.clientX || e.touches?.[0]?.clientX;
         const clientY = e.clientY || e.touches?.[0]?.clientY;
@@ -93,6 +100,8 @@ const StageComponent = props => {
             y: clientY - rect.top
         };
         isDragging.current = true;
+
+        console.log('拖拽开始'); // 调试日志
 
         const onMove = (ev) => {
             if (!isDragging.current) return;
@@ -108,18 +117,17 @@ const StageComponent = props => {
 
             let newX = cx - containerRect.left - dragOffset.current.x;
             let newY = cy - containerRect.top - dragOffset.current.y;
-            // 边界限制
+
+            // 边界约束
             newX = Math.max(0, Math.min(newX, containerRect.width - winWidth));
             newY = Math.max(0, Math.min(newY, containerRect.height - winHeight));
 
-            // 只有展开时才更新 position（折叠时位置固定，无法拖动）
-            if (!isCollapsed) {
-                setPosition({ x: newX, y: newY });
-            }
+            setPosition({ x: newX, y: newY });
         };
 
         const onUp = () => {
             isDragging.current = false;
+            console.log('拖拽结束');
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
             window.removeEventListener('touchmove', onMove);
@@ -132,7 +140,7 @@ const StageComponent = props => {
         window.addEventListener('touchend', onUp);
     }, [isCollapsed]);
 
-    // --- 切换折叠/展开 ---
+    // ===== 切换折叠/展开 =====
     const toggleCollapse = useCallback(() => {
         setIsCollapsed(prev => !prev);
     }, []);
@@ -144,57 +152,36 @@ const StageComponent = props => {
                     styles.stageWrapper,
                     {[styles.withColorPicker]: !isFullScreen && isColorPicking})}
                 onDoubleClick={onDoubleClick}
-                style={isPlayerOnly ? null : {
-                    minWidth: `${minWidth + 2}px`
-                }}
+                style={isPlayerOnly ? null : { minWidth: `${minWidth + 2}px` }}
             >
                 <Box
-                    className={classNames(
-                        styles.stage,
-                        {[styles.fullScreen]: isFullScreen}
-                    )}
+                    className={classNames(styles.stage, { [styles.fullScreen]: isFullScreen })}
                     style={{
                         height: stageDimensions.height,
                         width: stageDimensions.width,
                         ...transformStyle
                     }}
                 >
-                    <DOMElementRenderer
-                        domElement={canvas}
-                        style={{
-                            height: stageDimensions.height,
-                            width: stageDimensions.width
-                        }}
-                        {...boxProps}
-                    />
+                    <DOMElementRenderer domElement={canvas} style={{ height: stageDimensions.height, width: stageDimensions.width }} {...boxProps} />
                     <Box className={styles.customOverlays}>
                         <DOMElementRenderer domElement={props.overlay} />
                     </Box>
                     <Box className={styles.monitorWrapper}>
-                        <MonitorList
-                            draggable={useEditorDragStyle}
-                            stageSize={stageDimensions}
-                        />
+                        <MonitorList draggable={useEditorDragStyle} stageSize={stageDimensions} />
                     </Box>
                     <Box className={styles.frameWrapper}>
-                        <TargetHighlight
-                            className={styles.frame}
-                            stageHeight={stageDimensions.height}
-                            stageWidth={stageDimensions.width}
-                        />
+                        <TargetHighlight stageHeight={stageDimensions.height} stageWidth={stageDimensions.width} />
                     </Box>
-                    {isColorPicking && colorInfo ? (
-                        <Loupe colorInfo={colorInfo} />
-                    ) : null}
+                    {isColorPicking && colorInfo ? <Loupe colorInfo={colorInfo} /> : null}
                 </Box>
 
-                {/* ===== 舞台覆盖层 ===== */}
+                {/* ===== stageOverlays – 设置 position: relative ===== */}
                 <Box
-                    className={classNames(
-                        styles.stageOverlays,
-                        {[styles.fullScreen]: isFullScreen}
-                    )}
-                    style={transformStyle}
+                    className={classNames(styles.stageOverlays, { [styles.fullScreen]: isFullScreen })}
+                    style={{
+                        position: 'relative',   // 关键：让子元素 absolute 相对此容器定位
+                        ...transformStyle
+                    }}
                 >
                     {/* ===== FPS 浮动窗口 ===== */}
                     <div
@@ -206,18 +193,16 @@ const StageComponent = props => {
                             zIndex: 9999,
                             userSelect: 'none',
                             fontFamily: 'Segoe UI, sans-serif',
-                            pointerEvents: 'auto', // 确保可以交互
+                            pointerEvents: 'auto',
                             transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                             transform: isCollapsed ? 'scale(0.7)' : 'scale(1)',
                             opacity: 1,
                         }}
                     >
                         {isCollapsed ? (
-                            // ----- 折叠状态：圆形悬浮球 -----
+                            // ----- 折叠：圆形悬浮球（点击展开） -----
                             <div
                                 className="fps-draggable"
-                                onMouseDown={startDrag}
-                                onTouchStart={startDrag}
                                 onClick={toggleCollapse}
                                 style={{
                                     width: '56px',
@@ -234,16 +219,15 @@ const StageComponent = props => {
                                     fontWeight: 'bold',
                                     fontFamily: 'monospace',
                                     boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
-                                    cursor: 'grab',
-                                    transition: 'all 0.3s ease',
+                                    cursor: 'pointer',
                                     pointerEvents: 'auto',
                                 }}
-                                title="点击展开FPS窗口"
+                                title="点击展开 FPS 窗口"
                             >
                                 {fps}
                             </div>
                         ) : (
-                            // ----- 展开状态：完整窗口 -----
+                            // ----- 展开：完整窗口 -----
                             <div
                                 style={{
                                     width: '160px',
@@ -253,10 +237,9 @@ const StageComponent = props => {
                                     backdropFilter: 'blur(8px)',
                                     border: '1px solid rgba(255,255,255,0.15)',
                                     pointerEvents: 'auto',
-                                    transition: 'all 0.3s ease',
                                 }}
                             >
-                                {/* 标题栏（可拖拽区域） */}
+                                {/* 标题栏 – 绑定拖拽 */}
                                 <div
                                     className="fps-draggable"
                                     onMouseDown={startDrag}
@@ -291,16 +274,13 @@ const StageComponent = props => {
                                             padding: '0 4px',
                                             lineHeight: 1,
                                             pointerEvents: 'auto',
-                                            transition: 'color 0.2s',
                                         }}
-                                        onMouseEnter={(e) => e.target.style.color = '#fff'}
-                                        onMouseLeave={(e) => e.target.style.color = '#aaa'}
                                         title="折叠到右下角"
                                     >
                                         ➖
                                     </button>
                                 </div>
-                                {/* FPS数值显示 */}
+                                {/* FPS 数值 */}
                                 <div
                                     style={{
                                         padding: '14px 10px 16px',
@@ -320,39 +300,21 @@ const StageComponent = props => {
                         )}
                     </div>
 
-                    {/* ===== 原有底部覆盖内容（麦克风、问题等） ===== */}
+                    {/* ===== 原有底部内容 ===== */}
                     <div
                         className={styles.stageBottomWrapper}
-                        style={{
-                            width: stageDimensions.width,
-                            height: stageDimensions.height
-                        }}
+                        style={{ width: stageDimensions.width, height: stageDimensions.height }}
                     >
-                        {micIndicator ? (
-                            <MicIndicator
-                                className={styles.micIndicator}
-                                stageSize={stageDimensions}
-                            />
-                        ) : null}
+                        {micIndicator ? <MicIndicator className={styles.micIndicator} stageSize={stageDimensions} /> : null}
                         {question === null ? null : (
-                            <div
-                                className={styles.questionWrapper}
-                                style={{width: stageDimensions.width}}
-                            >
-                                <Question
-                                    question={question}
-                                    onQuestionAnswered={onQuestionAnswered}
-                                />
+                            <div className={styles.questionWrapper} style={{ width: stageDimensions.width }}>
+                                <Question question={question} onQuestionAnswered={onQuestionAnswered} />
                             </div>
                         )}
                     </div>
-                    <canvas
-                        className={styles.draggingSprite}
-                        height={0}
-                        ref={dragRef}
-                        width={0}
-                    />
+                    <canvas className={styles.draggingSprite} height={0} ref={dragRef} width={0} />
                 </Box>
+
                 {isStarted ? null : (
                     <GreenFlagOverlay
                         className={styles.greenFlagOverlay}
@@ -360,22 +322,14 @@ const StageComponent = props => {
                     />
                 )}
             </Box>
-            {isColorPicking ? (
-                <Box
-                    className={styles.colorPickerBackground}
-                    onClick={onDeactivateColorPicker}
-                />
-            ) : null}
+            {isColorPicking ? <Box className={styles.colorPickerBackground} onClick={onDeactivateColorPicker} /> : null}
         </React.Fragment>
     );
 };
 
 StageComponent.propTypes = {
     canvas: PropTypes.instanceOf(Element).isRequired,
-    customStageSize: PropTypes.shape({
-        width: PropTypes.number,
-        height: PropTypes.number
-    }),
+    customStageSize: PropTypes.shape({ width: PropTypes.number, height: PropTypes.number }),
     overlay: PropTypes.instanceOf(Element).isRequired,
     colorInfo: Loupe.propTypes.colorInfo,
     dragRef: PropTypes.func,
@@ -390,9 +344,7 @@ StageComponent.propTypes = {
     onQuestionAnswered: PropTypes.func,
     question: PropTypes.string,
     stageSize: PropTypes.oneOf(Object.keys(STAGE_DISPLAY_SIZES)).isRequired,
-    useEditorDragStyle: PropTypes.bool
+    useEditorDragStyle: PropTypes.bool,
 };
-StageComponent.defaultProps = {
-    dragRef: () => {}
-};
+StageComponent.defaultProps = { dragRef: () => {} };
 export default StageComponent;
