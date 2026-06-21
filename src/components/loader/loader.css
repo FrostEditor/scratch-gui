@@ -25,41 +25,78 @@
     z-index: $z-index-stage-wrapper-overlay;
 }
 
-.block-animation {
-    width: 125px;
-    height: 150px;
-    margin: 50px auto 0px;
+
+.snowAnimation {
+  width: 420px;
+  height: 260px;
+  margin: 10px auto 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-direction: row;
 }
 
-.block-animation img {
-    display: block;
-    position: relative;
-    height: 30%;
-    margin-top: -4px;
+.snowflake {
+  display: inline-block;
+  font-size: 120px; /* much larger snowflake */
+  color: #FF9B33;
+  opacity: 0;
+  transform: translateY(40px) scale(0.7);
+  animation: snow-up 1.4s ease-in-out infinite;
 }
 
-.top-block {
-    animation: top-slide-in 1.5s ease infinite;
+@keyframes snow-up {
+  0% { transform: translateY(20px) scale(0.7); opacity: 0; }
+  60% { transform: translateY(0px) scale(1.0); opacity: 1; }
+  100% { transform: translateY(-10px) scale(0.95); opacity: 0; }
 }
 
-.middle-block {
-    animation: middle-slide-in 1.5s ease infinite;
+.snowWrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.bottom-block {
-    animation: bottom-slide-in 1.5s ease infinite;
+.snowMessage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  color: white;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
 }
 
-[dir="rtl"] .top-block {
-    animation: top-slide-in-rtl 1.5s ease infinite;
+.snowAnimation {
+  z-index: 1;
 }
 
-[dir="rtl"] .middle-block {
-    animation: middle-slide-in-rtl 1.5s ease infinite;
+.snowTopWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
 
-[dir="rtl"] .bottom-block {
-    animation: bottom-slide-in-rtl 1.5s ease infinite;
+.snowMessageTop {
+  position: static;
+  transform: none;
+  z-index: 2;
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
 }
 
 @keyframes top-slide-in {
@@ -163,24 +200,30 @@
 }
 
 .title {
-    font-size: 2rem;
-    font-weight: bold;
-    margin: 0.75rem 0;
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin: 0.5rem 0 0.25rem 0;
+  text-align: center;
+}
+
+.title.hidden {
+  visibility: hidden;
 }
 
 .message {
-    height: 20px;
-    margin: 5px 0;
+  height: 24px;
+  margin: 0.5rem 0 0.75rem 0;
+  text-align: center;
 }
 
 .bar-outer {
-    width: 250px;
-    height: 8px;
-    border-radius: 8px;
-    background-color: $ui-white-transparent-default;
-    overflow: hidden;
-    position: relative;
-    margin: auto;
+  width: 320px;
+  height: 12px;
+  border-radius: 8px;
+  background-color: $ui-white-transparent-default;
+  overflow: hidden;
+  position: relative;
+  margin: 0 auto;
 }
 .bar-inner {
     position: absolute;

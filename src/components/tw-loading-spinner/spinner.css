@@ -17,6 +17,13 @@
     color: $looks-secondary;
     animation: snow-up 1.4s ease-in-out infinite alternate;
 }
+
+.innerVisible {
+    display: block;
+    font-size: 48px;
+    color: #FF9B33;
+    animation: snow-up 1.4s ease-in-out infinite alternate;
+}
 @keyframes snow-up {
     0% { transform: translateY(20px) scale(0.7); opacity: 0; }
     60% { transform: translateY(0px) scale(1.0); opacity: 1; }

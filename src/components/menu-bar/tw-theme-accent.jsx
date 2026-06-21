@@ -121,36 +121,40 @@ const AccentThemeMenu = ({
             {(() => {
                 const manifest = importedAddons['editor-theme3'];
                 if (!manifest || !manifest.presets) return null;
-                return manifest.presets.map(preset => {
-                    const name = preset.name;
-                    const handleClick = () => {
-                        SettingsStore.applyAddonPreset('editor-theme3', preset.id);
-                        let newTheme = theme;
-                        if (preset.id === 'tech-black') {
-                            newTheme = new Theme(theme.accent, 'dark', BLOCKS_DARK);
-                        } else if (preset.id === 'snow-white') {
-                            newTheme = new Theme(theme.accent, 'light', BLOCKS_THREE);
-                        } else if (preset.id === 'orange') {
-                            newTheme = new Theme(ACCENT_RED, 'light', BLOCKS_THREE);
-                        }
-                        onChangeTheme(newTheme);
-                    };
-                    return (
-                        <MenuItem key={`accent-preset-${preset.id}`} onClick={handleClick}>
-                            <div className={styles.option}>
-                                <img
-                                    className={classNames(styles.check, {[styles.selected]: false})}
-                                    width={15}
-                                    height={12}
-                                    src={check}
-                                    draggable={false}
-                                />
-                                <ColorIcon id={theme.accent} />
-                                {name}
-                            </div>
-                        </MenuItem>
-                    );
-                });
+                // Only show our curated presets in the Accent menu
+                const whitelist = new Set(['tech-black', 'snow-white', 'orange']);
+                return manifest.presets
+                    .filter(p => whitelist.has(p.id))
+                    .map(preset => {
+                        const name = preset.name;
+                        const handleClick = () => {
+                            SettingsStore.applyAddonPreset('editor-theme3', preset.id);
+                            let newTheme = theme;
+                            if (preset.id === 'tech-black') {
+                                newTheme = new Theme(theme.accent, 'dark', BLOCKS_DARK);
+                            } else if (preset.id === 'snow-white') {
+                                newTheme = new Theme(theme.accent, 'light', BLOCKS_THREE);
+                            } else if (preset.id === 'orange') {
+                                newTheme = new Theme(ACCENT_RED, 'light', BLOCKS_THREE);
+                            }
+                            onChangeTheme(newTheme);
+                        };
+                        return (
+                            <MenuItem key={`accent-preset-${preset.id}`} onClick={handleClick}>
+                                <div className={styles.option}>
+                                    <img
+                                        className={classNames(styles.check, {[styles.selected]: false})}
+                                        width={15}
+                                        height={12}
+                                        src={check}
+                                        draggable={false}
+                                    />
+                                    <ColorIcon id={theme.accent} />
+                                    {name}
+                                </div>
+                            </MenuItem>
+                        );
+                    });
             })()}
         </Submenu>
     </MenuItem>

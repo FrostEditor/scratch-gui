@@ -6,9 +6,7 @@ import PropTypes from 'prop-types';
 import bindAll from 'lodash.bindall';
 import styles from './loader.css';
 import {getIsLoadingWithId} from '../../reducers/project-state';
-import topBlock from './top-block.svg';
-import middleBlock from './middle-block.svg';
-import bottomBlock from './bottom-block.svg';
+// Use snowflake characters for the loading animation
 
 const mainMessages = {
     'gui.loader.headline': (
@@ -60,6 +58,10 @@ class LoaderComponent extends React.Component {
         this.barInnerEl = null;
         this.messageEl = null;
         this.ignoreProgress = false;
+        this.finishing = false;
+        this.state = {
+            finishing: false
+        };
     }
     componentDidMount () {
         this.handleAssetProgress(
@@ -92,12 +94,28 @@ class LoaderComponent extends React.Component {
         }
     }
     handleProjectLoaded () {
-        if (this.ignoreProgress || !this.barInnerEl || !this.messageEl) {
-            return;
-        }
+        if (this.ignoreProgress || !this.barInnerEl || !this.messageEl) return;
 
-        this.ignoreProgress = true;
-        this.props.vm.runtime.resetProgress();
+        // Mark finishing state and allow one animation cycle before fully closing loader
+        this.finishing = true;
+        this.setState({finishing: true});
+        // hide any loading text immediately
+        try {
+            this.messageEl.textContent = '';
+        } catch (e) {}
+        // ensure progress bar visually full
+        try {
+            this.barInnerEl.style.width = '100%';
+        } catch (e) {}
+        const ANIMATION_MS = 1200;
+        setTimeout(() => {
+            this.ignoreProgress = true;
+            this.finishing = false;
+            try { this.setState({finishing: false}); } catch (e) {}
+            try {
+                this.props.vm.runtime.resetProgress();
+            } catch (e) {}
+        }, ANIMATION_MS);
     }
     barInnerRef (barInner) {
         this.barInnerEl = barInner;
@@ -113,32 +131,47 @@ class LoaderComponent extends React.Component {
                 })}
             >
                 <div className={styles.container}>
-                    <div className={styles.blockAnimation}>
-                        <img
-                            className={styles.topBlock}
-                            src={topBlock}
-                            draggable={false}
-                        />
-                        <img
-                            className={styles.middleBlock}
-                            src={middleBlock}
-                            draggable={false}
-                        />
-                        <img
-                            className={styles.bottomBlock}
-                            src={bottomBlock}
-                            draggable={false}
-                        />
-                    </div>
-
                     <div className={styles.title}>
                         {mainMessages[this.props.messageId]}
                     </div>
 
-                    <div
-                        className={styles.message}
-                        ref={this.messageRef}
-                    />
+                    {this.props.messageId === 'gui.loader.creating' ? (
+                        <div className={styles.snowTopWrapper}>
+                            <div className={styles.snowAnimation}>
+                                {[0, 1, 2].map(i => (
+                                    <span
+                                        key={i}
+                                        className={styles.snowflake}
+                                        style={{animationDelay: `${i * 0.25}s`}}
+                                    >
+                                        ❄
+                                    </span>
+                                ))}
+                            </div>
+                            <div
+                                className={styles.snowMessageTop}
+                                ref={this.messageRef}
+                            />
+                        </div>
+                    ) : (
+                        <div className={styles.snowWrapper}>
+                            <div className={styles.snowAnimation}>
+                                {[0, 1, 2].map(i => (
+                                    <span
+                                        key={i}
+                                        className={styles.snowflake}
+                                        style={{animationDelay: `${i * 0.25}s`}}
+                                    >
+                                        ❄
+                                    </span>
+                                ))}
+                            </div>
+                            <div
+                                className={styles.snowMessage}
+                                ref={this.messageRef}
+                            />
+                        </div>
+                    )}
 
                     <div className={styles.barOuter}>
                         <div

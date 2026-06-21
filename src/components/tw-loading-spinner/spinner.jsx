@@ -3,7 +3,9 @@ import styles from './spinner.css';
 
 const Loading = () => (
     <div className={styles.container}>
-        <div className={styles.spinner} />
+        <div className={styles.spinner}>
+            <span className={styles.innerVisible}>❄</span>
+        </div>
     </div>
 );
 

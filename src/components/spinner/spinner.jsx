@@ -22,7 +22,9 @@ const SpinnerComponent = function (props) {
                     [styles.large]: large
                 }
             )}
-        />
+        >
+            <span className={styles.innerVisible}>❄</span>
+        </div>
     );
 };
 SpinnerComponent.propTypes = {
