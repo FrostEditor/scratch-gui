@@ -1,7 +1,7 @@
 {
-  "short_name": "TurboWarp",
-  "name": "TurboWarp",
-  "description": "Mod of Scratch 3 with a compiler, dark mode, and more features.",
+  "short_name": "FrostEditor",
+  "name": "FrostEditor",
+  "description": "FrostEditor — a Scratch mod with a compiler, dark mode, and addons.",
   "icons": [
     {
       "src": "images/192.png",
@@ -17,5 +17,5 @@
   "start_url": "editor",
   "background_color": "#333333",
   "display": "standalone",
-  "theme_color": "#333333"
+  "theme_color": "#FF9B33"
 }

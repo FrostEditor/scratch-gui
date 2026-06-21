@@ -52,8 +52,8 @@ const blockColors = {
     data: {
         primary: '#331C05',
         secondary: '#4C4C4C',
-        tertiary: '#FF8C1A',
-        quaternary: '#FF8C1A'
+        tertiary: '#FF9B33',
+        quaternary: '#FF9B33'
     },
     data_lists: {
         primary: '#331405',

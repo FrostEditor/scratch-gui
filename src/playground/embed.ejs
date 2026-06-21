@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="google" value="notranslate">
     <title><%= htmlWebpackPlugin.options.title %></title>
+    <link rel="icon" type="image/x-icon" href="<%= htmlWebpackPlugin.options.root %>favicon.ico">
     <style>
       .splash-screen {
         position: absolute;
@@ -24,19 +25,21 @@
       .splash-screen[hidden] {
         display: none;
       }
-      .splash-spinner:after {
-        content: " ";
-        display: block;
-        width: 64px;
-        height: 64px;
-        border-radius: 50%;
-        border: 6px solid;
-        border-color: white transparent white transparent;
-        animation: splash-spinner 1.2s linear infinite;
+      /* Snowflake loading animation */
+      .splash-spinner {
+        font-size: 48px;
+        line-height: 1;
       }
-      @keyframes splash-spinner {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+      .splash-spinner:after {
+        content: "❄";
+        display: block;
+        color: white;
+        animation: splash-snow 1.6s ease-in-out infinite alternate;
+      }
+      @keyframes splash-snow {
+        0% { transform: translateY(20px) scale(0.7); opacity: 0; }
+        60% { transform: translateY(0px) scale(1.0); opacity: 1; }
+        100% { transform: translateY(-6px) scale(0.95); opacity: 0.6; }
       }
     </style>
   </head>

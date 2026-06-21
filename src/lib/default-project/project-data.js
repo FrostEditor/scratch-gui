@@ -9,7 +9,22 @@ let messages = defineMessages({
     }
 });
 
+// Override default names for the initial sprite to 'Snowflake'
+const extraDefaults = defineMessages({
+    sprite: {
+        defaultMessage: 'Snowflake',
+        description: 'Default sprite name',
+        id: 'gui.defaultProject.sprite'
+    },
+    costume: {
+        defaultMessage: 'Snowflake Costume',
+        description: 'Default costume name',
+        id: 'gui.defaultProject.costume'
+    }
+});
+
 messages = {...messages, ...sharedMessages};
+messages = {...messages, ...extraDefaults};
 
 // use the default message if a translation function is not passed
 const defaultTranslator = msgObj => msgObj.defaultMessage;

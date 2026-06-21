@@ -7,10 +7,12 @@ import {connect} from 'react-redux';
 import check from './check.svg';
 import dropdownCaret from './dropdown-caret.svg';
 import {MenuItem, Submenu} from '../menu/menu.jsx';
-import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, Theme} from '../../lib/themes/index.js';
+import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, Theme, BLOCKS_THREE, BLOCKS_DARK} from '../../lib/themes/index.js';
 import {openAccentMenu, accentMenuOpen, closeSettingsMenu} from '../../reducers/menus.js';
 import {setTheme} from '../../reducers/theme.js';
 import {persistTheme} from '../../lib/themes/themePersistance.js';
+import importedAddons from '../../addons/generated/addon-manifests';
+import SettingsStore from '../../addons/settings-store-singleton';
 import rainbowIcon from './tw-accent-rainbow.svg';
 import styles from './settings-menu.css';
 
@@ -115,15 +117,41 @@ const AccentThemeMenu = ({
             />
         </div>
         <Submenu place={isRtl ? 'left' : 'right'}>
-            {Object.keys(options).map(item => (
-                <AccentMenuItem
-                    key={item}
-                    id={item}
-                    isSelected={theme.accent === item}
-                    // eslint-disable-next-line react/jsx-no-bind
-                    onClick={() => onChangeTheme(theme.set('accent', item))}
-                />
-            ))}
+            {/* Only show editor-theme3 presets here (remove default English accent options) */}
+            {(() => {
+                const manifest = importedAddons['editor-theme3'];
+                if (!manifest || !manifest.presets) return null;
+                return manifest.presets.map(preset => {
+                    const name = preset.name;
+                    const handleClick = () => {
+                        SettingsStore.applyAddonPreset('editor-theme3', preset.id);
+                        let newTheme = theme;
+                        if (preset.id === 'tech-black') {
+                            newTheme = new Theme(theme.accent, 'dark', BLOCKS_DARK);
+                        } else if (preset.id === 'snow-white') {
+                            newTheme = new Theme(theme.accent, 'light', BLOCKS_THREE);
+                        } else if (preset.id === 'orange') {
+                            newTheme = new Theme(ACCENT_RED, 'light', BLOCKS_THREE);
+                        }
+                        onChangeTheme(newTheme);
+                    };
+                    return (
+                        <MenuItem key={`accent-preset-${preset.id}`} onClick={handleClick}>
+                            <div className={styles.option}>
+                                <img
+                                    className={classNames(styles.check, {[styles.selected]: false})}
+                                    width={15}
+                                    height={12}
+                                    src={check}
+                                    draggable={false}
+                                />
+                                <ColorIcon id={theme.accent} />
+                                {name}
+                            </div>
+                        </MenuItem>
+                    );
+                });
+            })()}
         </Submenu>
     </MenuItem>
 );

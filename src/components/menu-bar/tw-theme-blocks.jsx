@@ -17,30 +17,6 @@ import highContrastIcon from './tw-blocks-high-contrast.svg';
 import darkIcon from './tw-blocks-dark.svg';
 import customIcon from './tw-blocks-custom.svg';
 import openLinkIcon from './tw-open-link.svg';
-
-const options = defineMessages({
-    [BLOCKS_THREE]: {
-        defaultMessage: 'Original',
-        description: 'Name of normal Scratch block colors.',
-        id: 'tw.blockColors.three'
-    },
-    [BLOCKS_HIGH_CONTRAST]: {
-        defaultMessage: 'High Contrast',
-        description: 'Name of the high contrast block colors.',
-        id: 'tw.blockColors.highContrast'
-    },
-    [BLOCKS_DARK]: {
-        defaultMessage: 'Dark (Beta)',
-        description: 'Name of the dark block colors',
-        id: 'tw.blockColors.dark'
-    },
-    [BLOCKS_CUSTOM]: {
-        defaultMessage: 'Customize in Addon Settings',
-        description: 'Link in block color list to open addon settings for more customization',
-        id: 'tw.blockColors.custom'
-    }
-});
-
 const icons = {
     [BLOCKS_THREE]: threeIcon,
     [BLOCKS_HIGH_CONTRAST]: highContrastIcon,
@@ -71,7 +47,12 @@ const ThemeMenuItem = ({id, disabled, isSelected, onClick}) => (
                 draggable={false}
             />
             <ThemeIcon id={id} />
-            <FormattedMessage {...options[id]} />
+            <FormattedMessage {...({
+                [BLOCKS_THREE]: {id: 'tw.blockColors.three', defaultMessage: 'Original'},
+                [BLOCKS_HIGH_CONTRAST]: {id: 'tw.blockColors.highContrast', defaultMessage: 'High Contrast'},
+                [BLOCKS_DARK]: {id: 'tw.blockColors.dark', defaultMessage: 'Dark (Beta)'},
+                [BLOCKS_CUSTOM]: {id: 'tw.blockColors.custom', defaultMessage: 'Customize in Addon Settings'}
+            }[id])} />
             {id === BLOCKS_CUSTOM && (
                 <img
                     width={20}
@@ -91,7 +72,6 @@ ThemeMenuItem.propTypes = {
     onClick: PropTypes.func,
     disabled: PropTypes.bool
 };
-
 const BlocksThemeMenu = ({
     isOpen,
     isRtl,
