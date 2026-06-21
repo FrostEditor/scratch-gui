@@ -124,6 +124,8 @@ class LoaderComponent extends React.Component {
         this.messageEl = message;
     }
     render () {
+        const snowSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.2 4.2l2.8 2.8"/><path d="M17 17l2.8 2.8"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.2 19.8l2.8-2.8"/><path d="M17 7l2.8-2.8"/><circle cx="12" cy="12" r="1.4" fill="#FFFFFF" stroke="none"/></g></svg>';
+        const snowData = 'data:image/svg+xml;utf8,' + encodeURIComponent(snowSvg);
         return (
             <div
                 className={classNames(styles.background, {
@@ -131,54 +133,59 @@ class LoaderComponent extends React.Component {
                 })}
             >
                 <div className={styles.container}>
-                    <div className={styles.title}>
-                        {mainMessages[this.props.messageId]}
-                    </div>
+                    {this.props.messageId !== 'gui.loader.creating' && (
+                        <div className={classNames(styles.title, {[styles.hidden]: this.state.finishing})}>
+                            {mainMessages[this.props.messageId]}
+                        </div>
+                    )}
 
                     {this.props.messageId === 'gui.loader.creating' ? (
                         <div className={styles.snowTopWrapper}>
                             <div className={styles.snowAnimation}>
-                                {[0, 1, 2].map(i => (
-                                    <span
-                                        key={i}
-                                        className={styles.snowflake}
-                                        style={{animationDelay: `${i * 0.25}s`}}
-                                    >
-                                        ❄
-                                    </span>
-                                ))}
+                                <span
+                                    className={styles.snowflake}
+                                    style={{
+                                        animationDelay: '0s',
+                                        color: '#FFFFFF',
+                                        fontSize: '120px',
+                                        opacity: 1,
+                                        display: 'inline-block',
+                                        zIndex: 11
+                                    }}
+                                >
+                                    ❄
+                                </span>
                             </div>
+                            
+                            {/* keep a hidden message element so messageRef is available for progress updates */}
                             <div
-                                className={styles.snowMessageTop}
+                                className={styles.snowMessageHidden}
                                 ref={this.messageRef}
+                                aria-hidden="true"
                             />
                         </div>
                     ) : (
                         <div className={styles.snowWrapper}>
                             <div className={styles.snowAnimation}>
-                                {[0, 1, 2].map(i => (
-                                    <span
-                                        key={i}
-                                        className={styles.snowflake}
-                                        style={{animationDelay: `${i * 0.25}s`}}
-                                    >
-                                        ❄
-                                    </span>
-                                ))}
+                                <span
+                                    className={styles.snowflake}
+                                    style={{
+                                        animationDelay: '0s',
+                                        opacity: 1,
+                                        display: 'inline-block',
+                                        zIndex: 11
+                                    }}
+                                >
+                                    <img src={snowData} alt="snow" style={{width:120,height:120,display:'block'}} />
+                                </span>
                             </div>
+                            
                             <div
                                 className={styles.snowMessage}
                                 ref={this.messageRef}
                             />
                         </div>
                     )}
-
-                    <div className={styles.barOuter}>
-                        <div
-                            className={styles.barInner}
-                            ref={this.barInnerRef}
-                        />
-                    </div>
                 </div>
             </div>
         );

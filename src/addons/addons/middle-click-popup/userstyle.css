@@ -50,7 +50,7 @@
 }
 
 .sa-mcp-input-wrapper[data-error="true"] {
-  border-color: red;
+  border-color: #FF9B33;
 }
 
 .sa-mcp-input-wrapper > input {

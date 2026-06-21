@@ -23,7 +23,7 @@
     display: inline-block;
     font-size: 1.4rem;
     line-height: 1;
-    color: #FF9B33; /* bright orange to make it unmistakable */
+    color: $ui-white-default;
     transform-origin: center;
     animation: snow-up 1.4s ease-in-out infinite alternate;
 }

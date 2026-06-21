@@ -21,7 +21,7 @@
 .innerVisible {
     display: block;
     font-size: 48px;
-    color: #FF9B33;
+    color: #FFFFFF;
     animation: snow-up 1.4s ease-in-out infinite alternate;
 }
 @keyframes snow-up {

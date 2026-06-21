@@ -173,9 +173,9 @@
   background-color: hsla(56deg, 100%, 69%, 0.3);
 }
 .sa-debugger-log[data-type="error"] {
-  border-color: hsla(0deg, 100%, 69%, 0.5);
-  color: red;
-  background-color: hsla(0deg, 100%, 69%, 0.3);
+  border-color: hsla(30deg, 100%, 62%, 0.5);
+  color: #FF9B33;
+  background-color: hsla(30deg, 100%, 62%, 0.3);
 }
 
 .sa-debugger-log-repeats {
