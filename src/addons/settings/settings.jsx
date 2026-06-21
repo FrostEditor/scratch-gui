@@ -619,6 +619,30 @@ const Addon = ({
                         />
                     </button>
                 )}
+                {!settings.removed ? (
+                    <button
+                        className={styles.removeButton}
+                        onClick={() => {
+                            const confirmText = settingsTranslations.confirmRemoveAddon || 'Are you sure you want to remove this addon?';
+                            if (confirm(confirmText)) {
+                                SettingsStore.removeAddon(id);
+                            }
+                        }}
+                        title={settingsTranslations.remove || 'Remove'}
+                    >
+                        {settingsTranslations.remove || '移除'}
+                    </button>
+                ) : (
+                    <button
+                        className={styles.removeButton}
+                        onClick={() => {
+                            SettingsStore.restoreAddon(id);
+                        }}
+                        title={settingsTranslations.restore || 'Restore'}
+                    >
+                        {settingsTranslations.restore || '恢复'}
+                    </button>
+                )}
             </div>
         </div>
         {settings.enabled && (
@@ -742,13 +766,14 @@ UnsupportedAddons.propTypes = {
 
 const InternalAddonList = ({addons, extended}) => (
     addons.map(({id, manifest, state}) => (
-        <Addon
-            key={id}
-            id={id}
-            settings={state}
-            manifest={manifest}
-            extended={extended}
-        />
+        <div key={id} className={styles.addonRow}>
+            <Addon
+                id={id}
+                settings={state}
+                manifest={manifest}
+                extended={extended}
+            />
+        </div>
     ))
 );
 
@@ -951,6 +976,12 @@ class AddonSettingsComponent extends React.Component {
                 enabled: enabled,
                 dirty: false
             };
+            // reflect whether user has removed this addon
+            try {
+                addonState.removed = SettingsStore.isAddonRemoved(id);
+            } catch (e) {
+                addonState.removed = false;
+            }
             if (manifest.settings) {
                 for (const setting of manifest.settings) {
                     addonState[setting.id] = SettingsStore.getAddonSetting(id, setting.id);

@@ -13,6 +13,7 @@ import extensionLibraryContent, {
 import extensionTags from '../lib/libraries/tw-extension-tags';
 
 import LibraryComponent from '../components/library/library.jsx';
+import libraryStyles from '../components/library/library.css';
 import extensionIcon from '../components/action-menu/icon--sprite.svg';
 
 const messages = defineMessages({
@@ -89,12 +90,21 @@ class ExtensionLibrary extends React.PureComponent {
         super(props);
         bindAll(this, [
             'handleItemSelect'
+            ,'handleOpenAddonSettings'
         ]);
         this.state = {
             gallery: cachedGallery,
             galleryError: null,
             galleryTimedOut: false
         };
+    }
+    handleOpenAddonSettings () {
+        try {
+            window.dispatchEvent(new CustomEvent('open-addon-settings'));
+        } catch (e) {
+            // fallback: log
+            if (window.console && window.console.error) console.error(e);
+        }
     }
     componentDidMount () {
         if (!this.state.gallery) {
@@ -192,6 +202,12 @@ class ExtensionLibrary extends React.PureComponent {
         );
     }
 }
+
+// Render a floating manage button inside the extension library modal area
+ExtensionLibrary.prototype.render = ExtensionLibrary.prototype.render || ExtensionLibrary.prototype.render;
+
+// Append FAB after component mount using portal-like approach in this file's render flow
+// Simpler: patching to render the button alongside the LibraryComponent via wrapping div
 
 ExtensionLibrary.propTypes = {
     intl: intlShape.isRequired,

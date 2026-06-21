@@ -68,3 +68,22 @@
     align-items: center;
     justify-content: center;
 }
+
+/* Extension library: force column container so each item occupies a full row */
+.extension-library-grid,
+.extensionLibraryGrid {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+.extension-library-grid .library-item,
+.extensionLibraryGrid .library-item {
+    width: 100% !important;
+    max-width: none !important;
+    flex-basis: auto !important;
+    margin: 0.5rem 0 !important;
+}
+
+
+
