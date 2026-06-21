@@ -93,7 +93,7 @@ const manifest = {
       "name": "Previous costume tint",
       "id": "beforeTint",
       "type": "color",
-      "default": "#FF9B33"
+      "default": "#FF0000"
     },
     {
       "name": "Next costume tint",

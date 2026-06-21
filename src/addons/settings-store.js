@@ -213,10 +213,6 @@ class SettingsStore extends EventTargetShim {
             return false;
         }
         const storage = this.getAddonStorage(addonId);
-        // If an addon was explicitly removed by the user, treat as disabled
-        if (Object.prototype.hasOwnProperty.call(storage, 'removed') && storage.removed) {
-            return false;
-        }
         if (Object.prototype.hasOwnProperty.call(storage, 'enabled')) {
             return storage.enabled;
         }
@@ -459,89 +455,6 @@ class SettingsStore extends EventTargetShim {
                 }));
             }
         }
-    }
-
-    /**
-     * Mark an addon as removed. Removed addons are treated as disabled and
-     * will not be loaded. This persists the choice in localStorage.
-     * @param {string} addonId
-     */
-    removeAddon (addonId) {
-        const storage = this.getAddonStorage(addonId);
-        storage.removed = true;
-        // Ensure disabled as well
-        storage.enabled = false;
-        this.saveToLocalStorage();
-        // Notify listeners that the enabled state changed (forces UI update)
-        this.dispatchEvent(new CustomEvent('setting-changed', {
-            detail: {
-                addonId,
-                settingId: 'enabled',
-                reloadRequired: true,
-                value: false
-            }
-        }));
-        // also notify about removed flag so UI can update
-        this.dispatchEvent(new CustomEvent('setting-changed', {
-            detail: {
-                addonId,
-                settingId: 'removed',
-                reloadRequired: true,
-                value: true
-            }
-        }));
-        // Also dispatch addon-changed so running addons can react
-        this.dispatchEvent(new CustomEvent('addon-changed', {
-            detail: {
-                addonId,
-                dynamicDisable: true
-            }
-        }));
-    }
-
-    /**
-     * Restore a previously removed addon.
-     * @param {string} addonId
-     */
-    restoreAddon (addonId) {
-        const storage = this.getAddonStorage(addonId);
-        if (Object.prototype.hasOwnProperty.call(storage, 'removed')) {
-            delete storage.removed;
-        }
-        this.saveToLocalStorage();
-        this.dispatchEvent(new CustomEvent('setting-changed', {
-            detail: {
-                addonId,
-                settingId: 'enabled',
-                reloadRequired: true,
-                value: this.getAddonEnabled(addonId)
-            }
-        }));
-        // also notify about removed flag so UI can update
-        this.dispatchEvent(new CustomEvent('setting-changed', {
-            detail: {
-                addonId,
-                settingId: 'removed',
-                reloadRequired: true,
-                value: false
-            }
-        }));
-        this.dispatchEvent(new CustomEvent('addon-changed', {
-            detail: {
-                addonId,
-                dynamicEnable: this.getAddonEnabled(addonId)
-            }
-        }));
-    }
-
-    /**
-     * Returns true if the addon was marked removed by the user.
-     * @param {string} addonId
-     * @returns {boolean}
-     */
-    isAddonRemoved (addonId) {
-        const storage = this.getAddonStorage(addonId);
-        return !!storage.removed;
     }
 
     /**

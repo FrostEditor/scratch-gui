@@ -259,5 +259,15 @@
     "swap-local-global/edit-variable-option": "Değişkeni yeniden adlandır veya düzenle",
     "swap-local-global/to-global": "\"Tüm kuklalar için\" ayarına dönüştür",
     "swap-local-global/to-local": "\"Yalnızca bu kukla için” ayarına dönüştür",
-    "hide-stage/hide-stage": "Sahneyi gizle"
+    "hide-stage/hide-stage": "Sahneyi gizle",
+    "background/background-align-left": "Left",
+    "background/background-align-horizontal": "Horizontal align",
+    "background/background-align-vertical": "Vertical align",
+    "background/background-rotate": "Rotate",
+    "background/background-align-center": "Center",
+    "background/background-layout-fixed": "Fixed",
+    "background/background-align-bottom": "Bottom",
+    "background/background-align-top": "Top",
+    "background/background-preview-empty": "No wallpaper selected",
+    "background/background-align-right": "Right"
 }

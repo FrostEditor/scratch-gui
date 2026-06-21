@@ -253,5 +253,15 @@
     "swap-local-global/edit-variable-option": "Változó átnevezése vagy szerkesztése",
     "swap-local-global/to-global": "Konvertálás \"Minden szereplőé\"-vé",
     "swap-local-global/to-local": "Konvertálás \"A kiválasztott szereplőé\"-vé",
-    "hide-stage/hide-stage": "Színpad elrejtése"
+    "hide-stage/hide-stage": "Színpad elrejtése",
+    "background/background-align-left": "Left",
+    "background/background-align-horizontal": "Horizontal align",
+    "background/background-align-vertical": "Vertical align",
+    "background/background-rotate": "Rotate",
+    "background/background-align-center": "Center",
+    "background/background-layout-fixed": "Fixed",
+    "background/background-align-bottom": "Bottom",
+    "background/background-align-top": "Top",
+    "background/background-preview-empty": "No wallpaper selected",
+    "background/background-align-right": "Right"
 }

@@ -21,9 +21,9 @@ const guiColors = {
     'text-primary': 'hsla(225, 15%, 40%, 1)', /* #575E75 */
     'text-primary-transparent': 'hsla(225, 15%, 40%, 0.75)',
 
-    'motion-primary': 'hsla(30, 100%, 62%, 1)', /* #FF9B33 - Brighter Orange */
-    'motion-primary-transparent': 'hsla(30, 100%, 62%, 0.9)', /* 90% transparent version of motion-primary */
-    'motion-tertiary': 'hsla(30, 100%, 50%, 1)', /* darker orange variant */
+    'motion-primary': 'hsla(215, 100%, 65%, 1)', /* #4C97FF */
+    'motion-primary-transparent': 'hsla(215, 100%, 65%, 0.9)', /* 90% transparent version of motion-primary */
+    'motion-tertiary': 'hsla(215, 60%, 50%, 1)', /* #3373CC */
 
     'looks-secondary': 'hsla(260, 60%, 60%, 1)', /* #855CD6 */
     'looks-transparent': 'hsla(260, 60%, 60%, 0.35)', /* 35% transparent version of looks-tertiary */
@@ -38,15 +38,15 @@ const guiColors = {
 
     'control-primary': 'hsla(38, 100%, 55%, 1)', /* #FFAB19 */
 
-    'data-primary': 'hsla(30, 100%, 62%, 1)', /* #FF9B33 */
+    'data-primary': 'hsla(30, 100%, 55%, 1)', /* #FF8C1A */
 
     'pen-primary': 'hsla(163, 85%, 40%, 1)', /* #0FBD8C */
     'pen-transparent': 'hsla(163, 85%, 40%, 0.25)', /* #0FBD8C */
     'pen-tertiary': 'hsla(163, 86%, 30%, 1)', /* #0B8E69 */
 
-    'error-primary': 'hsla(30, 100%, 62%, 1)', /* #FF9B33 */
-    'error-light': 'hsla(30, 100%, 72%, 1)', /* lighter */
-    'error-transparent': 'hsla(30, 100%, 62%, 0.25)', /* #FF9B33 */
+    'error-primary': 'hsla(30, 100%, 55%, 1)', /* #FF8C1A */
+    'error-light': 'hsla(30, 100%, 70%, 1)', /* #FFB366 */
+    'error-transparent': 'hsla(30, 100%, 55%, 0.25)', /* #FF8C1A */
 
     'extensions-primary': 'hsla(163, 85%, 40%, 1)', /* #0FBD8C */
     'extensions-tertiary': 'hsla(163, 85%, 30%, 1)', /* #0B8E69 */
@@ -55,7 +55,7 @@ const guiColors = {
 
     'drop-highlight': 'hsla(215, 100%, 77%, 1)', /* lighter than motion-primary */
 
-    'menu-bar-background': 'hsla(30, 100%, 62%, 1)', /* #FF9B33 - Brighter Orange */
+    'menu-bar-background': 'var(--looks-secondary)',
     'menu-bar-background-image': 'none',
     'menu-bar-foreground': '#ffffff',
 

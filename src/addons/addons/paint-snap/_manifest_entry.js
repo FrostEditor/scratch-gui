@@ -25,7 +25,7 @@ const manifest = {
       "type": "color",
       "id": "guide-color",
       "name": "Snapping guide color",
-      "default": "#FF9B33",
+      "default": "#ff0000",
       "allowTransparency": true
     },
     {
@@ -103,6 +103,7 @@ const manifest = {
       "max": 100
     }
   ],
-  "dynamicDisable": true
+  "dynamicDisable": true,
+  "enabledByDefault": true
 };
 export default manifest;

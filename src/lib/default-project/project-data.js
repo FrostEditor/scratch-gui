@@ -1,30 +1,36 @@
-import {defineMessages} from 'react-intl';
+import { defineMessages } from 'react-intl';
 import sharedMessages from '../shared-messages';
+
+const defaultMsg_README = `
+#README #Welcome!
+
+# Welcome to ** AstraEditor ** !
+
+AE is a Scratch editor developed based on TurboWarp. We have added more features and addons~~as well as many BUGs and features~~!
+
+Here we are demonstrating the README feature. To learn more, please visit [AstraEditor Documentation](https://editors.astras.top/document/)!
+
+For secondary development based on AstraEditor, please visit our [code repository](https://github.com/AstraEditor).
+
+Go to [this link](https://github.com/AstraEditor/scratch-gui/issues) to report BUGs to us!
+
+> [!NOTE]
+> [Follow us on Bilibili](https://space.bilibili.com/3691007061264515)`;
 
 let messages = defineMessages({
     variable: {
         defaultMessage: 'my variable',
         description: 'Name for the default variable',
         id: 'gui.defaultProject.variable'
-    }
-});
-
-// Override default names for the initial sprite to 'Snowflake'
-const extraDefaults = defineMessages({
-    sprite: {
-        defaultMessage: 'Snowflake',
-        description: 'Default sprite name',
-        id: 'gui.defaultProject.sprite'
     },
-    costume: {
-        defaultMessage: 'Snowflake Costume',
-        description: 'Default costume name',
-        id: 'gui.defaultProject.costume'
+    tip: {
+        defaultMessage: defaultMsg_README,
+        description: 'a README',
+        id: 'tw.defaultProject.readme'
     }
 });
 
-messages = {...messages, ...sharedMessages};
-messages = {...messages, ...extraDefaults};
+messages = { ...messages, ...sharedMessages };
 
 // use the default message if a translation function is not passed
 const defaultTranslator = msgObj => msgObj.defaultMessage;
@@ -54,7 +60,7 @@ const projectData = translateFunction => {
                 costumes: [
                     {
                         assetId: 'cd21514d0531fdffb22204e0ec5ed84a',
-                        name: translator(messages.backdrop, {index: 1}),
+                        name: translator(messages.backdrop, { index: 1 }),
                         md5ext: 'cd21514d0531fdffb22204e0ec5ed84a.svg',
                         dataFormat: 'svg',
                         rotationCenterX: 240,
@@ -66,22 +72,32 @@ const projectData = translateFunction => {
             },
             {
                 isStage: false,
-                name: translator(messages.sprite, {index: 1}),
+                name: "LOGO",
                 variables: {},
                 lists: {},
                 broadcasts: {},
                 blocks: {},
-                comments: {},
+                comments: {
+                    abc: {
+                        "text": translator(messages.tip, { index: 2 }),
+                        "x": 200,
+                        "y": 200,
+                        "width": 640,
+                        "height": 360,
+                        "minimized": false,
+                        "blockId": null
+                    }
+                },
                 currentCostume: 0,
                 costumes: [
                     {
-                        assetId: '927d672925e7b99f7813735c484c6922',
-                        name: translator(messages.costume, {index: 1}),
+                        assetId: '927d672925e7b99f7813735c484c6923',
+                        name: "Logo",
                         bitmapResolution: 1,
-                        md5ext: '927d672925e7b99f7813735c484c6922.svg',
+                        md5ext: '927d672925e7b99f7813735c484c6923.svg',
                         dataFormat: 'svg',
-                        rotationCenterX: 30.74937882782359,
-                        rotationCenterY: 58.864768144346826
+                        rotationCenterX: 240,
+                        rotationCenterY: 180
                     }
                 ],
                 sounds: [],

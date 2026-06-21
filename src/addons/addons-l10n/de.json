@@ -253,5 +253,15 @@
     "swap-local-global/edit-variable-option": "Variable bearbeiten oder umbenennen",
     "swap-local-global/to-global": "In \"Für alle Figuren\" umwandeln",
     "swap-local-global/to-local": "In \"Nur für diese Figur\" umwandeln",
-    "hide-stage/hide-stage": "Bühne ausblenden"
+    "hide-stage/hide-stage": "Bühne ausblenden",
+    "background/background-align-left": "Left",
+    "background/background-align-horizontal": "Horizontal align",
+    "background/background-align-vertical": "Vertical align",
+    "background/background-rotate": "Rotate",
+    "background/background-align-center": "Center",
+    "background/background-layout-fixed": "Fixed",
+    "background/background-align-bottom": "Bottom",
+    "background/background-align-top": "Top",
+    "background/background-preview-empty": "No wallpaper selected",
+    "background/background-align-right": "Right"
 }

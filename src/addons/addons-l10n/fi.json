@@ -261,5 +261,15 @@
     "swap-local-global/edit-variable-option": "Nimeä muuttuja uudelleen tai muokkaa sitä",
     "swap-local-global/to-global": "Muunna \"Kaikille hahmoille\" -muotoon",
     "swap-local-global/to-local": "Muunna \"Vain tälle hahmolle\" -muotoon",
-    "hide-stage/hide-stage": "Piilota esiintymislava"
+    "hide-stage/hide-stage": "Piilota esiintymislava",
+    "background/background-align-left": "Left",
+    "background/background-align-horizontal": "Horizontal align",
+    "background/background-align-vertical": "Vertical align",
+    "background/background-rotate": "Rotate",
+    "background/background-align-center": "Center",
+    "background/background-layout-fixed": "Fixed",
+    "background/background-align-bottom": "Bottom",
+    "background/background-align-top": "Top",
+    "background/background-preview-empty": "No wallpaper selected",
+    "background/background-align-right": "Right"
 }
