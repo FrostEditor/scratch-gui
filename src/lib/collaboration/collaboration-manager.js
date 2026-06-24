@@ -875,6 +875,10 @@ class CollaborationManager {
                 this.handleExtensionsUpdate(data);
                 break;
                 
+            case 'statement-update':
+                this.handleStatementUpdate(data, fromMemberId);
+                break;
+                
             case 'request-project':
                 // 收到项目请求，只有房主才发送项目数据
                 console.log('[协作] 收到项目请求，来自:', fromMemberId, '自己是否房主:', this.isHost);
@@ -1092,6 +1096,47 @@ class CollaborationManager {
             }
         } catch (e) {
             console.warn('[协作] 处理扩展更新失败:', e);
+        }
+    }
+    
+    // ========== 作品声明同步 ==========
+    
+    // 发送作品声明更新
+    sendStatementUpdate(text) {
+        if (!this.isConnected) return;
+        
+        const message = {
+            type: 'statement-update',
+            text: text,
+            memberId: this.memberId,
+            username: this.username,
+            timestamp: Date.now()
+        };
+        
+        this.sendData(message);
+        console.log('[协作] 已发送作品声明更新，长度:', text ? text.length : 0);
+    }
+    
+    // 处理作品声明更新
+    handleStatementUpdate(data, fromMemberId) {
+        if (!data || typeof data.text !== 'string') return;
+        if (fromMemberId === this.memberId) return; // 忽略自己的消息
+        
+        console.log('[协作] 收到作品声明更新，来自:', data.username || fromMemberId, '长度:', data.text.length);
+        
+        try {
+            // 保存到 localStorage
+            localStorage.setItem('projectStatement', data.text);
+            
+            // 触发事件，通知 UI 更新
+            this.emit('statement-updated', {
+                text: data.text,
+                fromMemberId: fromMemberId,
+                username: data.username,
+                timestamp: data.timestamp
+            });
+        } catch (e) {
+            console.warn('[协作] 处理作品声明更新失败:', e);
         }
     }
     
@@ -1842,13 +1887,14 @@ class CollaborationManager {
         // 生成扩展签名（排除核心扩展）
         try {
             const extensionManager = this.vm.extensionManager;
-            if (extensionManager && extensionManager._loadedExtensions) {
+            if (extensionManager && extensionManager.getExtensionURLs) {
+                const extensions = extensionManager.getExtensionURLs() || {};
                 const coreExtensions = [
                     'motion', 'looks', 'sound', 'events', 'control', 'sensing',
                     'operators', 'variables', 'myBlocks', 'customExtension'
                 ];
                 const extIds = [];
-                for (const [extensionId] of extensionManager._loadedExtensions.entries()) {
+                for (const extensionId of Object.keys(extensions)) {
                     if (!coreExtensions.includes(extensionId)) {
                         extIds.push(extensionId);
                     }
