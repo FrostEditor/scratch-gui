@@ -1031,6 +1031,20 @@ class CollaborationManager {
             
             const extensions = extensionManager.getExtensionURLs() || {};
             
+            // 计算扩展签名（用于检测变化）
+            const coreExtensions = [
+                'motion', 'looks', 'sound', 'events', 'control', 'sensing',
+                'operators', 'variables', 'myBlocks', 'customExtension'
+            ];
+            const extIds = [];
+            for (const extensionId of Object.keys(extensions)) {
+                if (!coreExtensions.includes(extensionId)) {
+                    extIds.push(extensionId);
+                }
+            }
+            extIds.sort();
+            this._lastExtensionsSignature = extIds.join(',');
+            
             const message = {
                 type: 'extensions-update',
                 extensions: extensions,
@@ -1038,7 +1052,7 @@ class CollaborationManager {
             };
             
             this.sendData(message);
-            console.log('[协作] 已发送扩展更新，扩展数量:', Object.keys(extensions).length);
+            console.log('[协作] 已发送扩展更新，扩展数量:', extIds.length, extIds.join(', '));
         } catch (e) {
             console.warn('[协作] 发送扩展更新失败:', e);
         }
@@ -1288,13 +1302,14 @@ class CollaborationManager {
             // 检测扩展变化（单独同步，更及时）
             try {
                 const extensionManager = this.vm.extensionManager;
-                if (extensionManager && extensionManager._loadedExtensions) {
+                if (extensionManager && extensionManager.getExtensionURLs) {
+                    const extensions = extensionManager.getExtensionURLs() || {};
                     const coreExtensions = [
                         'motion', 'looks', 'sound', 'events', 'control', 'sensing',
                         'operators', 'variables', 'myBlocks', 'customExtension'
                     ];
                     const extIds = [];
-                    for (const [extensionId] of extensionManager._loadedExtensions.entries()) {
+                    for (const extensionId of Object.keys(extensions)) {
                         if (!coreExtensions.includes(extensionId)) {
                             extIds.push(extensionId);
                         }
@@ -1302,7 +1317,7 @@ class CollaborationManager {
                     extIds.sort();
                     const currentSignature = extIds.join(',');
                     if (currentSignature !== this._lastExtensionsSignature) {
-                        console.log('[协作] 检测到扩展变化（定期检测），发送扩展同步');
+                        console.log('[协作] 检测到扩展变化（定期检测），扩展列表:', extIds.join(', ') || '无');
                         this.sendExtensionsUpdate();
                     }
                 }
@@ -1316,7 +1331,7 @@ class CollaborationManager {
                 this.hasResourceChange = true;
                 this.sendProjectUpdate();
             }
-        }, 2000);
+        }, 1000);
         
         // 监听 Blockly 的 change 事件（实时增量同步）
         setTimeout(() => {
@@ -1903,13 +1918,14 @@ class CollaborationManager {
         // 计算扩展签名
         try {
             const extensionManager = this.vm.extensionManager;
-            if (extensionManager && extensionManager._loadedExtensions) {
+            if (extensionManager && extensionManager.getExtensionURLs) {
+                const extensions = extensionManager.getExtensionURLs() || {};
                 const coreExtensions = [
                     'motion', 'looks', 'sound', 'events', 'control', 'sensing',
                     'operators', 'variables', 'myBlocks', 'customExtension'
                 ];
                 const extIds = [];
-                for (const [extensionId] of extensionManager._loadedExtensions.entries()) {
+                for (const extensionId of Object.keys(extensions)) {
                     if (!coreExtensions.includes(extensionId)) {
                         extIds.push(extensionId);
                     }
