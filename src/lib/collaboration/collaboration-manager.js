@@ -871,6 +871,10 @@ class CollaborationManager {
                 this.handleChatMessage(data, fromMemberId);
                 break;
                 
+            case 'extensions-update':
+                this.handleExtensionsUpdate(data);
+                break;
+                
             case 'request-project':
                 // 收到项目请求，只有房主才发送项目数据
                 console.log('[协作] 收到项目请求，来自:', fromMemberId, '自己是否房主:', this.isHost);
@@ -909,6 +913,13 @@ class CollaborationManager {
         
         this.emit('member-joined', member);
         this.emit('members-updated', this.members);
+        
+        // 如果是房主，给新成员发送扩展列表
+        if (this.isHost) {
+            setTimeout(() => {
+                this.sendExtensionsUpdate();
+            }, 500);
+        }
         
         // 如果是已有的成员（比我先加入的），我已经在加入房间时发起连接了
         // 如果是新加入的成员（比我晚加入的），我需要主动发起连接
@@ -1008,6 +1019,66 @@ class CollaborationManager {
         
         // 触发事件
         this.emit('chat-message', message);
+    }
+    
+    // 发送扩展更新
+    sendExtensionsUpdate() {
+        if (!this.vm || !this.isConnected) return;
+        
+        try {
+            const extensionManager = this.vm.extensionManager;
+            if (!extensionManager || !extensionManager.getExtensionURLs) return;
+            
+            const extensions = extensionManager.getExtensionURLs() || {};
+            
+            const message = {
+                type: 'extensions-update',
+                extensions: extensions,
+                memberId: this.memberId
+            };
+            
+            this.sendData(message);
+            console.log('[协作] 已发送扩展更新，扩展数量:', Object.keys(extensions).length);
+        } catch (e) {
+            console.warn('[协作] 发送扩展更新失败:', e);
+        }
+    }
+    
+    // 处理扩展更新
+    handleExtensionsUpdate(data) {
+        if (!data.extensions || typeof data.extensions !== 'object') return;
+        
+        console.log('[协作] 收到扩展更新，来自:', data.memberId, '扩展数量:', Object.keys(data.extensions).length);
+        
+        try {
+            const extensionManager = this.vm.extensionManager;
+            if (!extensionManager || !extensionManager.loadExtensionURL) return;
+            
+            const coreExtensions = [
+                'motion', 'looks', 'sound', 'events', 'control', 'sensing',
+                'operators', 'variables', 'myBlocks', 'customExtension'
+            ];
+            
+            let loadedCount = 0;
+            for (const [extensionId, extensionUrl] of Object.entries(data.extensions)) {
+                // 跳过核心扩展
+                if (coreExtensions.includes(extensionId)) continue;
+                // 跳过已加载的扩展
+                if (extensionManager.isExtensionLoaded && extensionManager.isExtensionLoaded(extensionId)) continue;
+                
+                console.log('[协作] 加载扩展:', extensionId, extensionUrl);
+                extensionManager.loadExtensionURL(extensionUrl).catch(err => {
+                    console.warn('[协作] 加载扩展失败:', extensionId, err);
+                });
+                loadedCount++;
+            }
+            
+            if (loadedCount > 0) {
+                console.log(`[协作] 正在加载 ${loadedCount} 个扩展`);
+            }
+        } catch (e) {
+            console.warn('[协作] 处理扩展更新失败:', e);
+        }
     }
     
     // ========== 项目同步 ==========
@@ -1212,7 +1283,35 @@ class CollaborationManager {
         
         // 启动资源变化定期检测（确保变量、列表、广播等都能同步）
         this._resourceCheckInterval = setInterval(() => {
-            if (this.isConnected && this._detectResourceChange()) {
+            if (!this.isConnected) return;
+            
+            // 检测扩展变化（单独同步，更及时）
+            try {
+                const extensionManager = this.vm.extensionManager;
+                if (extensionManager && extensionManager._loadedExtensions) {
+                    const coreExtensions = [
+                        'motion', 'looks', 'sound', 'events', 'control', 'sensing',
+                        'operators', 'variables', 'myBlocks', 'customExtension'
+                    ];
+                    const extIds = [];
+                    for (const [extensionId] of extensionManager._loadedExtensions.entries()) {
+                        if (!coreExtensions.includes(extensionId)) {
+                            extIds.push(extensionId);
+                        }
+                    }
+                    extIds.sort();
+                    const currentSignature = extIds.join(',');
+                    if (currentSignature !== this._lastExtensionsSignature) {
+                        console.log('[协作] 检测到扩展变化（定期检测），发送扩展同步');
+                        this.sendExtensionsUpdate();
+                    }
+                }
+            } catch (e) {
+                // 忽略错误
+            }
+            
+            // 检测资源变化（触发全量同步）
+            if (this._detectResourceChange()) {
                 console.log('[协作] 检测到资源变化（定期检测），发送全量同步');
                 this.hasResourceChange = true;
                 this.sendProjectUpdate();
