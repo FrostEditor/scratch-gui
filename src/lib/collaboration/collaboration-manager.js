@@ -919,8 +919,10 @@ class CollaborationManager {
                 this.projectUpdateTimeout = setTimeout(() => {
                     this.sendProjectUpdate();
                 }, 300);
+            } else {
+                // 纯积木变化 → 节流同步（和鼠标同步一样的算法）
+                this.sendBlocksUpdate();
             }
-            // 纯积木变化 → 由 Blockly change 事件驱动的节流同步处理（startBlocksSync）
         };
 
         // 尝试监听各种可能的事件
