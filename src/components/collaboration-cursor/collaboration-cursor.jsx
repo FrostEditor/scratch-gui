@@ -9,12 +9,40 @@ import styles from './collaboration-cursor.css';
 const CollaborationCursor = () => {
     const [cursors, setCursors] = useState({}); // memberId -> { x, y, color, name }
     const [isActive, setIsActive] = useState(false);
+    const [isCodeTabVisible, setIsCodeTabVisible] = useState(true); // 是否在代码标签页
 
     // 获取成员名称
     const getMemberName = useCallback((memberId) => {
         const member = collaborationManager.members.find(m => m.id === memberId);
         return member ? member.username : '未知用户';
     }, []);
+
+    // 检查是否在代码标签页（积木工作区是否可见）
+    const checkCodeTabVisible = useCallback(() => {
+        const blocklySvg = document.querySelector('.blocklySvg');
+        if (blocklySvg) {
+            const style = window.getComputedStyle(blocklySvg);
+            const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+            setIsCodeTabVisible(isVisible);
+        } else {
+            // 找不到元素时默认显示
+            setIsCodeTabVisible(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        // 定期检查代码标签页是否可见
+        checkCodeTabVisible();
+        const checkInterval = setInterval(checkCodeTabVisible, 500);
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', checkCodeTabVisible);
+        
+        return () => {
+            clearInterval(checkInterval);
+            window.removeEventListener('resize', checkCodeTabVisible);
+        };
+    }, [checkCodeTabVisible]);
 
     useEffect(() => {
         // 监听鼠标移动事件
@@ -99,7 +127,7 @@ const CollaborationCursor = () => {
         };
     }, [getMemberName]);
 
-    if (!isActive) return null;
+    if (!isActive || !isCodeTabVisible) return null;
 
     return (
         <div className={styles.cursorContainer}>
