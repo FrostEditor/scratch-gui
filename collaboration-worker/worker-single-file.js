@@ -1,6 +1,10 @@
-// Durable Object: 房间实例
-// 每个房间对应一个 Durable Object 实例，管理房间状态和 WebSocket 连接
+// ============================================================
+// FrostEditor 多人协作服务器 - Cloudflare Workers 单文件版本
+// 可以直接复制粘贴到 Cloudflare Workers 在线编辑器中
+// ============================================================
 
+// ---------- Durable Object: 房间实例 ----------
+// 每个房间对应一个 Durable Object 实例，管理房间状态和 WebSocket 连接
 export class RoomObject {
   constructor(state, env) {
     this.state = state;
@@ -130,15 +134,12 @@ export class RoomObject {
         case 'chat':
           this.handleChat(sender, message);
           break;
-
         case 'mouse-move':
           this.handleMouseMove(sender, message);
           break;
-
         case 'blockly-event':
           this.handleBlocklyEvent(sender, message);
           break;
-
         case 'leave-room':
           this.handleMemberLeave(senderId);
           break;
@@ -333,4 +334,109 @@ export class RoomObject {
       // 注意：members 中的 WebSocket 连接不保存
     });
   }
+}
+
+// ---------- Worker 入口 ----------
+// 处理 HTTP 请求，路由到对应的 Durable Object 房间实例
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // 处理 CORS 预检请求
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Upgrade',
+        },
+      });
+    }
+
+    // 创建房间 API
+    if (path === '/api/create-room') {
+      return handleCreateRoom(request, env);
+    }
+
+    // 房间 WebSocket 连接
+    if (path.startsWith('/room/')) {
+      return handleRoomConnection(request, env);
+    }
+
+    // 健康检查
+    if (path === '/health') {
+      return new Response(JSON.stringify({ status: 'ok' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 默认返回 404
+    return new Response('Not Found', { status: 404 });
+  },
+};
+
+// 处理创建房间
+async function handleCreateRoom(request, env) {
+  // 生成 6 位随机房间密钥
+  const roomKey = generateRoomKey();
+
+  // 获取 Durable Object ID（基于房间密钥）
+  const id = env.ROOM.idFromName(roomKey);
+  const roomObject = env.ROOM.get(id);
+
+  // 我们不需要在这里做什么，Durable Object 会在第一次连接时初始化
+  // 只需要返回房间密钥给客户端
+
+  return new Response(JSON.stringify({
+    roomKey: roomKey,
+  }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+// 处理房间 WebSocket 连接
+async function handleRoomConnection(request, env) {
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  const roomKey = pathParts[2];
+
+  if (!roomKey) {
+    return new Response('Room key is required', { status: 400 });
+  }
+
+  // 检查是否是 WebSocket 升级请求
+  const upgradeHeader = request.headers.get('Upgrade');
+  if (upgradeHeader !== 'websocket') {
+    return new Response('Expected WebSocket', { status: 426 });
+  }
+
+  // 获取 Durable Object ID（基于房间密钥）
+  const id = env.ROOM.idFromName(roomKey);
+  const roomObject = env.ROOM.get(id);
+
+  // 构建新的 URL，把查询参数传过去
+  const newUrl = new URL(url);
+  newUrl.pathname = '/';
+  if (!newUrl.searchParams.has('roomKey')) {
+    newUrl.searchParams.set('roomKey', roomKey);
+  }
+
+  // 转发请求到 Durable Object
+  return roomObject.fetch(new Request(newUrl, request));
+}
+
+// 生成房间密钥
+function generateRoomKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  const array = new Uint8Array(6);
+  crypto.getRandomValues(array);
+  for (let i = 0; i < 6; i++) {
+    result += chars[array[i] % chars.length];
+  }
+  return result;
 }

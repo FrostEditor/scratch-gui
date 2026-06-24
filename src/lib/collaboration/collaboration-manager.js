@@ -2,6 +2,8 @@
 // 支持 Cloudflare Workers + Durable Objects 模式
 // 也兼容 Node.js 服务器模式
 
+import AddonHooks from '../../addons/hooks.js';
+
 class CollaborationManager {
     constructor() {
         this.ws = null;
@@ -18,6 +20,31 @@ class CollaborationManager {
         this.memberId = null;
         this.serverUrl = null; // 服务器基础 URL
         this.serverType = 'workers'; // 'workers' 或 'node'
+        
+        // 鼠标同步
+        this.mousePositions = {}; // memberId -> { x, y, color }
+        this.mouseUpdateTimeout = null;
+        this.lastMousePosition = null;
+        this.mouseThrottleTime = 30; // 鼠标位置更新节流时间（ms），更流畅
+        this.memberColors = {}; // memberId -> 颜色
+        this.colorPalette = [
+            '#FF6B6B', // 红
+            '#4ECDC4', // 青
+            '#FFE66D', // 黄
+            '#95E1D3', // 浅绿
+            '#F38181', // 粉
+            '#AA96DA', // 紫
+            '#FCBAD3', // 浅粉
+            '#A8D8EA', // 浅蓝
+        ];
+        
+        // 增量同步（Blockly 事件）
+        this.isIncrementalSyncActive = false; // 增量同步是否激活
+        this.isApplyingRemoteEvent = false; // 是否正在应用远程事件（避免循环发送）
+        this._blocklyChangeListener = null; // Blockly 变化监听器
+        this.moveEventTimeout = null; // MOVE 事件防抖定时器
+        this.lastMoveEvent = null; // 最后一个 MOVE 事件
+        this.hasResourceChange = false; // 是否有资源变化（图片、声音等），需要发送完整项目
     }
 
     // 设置 VM
@@ -233,6 +260,12 @@ class CollaborationManager {
 
     // 断开连接
     disconnect() {
+        // 停止增量同步
+        this.stopIncrementalSync();
+        
+        // 停止鼠标跟踪
+        this.stopMouseTracking();
+        
         if (this.ws) {
             this.ws.close();
             this.ws = null;
@@ -278,6 +311,12 @@ class CollaborationManager {
                 this.members = data.members;
                 this.emit('room-created', data);
                 this.emit('members-updated', this.members);
+                
+                // 创建房间后，发送一次完整项目数据
+                this.sendFullProjectUpdate();
+                
+                // 暂时禁用增量同步，先保证稳定
+                // this.startIncrementalSync();
                 break;
 
             case 'room-joined':
@@ -287,9 +326,28 @@ class CollaborationManager {
                 this.emit('room-joined', data);
                 this.emit('members-updated', this.members);
                 
-                // 如果有项目数据，加载它
-                if (data.projectData && this.vm) {
+                // 如果有完整项目数据，加载完整项目（包含图片等资源）
+                if (data.fullProjectData && this.vm) {
+                    // 暂时禁用增量同步
+                    // const onProjectLoaded = () => {
+                    //     this.startIncrementalSync();
+                    //     this.off('project-loaded', onProjectLoaded);
+                    // };
+                    // this.on('project-loaded', onProjectLoaded);
+                    
+                    this.loadFullProjectData(data.fullProjectData);
+                } else if (data.projectData && this.vm) {
+                    // 否则只加载 JSON 数据
+                    // const onProjectLoaded = () => {
+                    //     this.startIncrementalSync();
+                    //     this.off('project-loaded', onProjectLoaded);
+                    // };
+                    // this.on('project-loaded', onProjectLoaded);
+                    
                     this.loadProjectData(data.projectData);
+                } else {
+                    // 没有项目数据，暂时禁用增量同步
+                    // this.startIncrementalSync();
                 }
                 break;
 
@@ -333,12 +391,243 @@ class CollaborationManager {
                 this.emit('chat', data);
                 break;
 
+            case 'mouse-move':
+                this.handleMouseMove(data);
+                break;
+
+            case 'blockly-event':
+                this.handleRemoteBlocklyEvent(data);
+                break;
+
             case 'error':
                 this.emit('error', data);
                 break;
 
             default:
                 console.log('[协作] 未知消息类型:', data.type);
+        }
+    }
+
+    // 处理鼠标移动（接收）
+    handleMouseMove(data) {
+        if (!data.memberId) return;
+        
+        const color = this.getMemberColor(data.memberId);
+        this.mousePositions[data.memberId] = {
+            x: data.x,
+            y: data.y,
+            color: color
+        };
+        
+        this.emit('mouse-move', {
+            memberId: data.memberId,
+            x: data.x,
+            y: data.y,
+            color: color
+        });
+    }
+
+    // 发送鼠标位置
+    sendMousePosition(x, y) {
+        if (!this.isConnected || !this.roomKey) return;
+        
+        // 节流，避免发送太频繁
+        const now = Date.now();
+        if (this.lastMousePosition && now - this.lastMousePosition.time < this.mouseThrottleTime) {
+            return;
+        }
+        
+        this.lastMousePosition = { x, y, time: now };
+        
+        this.send({
+            type: 'mouse-move',
+            x: x,
+            y: y
+        });
+    }
+
+    // 获取成员颜色
+    getMemberColor(memberId) {
+        if (!this.memberColors[memberId]) {
+            // 根据成员数量分配颜色
+            const usedColors = Object.values(this.memberColors);
+            const availableColor = this.colorPalette.find(c => !usedColors.includes(c));
+            this.memberColors[memberId] = availableColor || this.colorPalette[Object.keys(this.memberColors).length % this.colorPalette.length];
+        }
+        return this.memberColors[memberId];
+    }
+
+    // 开始鼠标跟踪
+    startMouseTracking() {
+        if (this._mouseMoveHandler) return; // 已经在跟踪了
+
+        this._mouseMoveHandler = (e) => {
+            // 转换为视口百分比（0-1），适配不同分辨率
+            const viewportX = e.clientX / window.innerWidth;
+            const viewportY = e.clientY / window.innerHeight;
+            this.sendMousePosition(viewportX, viewportY);
+        };
+
+        window.addEventListener('mousemove', this._mouseMoveHandler);
+        console.log('[协作] 鼠标跟踪已启动');
+    }
+
+    // 停止鼠标跟踪
+    stopMouseTracking() {
+        if (this._mouseMoveHandler) {
+            window.removeEventListener('mousemove', this._mouseMoveHandler);
+            this._mouseMoveHandler = null;
+        }
+        // 清空鼠标位置
+        this.mousePositions = {};
+        this.emit('mouse-positions-updated', this.mousePositions);
+        console.log('[协作] 鼠标跟踪已停止');
+    }
+
+    // ========== 增量同步（Blockly 事件） ==========
+
+    // 开始增量同步
+    startIncrementalSync() {
+        if (this.isIncrementalSyncActive) return;
+        
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (!workspace) {
+            console.warn('[协作] Blockly 工作区不存在，无法启动增量同步');
+            // 延迟重试
+            setTimeout(() => this.startIncrementalSync(), 1000);
+            return;
+        }
+
+        // 添加变化监听器
+        this._blocklyChangeListener = (event) => {
+            this.handleBlocklyChange(event);
+        };
+        
+        workspace.addChangeListener(this._blocklyChangeListener);
+        this.isIncrementalSyncActive = true;
+        
+        console.log('[协作] 增量同步已启动');
+    }
+
+    // 停止增量同步
+    stopIncrementalSync() {
+        if (!this.isIncrementalSyncActive) return;
+        
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (workspace && this._blocklyChangeListener) {
+            workspace.removeChangeListener(this._blocklyChangeListener);
+            this._blocklyChangeListener = null;
+        }
+        
+        // 清除 MOVE 事件防抖定时器
+        if (this.moveEventTimeout) {
+            clearTimeout(this.moveEventTimeout);
+            this.moveEventTimeout = null;
+        }
+        this.lastMoveEvent = null;
+        
+        this.isIncrementalSyncActive = false;
+        console.log('[协作] 增量同步已停止');
+    }
+
+    // 处理本地 Blockly 变化
+    handleBlocklyChange(event) {
+        // 如果正在应用远程事件，不发送（避免循环）
+        if (this.isApplyingRemoteEvent) return;
+        
+        // 如果没有连接或不在房间里，不发送
+        if (!this.isConnected || !this.roomKey) return;
+        
+        // 过滤掉一些不需要同步的事件
+        if (!event) return;
+        
+        // 跳过 UI 相关的事件（如点击、选择等）
+        const skipTypes = ['click', 'selected', 'viewport_change', 'theme', 'toolbox_item_select'];
+        if (skipTypes.includes(event.type)) return;
+        
+        // 序列化事件
+        let eventJson;
+        try {
+            eventJson = event.toJson();
+        } catch (e) {
+            console.warn('[协作] 事件序列化失败:', e);
+            return;
+        }
+        
+        // MOVE 事件做防抖处理，拖拽过程中不发送，停下来后才发送最终位置
+        // 避免频繁发送导致卡顿，也不需要同步拖拽过程
+        if (event.type === 'move') {
+            this.lastMoveEvent = eventJson;
+            if (this.moveEventTimeout) {
+                clearTimeout(this.moveEventTimeout);
+            }
+            this.moveEventTimeout = setTimeout(() => {
+                if (this.lastMoveEvent) {
+                    this.send({
+                        type: 'blockly-event',
+                        event: this.lastMoveEvent
+                    });
+                    this.lastMoveEvent = null;
+                }
+            }, 200); // 200ms 防抖，停下来后才发送
+            return;
+        }
+        
+        // 其他事件立即发送
+        this.send({
+            type: 'blockly-event',
+            event: eventJson
+        });
+    }
+
+    // 处理远程 Blockly 事件
+    handleRemoteBlocklyEvent(data) {
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (!workspace) {
+            console.warn('[协作] Blockly 工作区不存在，无法应用远程事件');
+            return;
+        }
+        
+        const ScratchBlocks = AddonHooks.blockly;
+        if (!ScratchBlocks || !ScratchBlocks.Events) {
+            console.warn('[协作] ScratchBlocks 不存在，无法应用远程事件');
+            return;
+        }
+        
+        try {
+            // 标记正在应用远程事件，避免循环发送和触发全量同步
+            this.isApplyingRemoteEvent = true;
+            
+            // 反序列化事件
+            const event = ScratchBlocks.Events.fromJson(data.event, workspace);
+            
+            // 如果是 CREATE 事件，检查积木是否已存在（防止重复）
+            if (event.type === ScratchBlocks.Events.CREATE && event.ids) {
+                const allExist = event.ids.every(id => workspace.getBlockById(id));
+                if (allExist) {
+                    console.log('[协作] 积木已存在，跳过 CREATE 事件');
+                    return;
+                }
+            }
+            
+            // 如果是 DELETE 事件，检查积木是否已不存在
+            if (event.type === ScratchBlocks.Events.DELETE && event.ids) {
+                const allDeleted = event.ids.every(id => !workspace.getBlockById(id));
+                if (allDeleted) {
+                    console.log('[协作] 积木已删除，跳过 DELETE 事件');
+                    return;
+                }
+            }
+            
+            // 运行事件（应用到工作区）
+            event.run(true); // true = 正向应用事件
+            
+            console.log('[协作] 已应用远程事件:', data.event.type);
+        } catch (e) {
+            console.error('[协作] 应用远程事件失败:', e);
+        } finally {
+            // 取消标记
+            this.isApplyingRemoteEvent = false;
         }
     }
 
@@ -355,14 +644,47 @@ class CollaborationManager {
         const handleWorkspaceChange = (source) => {
             if (!this.roomKey || !this.isConnected || this.isLoadingProject) return;
             
+            // 如果正在应用远程事件，不触发全量同步（避免循环和冲突）
+            if (this.isApplyingRemoteEvent) return;
+            
+            // 检测是否是资源相关的变化（需要发送完整项目）
+            const resourceEvents = [
+                'COSTUME_ADDED', 'costumeAdded',
+                'SOUND_ADDED', 'soundAdded',
+                'SPRITE_ADDED', 'spriteAdded',
+                'runtime.COSTUME_ADDED', 'runtime.SOUND_ADDED', 'runtime.SPRITE_ADDED'
+            ];
+            if (resourceEvents.includes(source)) {
+                this.hasResourceChange = true;
+            }
+            
+            // 如果增量同步已激活，且是纯积木相关的事件，则不发送全量同步
+            // 避免闪烁和抽搐，积木变化通过增量同步处理
+            // 注意：不过滤 PROJECT_CHANGED，因为角色、造型等变化也会触发这个事件
+            if (this.isIncrementalSyncActive) {
+                const isBlockOnlyEvent = source === 'workspaceUpdate' || 
+                                       source === 'runtime.workspaceUpdate' ||
+                                       source === 'workspaceChanged' ||
+                                       source === 'runtime.workspaceChanged' ||
+                                       source === 'BLOCKSINFO_UPDATE' ||
+                                       source === 'runtime.BLOCKSINFO_UPDATE' ||
+                                       source === 'blocksInfoUpdate';
+                if (isBlockOnlyEvent) {
+                    return; // 纯积木变化通过增量同步处理，不触发全量同步
+                }
+            }
+            
             // 防抖，避免频繁发送
             if (this.projectUpdateTimeout) {
                 clearTimeout(this.projectUpdateTimeout);
             }
             
+            // 增量同步激活时，加长防抖时间，避免积木编辑时频繁触发全量同步
+            const debounceTime = this.isIncrementalSyncActive ? 1500 : 300;
+            
             this.projectUpdateTimeout = setTimeout(() => {
                 this.sendProjectUpdate();
-            }, 800); // 800ms 防抖
+            }, debounceTime);
         };
 
         // 尝试监听各种可能的事件
@@ -417,7 +739,7 @@ class CollaborationManager {
     }
 
     // 发送项目更新
-    sendProjectUpdate() {
+    async sendProjectUpdate() {
         if (!this.vm || !this.roomKey || !this.isConnected || this.isLoadingProject) {
             return;
         }
@@ -427,18 +749,125 @@ class CollaborationManager {
             
             // 简单比较，避免重复发送相同数据
             const dataStr = JSON.stringify(projectData);
-            if (dataStr === this.lastProjectData) {
+            if (dataStr === this.lastProjectData && !this.hasResourceChange) {
                 return;
             }
             
             this.lastProjectData = dataStr;
-
-            this.send({
-                type: 'project-update',
-                projectData: projectData
-            });
+            
+            // 如果有资源变化，发送完整项目（包含图片、声音等）
+            if (this.hasResourceChange) {
+                console.log('[协作] 检测到资源变化，发送完整项目数据...');
+                const fullProjectData = await this.getFullProjectData();
+                if (fullProjectData) {
+                    this.send({
+                        type: 'project-update',
+                        projectData: projectData,
+                        fullProjectData: fullProjectData
+                    });
+                    console.log('[协作] 完整项目数据已发送');
+                }
+                this.hasResourceChange = false; // 清除标记
+            } else {
+                // 否则只发送 JSON 数据（更快）
+                this.send({
+                    type: 'project-update',
+                    projectData: projectData
+                });
+            }
         } catch (e) {
             console.error('[协作] 发送项目更新失败:', e);
+        }
+    }
+
+    // 发送完整项目更新（包含所有资源，如图片、声音等）
+    async sendFullProjectUpdate() {
+        if (!this.vm || !this.roomKey || !this.isConnected) {
+            return;
+        }
+
+        try {
+            console.log('[协作] 正在发送完整项目数据...');
+            
+            const fullProjectData = await this.getFullProjectData();
+            const projectData = this.vm.toJSON();
+            
+            if (fullProjectData) {
+                this.send({
+                    type: 'project-update',
+                    projectData: projectData,
+                    fullProjectData: fullProjectData
+                });
+                console.log('[协作] 完整项目数据已发送');
+            }
+            
+            // 更新 lastProjectData
+            this.lastProjectData = JSON.stringify(projectData);
+        } catch (e) {
+            console.error('[协作] 发送完整项目更新失败:', e);
+        }
+    }
+
+    // 获取完整项目数据（sb3 格式，base64 编码）
+    async getFullProjectData() {
+        if (!this.vm) return null;
+        
+        try {
+            const sb3Buffer = await this.vm.saveProjectSb3();
+            // 转成 base64
+            const base64 = this.arrayBufferToBase64(sb3Buffer);
+            return base64;
+        } catch (e) {
+            console.error('[协作] 导出完整项目失败:', e);
+            return null;
+        }
+    }
+
+    // ArrayBuffer 转 base64
+    arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    // base64 转 ArrayBuffer
+    base64ToArrayBuffer(base64) {
+        const binary_string = atob(base64);
+        const len = binary_string.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    // 加载完整项目数据（sb3 格式，base64 编码）
+    async loadFullProjectData(base64Data) {
+        if (!this.vm) {
+            console.error('[协作] 无法加载项目：VM 不存在');
+            return;
+        }
+
+        this.isLoadingProject = true;
+
+        try {
+            const arrayBuffer = this.base64ToArrayBuffer(base64Data);
+            await this.vm.loadProject(arrayBuffer);
+            console.log('[协作] 完整项目已同步成功');
+            
+            // 更新 lastProjectData
+            const projectData = this.vm.toJSON();
+            this.lastProjectData = JSON.stringify(projectData);
+            
+            this.isLoadingProject = false;
+            this.emit('project-loaded');
+        } catch (e) {
+            console.error('[协作] 加载完整项目失败:', e);
+            this.isLoadingProject = false;
         }
     }
 

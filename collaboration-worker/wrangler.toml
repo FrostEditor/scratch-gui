@@ -11,7 +11,7 @@ bindings = [
 # Durable Objects 迁移（首次部署需要）
 [[migrations]]
 tag = "v1"
-new_classes = ["RoomObject"]
+new_sqlite_classes = ["RoomObject"]
 
 # 开发服务器配置
 [dev]

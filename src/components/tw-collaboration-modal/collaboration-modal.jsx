@@ -107,6 +107,11 @@ const messages = defineMessages({
         description: 'Server URL label',
         id: 'tw.collaboration.serverUrl'
     },
+    username: {
+        defaultMessage: '用户名',
+        description: 'Username label',
+        id: 'tw.collaboration.username'
+    },
     description: {
         defaultMessage: '与朋友一起实时协作编辑项目',
         description: 'Description of collaboration feature',
@@ -123,7 +128,8 @@ const CollaborationModal = props => {
     const [isHost, setIsHost] = useState(false);
     const [status, setStatus] = useState('disconnected'); // disconnected, connecting, connected
     const [error, setError] = useState('');
-    const [serverUrl, setServerUrl] = useState('https://your-worker.workers.dev');
+    const [serverUrl, setServerUrl] = useState('https://server.froste.top');
+    const [username, setUsername] = useState('用户');
     const [isLoading, setIsLoading] = useState(false);
     
     const isMounted = useRef(true);
@@ -190,6 +196,13 @@ const CollaborationModal = props => {
             setServerUrl(savedServerUrl);
         }
 
+        // 从 localStorage 读取用户名
+        const savedUsername = localStorage.getItem('collaborationUsername');
+        if (savedUsername) {
+            setUsername(savedUsername);
+            collaborationManager.setUsername(savedUsername);
+        }
+
         return () => {
             isMounted.current = false;
             collaborationManager.off('connected', handleConnected);
@@ -205,6 +218,12 @@ const CollaborationModal = props => {
         localStorage.setItem('collaborationServerUrl', url);
     };
 
+    // 保存用户名
+    const saveUsername = (name) => {
+        localStorage.setItem('collaborationUsername', name);
+        collaborationManager.setUsername(name);
+    };
+
     // 创建房间
     const handleCreateRoom = async () => {
         setError('');
@@ -213,6 +232,7 @@ const CollaborationModal = props => {
 
         try {
             saveServerUrl(serverUrl);
+            saveUsername(username);
             
             const result = await collaborationManager.createRoom(serverUrl);
             setRoomKey(result.roomKey);
@@ -241,6 +261,7 @@ const CollaborationModal = props => {
 
         try {
             saveServerUrl(serverUrl);
+            saveUsername(username);
             
             const result = await collaborationManager.joinRoom(inputKey, serverUrl);
             setRoomKey(result.roomKey);
@@ -310,6 +331,21 @@ const CollaborationModal = props => {
                         }
                     </span>
                 </div>
+            </div>
+
+            {/* 用户名设置 */}
+            <div className={styles.serverSettings}>
+                <label className={styles.serverLabel}>
+                    {props.intl.formatMessage(messages.username)}
+                </label>
+                <input
+                    type="text"
+                    className={styles.serverInput}
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="输入你的用户名"
+                    maxLength={20}
+                />
             </div>
 
             {error && (

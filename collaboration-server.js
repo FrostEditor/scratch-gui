@@ -60,6 +60,12 @@ function handleMessage(ws, data) {
         case 'chat':
             handleChat(ws, data);
             break;
+        case 'mouse-move':
+            handleMouseMove(ws, data);
+            break;
+        case 'blockly-event':
+            handleBlocklyEvent(ws, data);
+            break;
         default:
             console.log('[协作服务器] 未知消息类型:', data.type);
     }
@@ -144,7 +150,8 @@ function handleJoinRoom(ws, data) {
         roomKey: roomKey,
         members: getMembersList(room),
         isHost: false,
-        projectData: room.projectData
+        projectData: room.projectData,
+        fullProjectData: room.fullProjectData // 完整项目数据
     });
 
     // 广播给房间内其他人
@@ -217,8 +224,13 @@ function handleProjectUpdate(ws, data) {
 
     // 保存项目数据
     room.projectData = data.projectData;
+    
+    // 如果有完整项目数据，也保存下来
+    if (data.fullProjectData) {
+        room.fullProjectData = data.fullProjectData;
+    }
 
-    // 广播给房间内其他人
+    // 广播给房间内其他人（只发送 JSON 版本）
     broadcast(room, {
         type: 'project-update',
         projectData: data.projectData,
@@ -263,6 +275,38 @@ function handleChat(ws, data) {
         message: data.message,
         timestamp: Date.now()
     });
+}
+
+// 鼠标移动
+function handleMouseMove(ws, data) {
+    if (!ws.roomId) return;
+
+    const room = rooms.get(ws.roomId);
+    if (!room) return;
+
+    // 直接广播给其他成员，不保存状态
+    broadcast(room, {
+        type: 'mouse-move',
+        memberId: ws.id,
+        x: data.x,
+        y: data.y
+    }, ws.id);
+}
+
+// 处理 Blockly 事件（增量同步）
+function handleBlocklyEvent(ws, data) {
+    if (!ws.roomId) return;
+
+    const room = rooms.get(ws.roomId);
+    if (!room) return;
+
+    // 直接广播给其他成员，不保存状态（实时事件）
+    broadcast(room, {
+        type: 'blockly-event',
+        event: data.event,
+        senderId: ws.id,
+        senderName: ws.username
+    }, ws.id);
 }
 
 // 工具函数

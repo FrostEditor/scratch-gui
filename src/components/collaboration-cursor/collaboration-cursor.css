@@ -1,0 +1,35 @@
+.cursorContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 99999;
+}
+
+.remoteCursor {
+    position: absolute;
+    transform: translate(-2px, -2px);
+    pointer-events: none;
+    will-change: left, top;
+}
+
+.cursorPointer {
+    display: block;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.cursorLabel {
+    position: absolute;
+    left: 18px;
+    top: 16px;
+    padding: 2px 8px;
+    background-color: var(--cursor-color);
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
