@@ -4,18 +4,18 @@ import sharedMessages from '../shared-messages';
 const defaultMsg_README = `
 #README #Welcome!
 
-# Welcome to ** AstraEditor ** !
+# Welcome to ** FrostEditor ** !
 
-AE is a Scratch editor developed based on TurboWarp. We have added more features and addons~~as well as many BUGs and features~~!
+FE is a Scratch editor developed based on TurboWarp. We have added more features and addons~~as well as many BUGs and features~~!
 
-Here we are demonstrating the README feature. To learn more, please visit [AstraEditor Documentation](https://editors.astras.top/document/)!
+Here we are demonstrating the README feature.
 
-For secondary development based on AstraEditor, please visit our [code repository](https://github.com/AstraEditor).
+For secondary development based on FrostEditor, please visit our [code repository](https://github.com/FrostEditor).
 
-Go to [this link](https://github.com/AstraEditor/scratch-gui/issues) to report BUGs to us!
+Go to [this link](https://github.com/FrostEditor/scratch-gui/issues) to report BUGs to us!
 
 > [!NOTE]
-> [Follow us on Bilibili](https://space.bilibili.com/3691007061264515)`;
+> FrostEditor - Make Scratch Better`;
 
 let messages = defineMessages({
     variable: {

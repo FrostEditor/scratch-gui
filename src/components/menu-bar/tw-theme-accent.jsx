@@ -7,12 +7,10 @@ import {connect} from 'react-redux';
 import check from './check.svg';
 import dropdownCaret from './dropdown-caret.svg';
 import {MenuItem, Submenu} from '../menu/menu.jsx';
-import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, Theme, BLOCKS_THREE, BLOCKS_DARK} from '../../lib/themes/index.js';
+import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, ACCENT_FE, ACCENT_COSTOM, ACCENT_CE, ACCENT_TY, ACCENT_MIKU, Theme} from '../../lib/themes/index.js';
 import {openAccentMenu, accentMenuOpen, closeSettingsMenu} from '../../reducers/menus.js';
 import {setTheme} from '../../reducers/theme.js';
 import {persistTheme} from '../../lib/themes/themePersistance.js';
-import importedAddons from '../../addons/generated/addon-manifests';
-import SettingsStore from '../../addons/settings-store-singleton';
 import rainbowIcon from './tw-accent-rainbow.svg';
 import styles from './settings-menu.css';
 
@@ -36,6 +34,31 @@ const options = defineMessages({
         defaultMessage: 'Rainbow',
         description: 'Name of color scheme that uses a rainbow.',
         id: 'tw.accent.rainbow'
+    },
+    [ACCENT_FE]: {
+        defaultMessage: 'FrostEditor',
+        description: 'Name of the FrostEditor color scheme.',
+        id: 'tw.accent.frosteditor'
+    },
+    [ACCENT_COSTOM]: {
+        defaultMessage: 'Custom',
+        description: 'Name of the custom color scheme.',
+        id: 'tw.accent.custom'
+    },
+    [ACCENT_CE]: {
+        defaultMessage: 'CE',
+        description: 'Name of the CE color scheme.',
+        id: 'tw.accent.ce'
+    },
+    [ACCENT_TY]: {
+        defaultMessage: 'TY',
+        description: 'Name of the TY color scheme.',
+        id: 'tw.accent.ty'
+    },
+    [ACCENT_MIKU]: {
+        defaultMessage: 'Miku',
+        description: 'Name of the Miku color scheme.',
+        id: 'tw.accent.miku'
     }
 });
 
@@ -117,45 +140,52 @@ const AccentThemeMenu = ({
             />
         </div>
         <Submenu place={isRtl ? 'left' : 'right'}>
-            {/* Only show editor-theme3 presets here (remove default English accent options) */}
-            {(() => {
-                const manifest = importedAddons['editor-theme3'];
-                if (!manifest || !manifest.presets) return null;
-                // Only show our curated presets in the Accent menu
-                const whitelist = new Set(['tech-black', 'snow-white', 'orange']);
-                return manifest.presets
-                    .filter(p => whitelist.has(p.id))
-                    .map(preset => {
-                        const name = preset.name;
-                        const handleClick = () => {
-                            SettingsStore.applyAddonPreset('editor-theme3', preset.id);
-                            let newTheme = theme;
-                            if (preset.id === 'tech-black') {
-                                newTheme = new Theme(theme.accent, 'dark', BLOCKS_DARK);
-                            } else if (preset.id === 'snow-white') {
-                                newTheme = new Theme(theme.accent, 'light', BLOCKS_THREE);
-                            } else if (preset.id === 'orange') {
-                                newTheme = new Theme(ACCENT_RED, 'light', BLOCKS_THREE);
-                            }
-                            onChangeTheme(newTheme);
-                        };
-                        return (
-                            <MenuItem key={`accent-preset-${preset.id}`} onClick={handleClick}>
-                                <div className={styles.option}>
-                                    <img
-                                        className={classNames(styles.check, {[styles.selected]: false})}
-                                        width={15}
-                                        height={12}
-                                        src={check}
-                                        draggable={false}
-                                    />
-                                    <ColorIcon id={theme.accent} />
-                                    {name}
-                                </div>
-                            </MenuItem>
-                        );
-                    });
-            })()}
+            {/* Accent color options */}
+            <AccentMenuItem
+                id={ACCENT_FE}
+                isSelected={theme.accent === ACCENT_FE}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_FE))}
+            />
+            <AccentMenuItem
+                id={ACCENT_RED}
+                isSelected={theme.accent === ACCENT_RED}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_RED))}
+            />
+            <AccentMenuItem
+                id={ACCENT_PURPLE}
+                isSelected={theme.accent === ACCENT_PURPLE}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_PURPLE))}
+            />
+            <AccentMenuItem
+                id={ACCENT_BLUE}
+                isSelected={theme.accent === ACCENT_BLUE}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_BLUE))}
+            />
+            <AccentMenuItem
+                id={ACCENT_RAINBOW}
+                isSelected={theme.accent === ACCENT_RAINBOW}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_RAINBOW))}
+            />
+            <AccentMenuItem
+                id={ACCENT_COSTOM}
+                isSelected={theme.accent === ACCENT_COSTOM}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_COSTOM))}
+            />
+            <AccentMenuItem
+                id={ACCENT_CE}
+                isSelected={theme.accent === ACCENT_CE}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_CE))}
+            />
+            <AccentMenuItem
+                id={ACCENT_TY}
+                isSelected={theme.accent === ACCENT_TY}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_TY))}
+            />
+            <AccentMenuItem
+                id={ACCENT_MIKU}
+                isSelected={theme.accent === ACCENT_MIKU}
+                onClick={() => onChangeTheme(theme.set('accent', ACCENT_MIKU))}
+            />
         </Submenu>
     </MenuItem>
 );

@@ -32,7 +32,9 @@ const ACCENT_MAP = {
     [ACCENT_RED]: accentRed,
     [ACCENT_RAINBOW]: accentRainbow,
     [ACCENT_FE]: accentFE,
-    [ACCENT_COSTOM]: accentCostom.getAllColor(),
+    get [ACCENT_COSTOM]() {
+        return accentCostom.getAllColor();
+    },
     [ACCENT_CE]: accentCE,
     [ACCENT_TY]: accentTY,
     [ACCENT_MIKU]: accentMIKU

@@ -12,12 +12,14 @@ const TWThemeManagerHOC = function (WrappedComponent) {
         constructor (props) {
             super(props);
             bindAll(this, [
-                'handleSystemThemeChange'
+                'handleSystemThemeChange',
+                'handleCustomThemeChange'
             ]);
             applyGuiColors(props.reduxTheme);
         }
         componentDidMount () {
             this.removeListeners = onSystemPreferenceChange(this.handleSystemThemeChange);
+            window.addEventListener('custom-theme-changed', this.handleCustomThemeChange);
         }
         componentDidUpdate (prevProps) {
             if (prevProps.reduxTheme !== this.props.reduxTheme) {
@@ -26,6 +28,7 @@ const TWThemeManagerHOC = function (WrappedComponent) {
         }
         componentWillUnmount () {
             this.removeListeners();
+            window.removeEventListener('custom-theme-changed', this.handleCustomThemeChange);
         }
         handleSystemThemeChange () {
             let newTheme = detectTheme();
@@ -33,6 +36,10 @@ const TWThemeManagerHOC = function (WrappedComponent) {
                 newTheme = newTheme.set('blocks', BLOCKS_CUSTOM);
             }
             this.props.onChangeTheme(newTheme);
+        }
+        handleCustomThemeChange () {
+            // 重新应用当前主题，因为自定义主题色可能已经改变
+            applyGuiColors(this.props.reduxTheme);
         }
         render () {
             const {

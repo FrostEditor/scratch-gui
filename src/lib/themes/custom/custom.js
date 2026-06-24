@@ -1,4 +1,4 @@
-let customGUITheme = localStorage.getItem("constomTheme");
+let customGUITheme = localStorage.getItem("customTheme");
 if (customGUITheme == null || customGUITheme === 'undefined' || customGUITheme === 'null') {
         customGUITheme = {
                 'motion-primary': '#ff4c4c',
@@ -63,9 +63,12 @@ if (customBlockColors == null || customBlockColors === 'undefined' || customBloc
 const guiColors = customGUITheme;
 const blockColors = customBlockColors;
 const setColorTo = (id, value) => {
-        console.log(value)
         if (id == "checkboxActiveBackground" || id == "checkboxActiveBorder") customBlockColors[id] = value;
         else customGUITheme[id] = value;
+        // 触发主题更新事件
+        if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('custom-theme-changed'));
+        }
 }
 
 const getColorOf = (id) => {
@@ -75,9 +78,8 @@ const getColorOf = (id) => {
 
 
 const saveColors = () => {
-        localStorage.setItem("constomTheme", JSON.stringify(customGUITheme));
+        localStorage.setItem("customTheme", JSON.stringify(customGUITheme));
         localStorage.setItem("blockColors", JSON.stringify(customBlockColors));
-
 }
 
 function getAllColor(){

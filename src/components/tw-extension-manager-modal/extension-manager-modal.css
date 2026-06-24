@@ -1,0 +1,129 @@
+@import "../../css/units.css";
+@import "../../css/colors.css";
+
+.modalContent {
+    width: 500px;
+    max-height: 80vh;
+}
+
+.body {
+    background: $ui-white;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.title {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: $text-primary;
+}
+
+.extensionList {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    border: 1px solid $ui-tertiary;
+    border-radius: 0.5rem;
+    background-color: $ui-secondary;
+}
+
+.noExtensions {
+    padding: 2rem;
+    text-align: center;
+    color: $ui-black-transparent;
+    margin: 0;
+}
+
+.extensionItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid $ui-tertiary;
+    
+    &:last-child {
+        border-bottom: none;
+    }
+    
+    &:hover {
+        background-color: $ui-primary;
+    }
+}
+
+.extensionInfo {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.extensionIcon {
+    width: 40px;
+    height: 40px;
+    margin-right: 0.75rem;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.extensionDetails {
+    flex: 1;
+    min-width: 0;
+}
+
+.extensionName {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: $text-primary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.extensionDescription {
+    font-size: 0.8rem;
+    color: $ui-black-transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.25rem;
+}
+
+.removeButton {
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    background-color: $error-primary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    margin-left: 1rem;
+    
+    &:hover {
+        background-color: $error-light;
+    }
+}
+
+.buttonRow {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+    border-top: 1px solid $ui-tertiary;
+}
+
+.closeButton {
+    padding: 0.5rem 1.5rem;
+    border-radius: 0.25rem;
+    background-color: $looks-secondary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    
+    &:hover {
+        background-color: $looks-secondary-dark;
+    }
+}
