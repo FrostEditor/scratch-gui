@@ -380,8 +380,8 @@ class CollaborationManager {
                 // 创建房间后，发送一次完整项目数据
                 this.sendFullProjectUpdate();
                 
-                // 暂时禁用增量同步，改用停手才同步方案，更稳定不闪烁
-                // this.startIncrementalSync();
+                // 启动增量同步（添加/删除/修改参数实时同步，不闪烁）
+                this.startIncrementalSync();
                 break;
 
             case 'room-joined':
@@ -396,26 +396,26 @@ class CollaborationManager {
                 
                 // 如果有完整项目数据，加载完整项目（包含图片等资源）
                 if (data.fullProjectData && this.vm) {
-                    // 暂时禁用增量同步
-                    // const onProjectLoaded = () => {
-                    //     this.startIncrementalSync();
-                    //     this.off('project-loaded', onProjectLoaded);
-                    // };
-                    // this.on('project-loaded', onProjectLoaded);
+                    // 等项目加载完成后再启动增量同步
+                    const onProjectLoaded = () => {
+                        this.startIncrementalSync();
+                        this.off('project-loaded', onProjectLoaded);
+                    };
+                    this.on('project-loaded', onProjectLoaded);
                     
                     this.loadFullProjectData(data.fullProjectData);
                 } else if (data.projectData && this.vm) {
                     // 否则只加载 JSON 数据
-                    // const onProjectLoaded = () => {
-                    //     this.startIncrementalSync();
-                    //     this.off('project-loaded', onProjectLoaded);
-                    // };
-                    // this.on('project-loaded', onProjectLoaded);
+                    const onProjectLoaded = () => {
+                        this.startIncrementalSync();
+                        this.off('project-loaded', onProjectLoaded);
+                    };
+                    this.on('project-loaded', onProjectLoaded);
                     
                     this.loadProjectData(data.projectData);
                 } else {
-                    // 没有项目数据，暂时禁用增量同步
-                    // this.startIncrementalSync();
+                    // 没有项目数据，直接启动增量同步
+                    this.startIncrementalSync();
                 }
                 break;
 
@@ -660,27 +660,19 @@ class CollaborationManager {
             return;
         }
         
-        // MOVE 事件做防抖处理，拖拽过程中不发送，停下来后才发送最终位置
-        // 避免频繁发送导致卡顿，也不需要同步拖拽过程
+        // MOVE 事件容易导致积木抽搐，改用全量同步
+        // 拖拽过程中不同步，停下来 300ms 后自动同步，闪一下但完全稳定
         if (event.type === 'move') {
-            this.lastMoveEvent = eventJson;
-            if (this.moveEventTimeout) {
-                clearTimeout(this.moveEventTimeout);
+            if (this.projectUpdateTimeout) {
+                clearTimeout(this.projectUpdateTimeout);
             }
-            this.moveEventTimeout = setTimeout(() => {
-                if (this.lastMoveEvent) {
-                    this.send({
-                        type: 'blockly-event',
-                        event: this.lastMoveEvent,
-                        targetId: targetId
-                    });
-                    this.lastMoveEvent = null;
-                }
-            }, 200); // 200ms 防抖，停下来后才发送
+            this.projectUpdateTimeout = setTimeout(() => {
+                this.sendProjectUpdate();
+            }, 300);
             return;
         }
         
-        // 其他事件立即发送
+        // 其他事件（CREATE、DELETE、CHANGE 等）用增量同步，实时不闪烁
         this.send({
             type: 'blockly-event',
             event: eventJson,
