@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 import styles from './collaboration-cursor.css';
 
@@ -9,7 +9,12 @@ import styles from './collaboration-cursor.css';
 const CollaborationCursor = () => {
     const [cursors, setCursors] = useState({}); // memberId -> { x, y, color, name }
     const [isActive, setIsActive] = useState(false);
-    const containerRef = useRef(null);
+
+    // 获取成员名称
+    const getMemberName = useCallback((memberId) => {
+        const member = collaborationManager.members.find(m => m.id === memberId);
+        return member ? member.username : '未知用户';
+    }, []);
 
     useEffect(() => {
         // 监听鼠标移动事件
@@ -92,13 +97,7 @@ const CollaborationCursor = () => {
             collaborationManager.off('room-joined', handleRoomJoined);
             collaborationManager.off('room-created', handleRoomCreated);
         };
-    }, []);
-
-    // 获取成员名称
-    const getMemberName = (memberId) => {
-        const member = collaborationManager.members.find(m => m.id === memberId);
-        return member ? member.username : '未知用户';
-    };
+    }, [getMemberName]);
 
     if (!isActive) return null;
 

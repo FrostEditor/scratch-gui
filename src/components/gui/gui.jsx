@@ -13,6 +13,7 @@ import Blocks from '../../containers/blocks.jsx';
 import CostumeTab from '../../containers/costume-tab.jsx';
 import TargetPane from '../../containers/target-pane.jsx';
 import SoundTab from '../../containers/sound-tab.jsx';
+import ProjectStatement from '../project-statement/project-statement.jsx';
 import StageWrapper from '../../containers/stage-wrapper.jsx';
 import Loader from '../loader/loader.jsx';
 import Box from '../box/box.jsx';
@@ -50,6 +51,7 @@ import addExtensionIcon from './icon--extensions.svg';
 import codeIcon from '!../../lib/tw-recolor/build!./icon--code.svg';
 import costumesIcon from '!../../lib/tw-recolor/build!./icon--costumes.svg';
 import soundsIcon from '!../../lib/tw-recolor/build!./icon--sounds.svg';
+import statementIcon from '!../../lib/tw-recolor/build!./icon--statement.svg';
 
 const messages = defineMessages({
     addExtension: {
@@ -187,6 +189,7 @@ const GUIComponent = props => {
             <React.Fragment>
                 <TWSecurityManager securityManager={securityManager} />
                 <TWRestorePointManager />
+                <CollaborationCursor />
                 {usernameModalVisible && <TWUsernameModal />}
                 {settingsModalVisible && <TWSettingsModal />}
                 {customExtensionModalVisible && <TWCustomExtensionModal />}
@@ -385,6 +388,9 @@ const GUIComponent = props => {
                                             id="gui.gui.soundsTab"
                                         />
                                     </Tab>
+                                    <Tab className={tabClassNames.tab}>
+                                        <span>作品声明</span>
+                                    </Tab>
                                 </TabList>
                                 <TabPanel className={tabClassNames.tabPanel}>
                                     <Box className={styles.blocksWrapper}>
@@ -426,6 +432,9 @@ const GUIComponent = props => {
                                 </TabPanel>
                                 <TabPanel className={tabClassNames.tabPanel}>
                                     {soundsTabVisible ? <SoundTab vm={vm} /> : null}
+                                </TabPanel>
+                                <TabPanel className={tabClassNames.tabPanel}>
+                                    <ProjectStatement vm={vm} />
                                 </TabPanel>
                             </Tabs>
                             {backpackVisible ? (

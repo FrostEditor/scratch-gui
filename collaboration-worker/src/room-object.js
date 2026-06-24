@@ -12,6 +12,7 @@ export class RoomObject {
     this.projectData = null;
     this.fullProjectData = null; // 完整项目数据（sb3 base64）
     this.hostId = null;
+    this.hostToken = null; // 房主令牌，用于恢复房主身份
     
     // 从存储中恢复状态（如果有的话）
     this.state.blockConcurrencyWhile(async () => {
@@ -19,6 +20,7 @@ export class RoomObject {
       if (stored) {
         this.roomKey = stored.roomKey;
         this.hostId = stored.hostId;
+        this.hostToken = stored.hostToken;
         this.projectData = stored.projectData;
         this.fullProjectData = stored.fullProjectData;
         // 注意：members 中的 WebSocket 连接不能持久化，需要重新建立
@@ -38,6 +40,7 @@ export class RoomObject {
     const memberId = url.searchParams.get('memberId') || this.generateId();
     const username = url.searchParams.get('username') || '匿名用户';
     const roomKey = url.searchParams.get('roomKey');
+    const hostToken = url.searchParams.get('hostToken');
 
     // 如果是新房间，设置房间密钥
     if (!this.roomKey && roomKey) {
@@ -53,7 +56,32 @@ export class RoomObject {
 
     // 添加成员
     const isFirstMember = this.members.size === 0;
-    const isHost = isFirstMember; // 第一个成员是房主
+    let isHost = isFirstMember; // 第一个成员默认是房主
+    
+    // 如果带上了房主令牌，并且匹配，就设为房主
+    if (hostToken && this.hostToken && hostToken === this.hostToken) {
+      isHost = true;
+      console.log(`[房间 ${this.roomKey}] 通过房主令牌恢复房主身份: ${username}`);
+    }
+    
+    // 如果是第一个成员（创建房间），生成房主令牌
+    if (isFirstMember) {
+      this.hostToken = this.generateId(); // 生成随机令牌
+      console.log(`[房间 ${this.roomKey}] 生成房主令牌: ${this.hostToken}`);
+    }
+    
+    // 如果新成员是房主，并且原来有房主，取消原来的房主身份
+    if (isHost && this.hostId && this.hostId !== memberId) {
+      const oldHost = this.members.get(this.hostId);
+      if (oldHost) {
+        oldHost.isHost = false;
+        // 通知原房主他不再是房主了
+        this.sendToMember(this.hostId, {
+          type: 'host-changed',
+          isHost: false
+        });
+      }
+    }
     
     const member = {
       id: memberId,
@@ -86,14 +114,21 @@ export class RoomObject {
     });
 
     // 发送加入成功消息
-    this.sendToMember(memberId, {
+    const joinMessage = {
       type: isFirstMember ? 'room-created' : 'room-joined',
       roomKey: this.roomKey,
       members: this.getMembersList(),
       isHost: isHost,
       projectData: this.projectData,
       fullProjectData: this.fullProjectData // 完整项目数据（sb3 base64）
-    });
+    };
+    
+    // 只有房主才能收到房主令牌
+    if (isHost) {
+      joinMessage.hostToken = this.hostToken;
+    }
+    
+    this.sendToMember(memberId, joinMessage);
 
     // 广播新成员加入
     if (!isFirstMember) {
@@ -137,6 +172,20 @@ export class RoomObject {
 
         case 'blockly-event':
           this.handleBlocklyEvent(sender, message);
+          break;
+
+        case 'blocks-update':
+          this.handleBlocksUpdate(sender, message);
+          break;
+
+        case 'signaling':
+          // WebRTC 信令消息，点对点转发
+          this.handleSignaling(sender, message);
+          break;
+
+        case 'data-relay':
+          // 数据中继消息（WebRTC 没连上时的后备），点对点转发
+          this.handleDataRelay(sender, message);
           break;
 
         case 'leave-room':
@@ -238,6 +287,50 @@ export class RoomObject {
       senderId: sender.id,
       senderName: sender.username
     }, sender.id);
+  }
+
+  // 处理积木更新（轻量同步）
+  handleBlocksUpdate(sender, message) {
+    // 直接广播给其他成员，不保存状态
+    this.broadcast({
+      type: 'blocks-update',
+      targetId: message.targetId,
+      blocks: message.blocks,
+      memberId: sender.id,
+      username: sender.username
+    }, sender.id);
+  }
+
+  // 处理 WebRTC 信令消息（点对点转发）
+  handleSignaling(sender, message) {
+    const targetId = message.to;
+    if (!targetId) return;
+
+    const target = this.members.get(targetId);
+    if (!target) return;
+
+    this.sendToMember(targetId, {
+      type: 'signaling',
+      from: sender.id,
+      to: targetId,
+      payload: message.payload
+    });
+  }
+
+  // 处理数据中继消息（WebRTC 没连上时的后备，点对点转发）
+  handleDataRelay(sender, message) {
+    const targetId = message.to;
+    if (!targetId) return;
+
+    const target = this.members.get(targetId);
+    if (!target) return;
+
+    this.sendToMember(targetId, {
+      type: 'data-relay',
+      from: sender.id,
+      to: targetId,
+      payload: message.payload
+    });
   }
 
   // 处理成员离开

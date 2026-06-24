@@ -198,8 +198,44 @@
   padding-left: 10px;
   width: 30px;
   overflow: hidden;
-  text-indent: 50px;
-  white-space: nowrap;
+}
+
+.collaborationStatus {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.75rem;
+    height: 100%;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: $menu-bar-foreground;
+}
+
+.collaborationDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #4caf50;
+    animation: collaborationPulse 2s infinite;
+}
+
+@keyframes collaborationPulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.collaborationCount {
+    background-color: rgba(255, 255, 255, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
 }
 .mystuff > a:hover {
   background-size: 50%;
@@ -232,4 +268,63 @@
 .menu-item-link {
     color: inherit;
     text-decoration: none;
+}
+
+/* 协作状态指示器 */
+.collaborationStatus {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    height: 100%;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.collaborationDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #4caf50;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.collaborationText {
+    white-space: nowrap;
+}
+
+.collaborationCount {
+    white-space: nowrap;
+    opacity: 0.8;
+}
+
+
+.collaborationStatus {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    height: 100%;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.collaborationStatus:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }

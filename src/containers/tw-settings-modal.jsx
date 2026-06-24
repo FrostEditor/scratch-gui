@@ -6,7 +6,7 @@ import {connect} from 'react-redux';
 import {closeSettingsModal} from '../reducers/modals';
 import SettingsModalComponent from '../components/tw-settings-modal/settings-modal.jsx';
 import {defaultStageSize} from '../reducers/custom-stage-size';
-import {applyCustomBackground} from '../lib/custom-background.js';
+import {applyCustomBackground, compressImage} from '../lib/custom-background.js';
 
 const messages = defineMessages({
     newFramerate: {
@@ -105,19 +105,30 @@ class UsernameModal extends React.Component {
         this.props.vm.storeProjectOptions();
     }
 
-    // 处理背景图片上传
-    handleBackgroundImageChange (e) {
+    // 处理背景图片上传（带压缩）
+    async handleBackgroundImageChange (e) {
         const file = e.target.files[0];
         if (!file) return;
         
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const imageData = event.target.result;
-            this.setState({ backgroundImage: imageData });
-            localStorage.setItem('customBackgroundImage', imageData);
+        try {
+            // 压缩图片（最大 1920x1080，质量 85%）
+            const compressedImage = await compressImage(file, 1920, 1080, 0.85);
+            
+            this.setState({ backgroundImage: compressedImage });
+            localStorage.setItem('customBackgroundImage', compressedImage);
             applyCustomBackground();
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            console.error('背景图片处理失败:', err);
+            // 失败时回退到原图
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imageData = event.target.result;
+                this.setState({ backgroundImage: imageData });
+                localStorage.setItem('customBackgroundImage', imageData);
+                applyCustomBackground();
+            };
+            reader.readAsDataURL(file);
+        }
     }
 
     // 处理模糊度变化

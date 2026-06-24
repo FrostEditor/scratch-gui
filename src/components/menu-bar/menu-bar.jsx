@@ -98,6 +98,8 @@ import errorIcon from './tw-error.svg';
 import advancedIcon from './tw-advanced.svg';
 import CollaborationIcon from './collaboration-icon.jsx';
 import CollaborationModal from '../tw-collaboration-modal/collaboration-modal.jsx';
+import ChatModal from '../tw-chat-modal/chat-modal.jsx';
+import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 
 import ninetiesLogo from './nineties_logo.svg';
 import catLogo from './cat_logo.svg';
@@ -214,7 +216,10 @@ class MenuBar extends React.Component {
     constructor (props) {
         super(props);
         this.state = {
-            collaborationModalOpen: false
+            collaborationModalOpen: false,
+            isCollaborating: false,
+            memberCount: 0,
+            chatModalOpen: false
         };
         bindAll(this, [
             'handleClickSeeInside',
@@ -234,14 +239,37 @@ class MenuBar extends React.Component {
             'getSaveToComputerHandler',
             'restoreOptionMessage',
             'handleClickCollaboration',
-            'handleCloseCollaboration'
+            'handleCloseCollaboration',
+            'handleCollaborationConnected',
+            'handleCollaborationDisconnected',
+            'handleMembersUpdated',
+            'handleOpenChat',
+            'handleCloseChat'
         ]);
     }
     componentDidMount () {
         document.addEventListener('keydown', this.handleKeyPress);
+        
+        // 监听协作状态
+        collaborationManager.on('connected', this.handleCollaborationConnected);
+        collaborationManager.on('disconnected', this.handleCollaborationDisconnected);
+        collaborationManager.on('members-updated', this.handleMembersUpdated);
+        
+        // 检查初始状态
+        if (collaborationManager.isConnected && collaborationManager.roomKey) {
+            this.setState({
+                isCollaborating: true,
+                memberCount: collaborationManager.members.length
+            });
+        }
     }
     componentWillUnmount () {
         document.removeEventListener('keydown', this.handleKeyPress);
+        
+        // 移除协作状态监听
+        collaborationManager.off('connected', this.handleCollaborationConnected);
+        collaborationManager.off('disconnected', this.handleCollaborationDisconnected);
+        collaborationManager.off('members-updated', this.handleMembersUpdated);
     }
     handleClickNew () {
         // if the project is dirty, and user owns the project, we will autosave.
@@ -402,6 +430,29 @@ class MenuBar extends React.Component {
     }
     handleCloseCollaboration () {
         this.setState({collaborationModalOpen: false});
+    }
+    handleCollaborationConnected () {
+        this.setState({
+            isCollaborating: true,
+            memberCount: collaborationManager.members.length
+        });
+    }
+    handleCollaborationDisconnected () {
+        this.setState({
+            isCollaborating: false,
+            memberCount: 0
+        });
+    }
+    handleMembersUpdated (members) {
+        this.setState({
+            memberCount: members.length
+        });
+    }
+    handleOpenChat () {
+        this.setState({chatModalOpen: true});
+    }
+    handleCloseChat () {
+        this.setState({chatModalOpen: false});
     }
     buildAboutMenu (onClickAbout) {
         if (!onClickAbout) {
@@ -1079,6 +1130,16 @@ class MenuBar extends React.Component {
                 {this.state.collaborationModalOpen && (
                     <CollaborationModal
                         onClose={this.handleCloseCollaboration}
+                    />
+                )}
+                {this.state.chatModalOpen && (
+                    <ChatModal
+                        onClose={this.handleCloseChat}
+                    />
+                )}
+                {this.state.chatModalOpen && (
+                    <ChatModal
+                        onClose={this.handleCloseChat}
                     />
                 )}
             </React.Fragment>
