@@ -380,8 +380,8 @@ class CollaborationManager {
                 // 创建房间后，发送一次完整项目数据
                 this.sendFullProjectUpdate();
                 
-                // 启动增量同步（编辑积木时不闪烁）
-                this.startIncrementalSync();
+                // 暂时禁用增量同步，改用停手才同步方案，更稳定不闪烁
+                // this.startIncrementalSync();
                 break;
 
             case 'room-joined':
@@ -396,26 +396,26 @@ class CollaborationManager {
                 
                 // 如果有完整项目数据，加载完整项目（包含图片等资源）
                 if (data.fullProjectData && this.vm) {
-                    // 等项目加载完成后再启动增量同步
-                    const onProjectLoaded = () => {
-                        this.startIncrementalSync();
-                        this.off('project-loaded', onProjectLoaded);
-                    };
-                    this.on('project-loaded', onProjectLoaded);
+                    // 暂时禁用增量同步
+                    // const onProjectLoaded = () => {
+                    //     this.startIncrementalSync();
+                    //     this.off('project-loaded', onProjectLoaded);
+                    // };
+                    // this.on('project-loaded', onProjectLoaded);
                     
                     this.loadFullProjectData(data.fullProjectData);
                 } else if (data.projectData && this.vm) {
                     // 否则只加载 JSON 数据
-                    const onProjectLoaded = () => {
-                        this.startIncrementalSync();
-                        this.off('project-loaded', onProjectLoaded);
-                    };
-                    this.on('project-loaded', onProjectLoaded);
+                    // const onProjectLoaded = () => {
+                    //     this.startIncrementalSync();
+                    //     this.off('project-loaded', onProjectLoaded);
+                    // };
+                    // this.on('project-loaded', onProjectLoaded);
                     
                     this.loadProjectData(data.projectData);
                 } else {
-                    // 没有项目数据，直接启动增量同步
-                    this.startIncrementalSync();
+                    // 没有项目数据，暂时禁用增量同步
+                    // this.startIncrementalSync();
                 }
                 break;
 
@@ -787,13 +787,14 @@ class CollaborationManager {
                 }
             }
             
-            // 防抖，避免频繁发送
+            // 防抖，停手才同步方案
+            // 普通变化（编辑积木等）：800ms 防抖，连续操作时不闪烁，停下来才同步
+            // 资源变化（添加角色/造型/声音等）：300ms 防抖，同步快一点，因为操作不频繁
             if (this.projectUpdateTimeout) {
                 clearTimeout(this.projectUpdateTimeout);
             }
             
-            // 资源变化时用较短的防抖，确保及时同步
-            const debounceTime = isResourceEvent ? 500 : 300;
+            const debounceTime = isResourceEvent ? 300 : 800;
             
             this.projectUpdateTimeout = setTimeout(() => {
                 this.sendProjectUpdate();
