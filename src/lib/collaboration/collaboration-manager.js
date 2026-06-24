@@ -758,15 +758,54 @@ class CollaborationManager {
             if (this.isApplyingRemoteEvent) return;
             
             // 检测是否是资源相关的变化（需要发送完整项目）
+            // 方式1：通过事件名判断
             const resourceEvents = [
                 'COSTUME_ADDED', 'costumeAdded',
                 'SOUND_ADDED', 'soundAdded',
                 'SPRITE_ADDED', 'spriteAdded',
                 'runtime.COSTUME_ADDED', 'runtime.SOUND_ADDED', 'runtime.SPRITE_ADDED',
                 'SPRITE_RENAMED', 'spriteRenamed',
+                'SPRITE_DELETED', 'spriteDeleted',
+                'COSTUME_DELETED', 'costumeDeleted',
+                'SOUND_DELETED', 'soundDeleted',
                 'BACKDROP_CHANGED', 'backdropChanged'
             ];
-            const isResourceEvent = resourceEvents.includes(source);
+            let isResourceEvent = resourceEvents.includes(source);
+            
+            // 方式2：直接检测资源数量变化（更可靠，确保角色、图片都能同步）
+            if (this.vm && this.vm.runtime && this.vm.runtime.targets) {
+                const targets = this.vm.runtime.targets;
+                const spriteCount = targets.length;
+                
+                // 计算总造型数和总声音数
+                let totalCostumes = 0;
+                let totalSounds = 0;
+                for (const target of targets) {
+                    if (target.costumes) totalCostumes += target.costumes.length;
+                    if (target.sounds) totalSounds += target.sounds.length;
+                }
+                
+                // 第一次检测，初始化
+                if (this._lastSpriteCount === undefined) {
+                    this._lastSpriteCount = spriteCount;
+                    this._lastTotalCostumes = totalCostumes;
+                    this._lastTotalSounds = totalSounds;
+                } else {
+                    // 检查是否有变化
+                    if (spriteCount !== this._lastSpriteCount ||
+                        totalCostumes !== this._lastTotalCostumes ||
+                        totalSounds !== this._lastTotalSounds) {
+                        isResourceEvent = true;
+                        this.hasResourceChange = true;
+                        
+                        // 更新记录
+                        this._lastSpriteCount = spriteCount;
+                        this._lastTotalCostumes = totalCostumes;
+                        this._lastTotalSounds = totalSounds;
+                    }
+                }
+            }
+            
             if (isResourceEvent) {
                 this.hasResourceChange = true;
             }
@@ -779,9 +818,9 @@ class CollaborationManager {
                 }
             }
             
-            // 防抖，停手才同步方案
-            // 普通变化（编辑积木等）：800ms 防抖，连续操作时不闪烁，停下来才同步
-            // 资源变化（添加角色/造型/声音等）：300ms 防抖，同步快一点，因为操作不频繁
+            // 防抖
+            // 资源变化：300ms 防抖，同步快一点
+            // 普通变化（编辑积木等）：800ms 防抖，连续操作时不闪烁
             if (this.projectUpdateTimeout) {
                 clearTimeout(this.projectUpdateTimeout);
             }
@@ -969,6 +1008,9 @@ class CollaborationManager {
             const projectData = this.vm.toJSON();
             this.lastProjectData = JSON.stringify(projectData);
             
+            // 更新资源数量记录，避免误判
+            this._updateResourceCounts();
+            
             this.isLoadingProject = false;
             this.emit('project-loaded');
         } catch (e) {
@@ -990,6 +1032,10 @@ class CollaborationManager {
             this.vm.loadProject(projectData).then(() => {
                 console.log('[协作] 项目已同步成功');
                 this.lastProjectData = JSON.stringify(projectData);
+                
+                // 更新资源数量记录，避免误判
+                this._updateResourceCounts();
+                
                 this.isLoadingProject = false;
                 this.emit('project-loaded');
             }).catch(e => {
@@ -1000,6 +1046,24 @@ class CollaborationManager {
             console.error('[协作] 加载项目异常:', e);
             this.isLoadingProject = false;
         }
+    }
+
+    // 更新资源数量记录（角色数、造型数、声音数）
+    _updateResourceCounts() {
+        if (!this.vm || !this.vm.runtime || !this.vm.runtime.targets) return;
+        
+        const targets = this.vm.runtime.targets;
+        this._lastSpriteCount = targets.length;
+        
+        let totalCostumes = 0;
+        let totalSounds = 0;
+        for (const target of targets) {
+            if (target.costumes) totalCostumes += target.costumes.length;
+            if (target.sounds) totalSounds += target.sounds.length;
+        }
+        
+        this._lastTotalCostumes = totalCostumes;
+        this._lastTotalSounds = totalSounds;
     }
 
     // 事件系统
