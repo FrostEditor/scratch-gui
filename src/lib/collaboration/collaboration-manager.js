@@ -380,8 +380,8 @@ class CollaborationManager {
                 // 创建房间后，发送一次完整项目数据
                 this.sendFullProjectUpdate();
                 
-                // 暂时禁用增量同步，先保证稳定
-                // this.startIncrementalSync();
+                // 启动增量同步（编辑积木时不闪烁）
+                this.startIncrementalSync();
                 break;
 
             case 'room-joined':
@@ -396,26 +396,26 @@ class CollaborationManager {
                 
                 // 如果有完整项目数据，加载完整项目（包含图片等资源）
                 if (data.fullProjectData && this.vm) {
-                    // 暂时禁用增量同步
-                    // const onProjectLoaded = () => {
-                    //     this.startIncrementalSync();
-                    //     this.off('project-loaded', onProjectLoaded);
-                    // };
-                    // this.on('project-loaded', onProjectLoaded);
+                    // 等项目加载完成后再启动增量同步
+                    const onProjectLoaded = () => {
+                        this.startIncrementalSync();
+                        this.off('project-loaded', onProjectLoaded);
+                    };
+                    this.on('project-loaded', onProjectLoaded);
                     
                     this.loadFullProjectData(data.fullProjectData);
                 } else if (data.projectData && this.vm) {
                     // 否则只加载 JSON 数据
-                    // const onProjectLoaded = () => {
-                    //     this.startIncrementalSync();
-                    //     this.off('project-loaded', onProjectLoaded);
-                    // };
-                    // this.on('project-loaded', onProjectLoaded);
+                    const onProjectLoaded = () => {
+                        this.startIncrementalSync();
+                        this.off('project-loaded', onProjectLoaded);
+                    };
+                    this.on('project-loaded', onProjectLoaded);
                     
                     this.loadProjectData(data.projectData);
                 } else {
-                    // 没有项目数据，暂时禁用增量同步
-                    // this.startIncrementalSync();
+                    // 没有项目数据，直接启动增量同步
+                    this.startIncrementalSync();
                 }
                 break;
 
@@ -609,8 +609,8 @@ class CollaborationManager {
 
     // 处理本地 Blockly 变化
     handleBlocklyChange(event) {
-        // 如果正在应用远程事件，不发送（避免循环）
-        if (this.isApplyingRemoteEvent) return;
+        // 如果正在加载项目或应用远程事件，不发送（避免循环和混乱）
+        if (this.isApplyingRemoteEvent || this.isLoadingProject) return;
         
         // 如果没有连接或不在房间里，不发送
         if (!this.isConnected || !this.roomKey) return;
@@ -619,8 +619,18 @@ class CollaborationManager {
         if (!event) return;
         
         // 跳过 UI 相关的事件（如点击、选择等）
-        const skipTypes = ['click', 'selected', 'viewport_change', 'theme', 'toolbox_item_select'];
+        const skipTypes = ['click', 'selected', 'viewport_change', 'theme', 'toolbox_item_select', 
+                           'finished_loading', 'ui', 'move_cursor', 'cursor_move'];
         if (skipTypes.includes(event.type)) return;
+        
+        // 获取当前编辑的角色 ID
+        let targetId = null;
+        if (this.vm && this.vm.editingTarget) {
+            targetId = this.vm.editingTarget.id;
+        }
+        
+        // 如果没有角色 ID，不发送（可能是初始化阶段）
+        if (!targetId) return;
         
         // 序列化事件
         let eventJson;
@@ -642,7 +652,8 @@ class CollaborationManager {
                 if (this.lastMoveEvent) {
                     this.send({
                         type: 'blockly-event',
-                        event: this.lastMoveEvent
+                        event: this.lastMoveEvent,
+                        targetId: targetId
                     });
                     this.lastMoveEvent = null;
                 }
@@ -653,12 +664,16 @@ class CollaborationManager {
         // 其他事件立即发送
         this.send({
             type: 'blockly-event',
-            event: eventJson
+            event: eventJson,
+            targetId: targetId
         });
     }
 
     // 处理远程 Blockly 事件
     handleRemoteBlocklyEvent(data) {
+        // 如果正在加载项目，忽略增量事件，避免和全量同步冲突
+        if (this.isLoadingProject) return;
+        
         const workspace = AddonHooks.blocklyWorkspace;
         if (!workspace) {
             console.warn('[协作] Blockly 工作区不存在，无法应用远程事件');
@@ -669,6 +684,16 @@ class CollaborationManager {
         if (!ScratchBlocks || !ScratchBlocks.Events) {
             console.warn('[协作] ScratchBlocks 不存在，无法应用远程事件');
             return;
+        }
+        
+        // 检查角色 ID，只有相同角色的事件才应用
+        // 避免不同角色的积木混在一起
+        if (data.targetId && this.vm && this.vm.editingTarget) {
+            if (data.targetId !== this.vm.editingTarget.id) {
+                // 不同角色，不应用事件
+                // 等用户切换到对应角色时，会通过全量同步获取最新状态
+                return;
+            }
         }
         
         try {
@@ -682,7 +707,6 @@ class CollaborationManager {
             if (event.type === ScratchBlocks.Events.CREATE && event.ids) {
                 const allExist = event.ids.every(id => workspace.getBlockById(id));
                 if (allExist) {
-                    console.log('[协作] 积木已存在，跳过 CREATE 事件');
                     return;
                 }
             }
@@ -691,7 +715,6 @@ class CollaborationManager {
             if (event.type === ScratchBlocks.Events.DELETE && event.ids) {
                 const allDeleted = event.ids.every(id => !workspace.getBlockById(id));
                 if (allDeleted) {
-                    console.log('[协作] 积木已删除，跳过 DELETE 事件');
                     return;
                 }
             }
@@ -699,7 +722,6 @@ class CollaborationManager {
             // 运行事件（应用到工作区）
             event.run(true); // true = 正向应用事件
             
-            console.log('[协作] 已应用远程事件:', data.event.type);
         } catch (e) {
             console.error('[协作] 应用远程事件失败:', e);
         } finally {
@@ -729,25 +751,20 @@ class CollaborationManager {
                 'COSTUME_ADDED', 'costumeAdded',
                 'SOUND_ADDED', 'soundAdded',
                 'SPRITE_ADDED', 'spriteAdded',
-                'runtime.COSTUME_ADDED', 'runtime.SOUND_ADDED', 'runtime.SPRITE_ADDED'
+                'runtime.COSTUME_ADDED', 'runtime.SOUND_ADDED', 'runtime.SPRITE_ADDED',
+                'SPRITE_RENAMED', 'spriteRenamed',
+                'BACKDROP_CHANGED', 'backdropChanged'
             ];
-            if (resourceEvents.includes(source)) {
+            const isResourceEvent = resourceEvents.includes(source);
+            if (isResourceEvent) {
                 this.hasResourceChange = true;
             }
             
-            // 如果增量同步已激活，且是纯积木相关的事件，则不发送全量同步
-            // 避免闪烁和抽搐，积木变化通过增量同步处理
-            // 注意：不过滤 PROJECT_CHANGED，因为角色、造型等变化也会触发这个事件
+            // 如果增量同步已激活，只有资源变化才触发全量同步
+            // 纯积木变化通过增量同步处理，完全不闪烁
             if (this.isIncrementalSyncActive) {
-                const isBlockOnlyEvent = source === 'workspaceUpdate' || 
-                                       source === 'runtime.workspaceUpdate' ||
-                                       source === 'workspaceChanged' ||
-                                       source === 'runtime.workspaceChanged' ||
-                                       source === 'BLOCKSINFO_UPDATE' ||
-                                       source === 'runtime.BLOCKSINFO_UPDATE' ||
-                                       source === 'blocksInfoUpdate';
-                if (isBlockOnlyEvent) {
-                    return; // 纯积木变化通过增量同步处理，不触发全量同步
+                if (!isResourceEvent) {
+                    return; // 非资源变化不触发全量同步，避免闪烁
                 }
             }
             
@@ -756,8 +773,8 @@ class CollaborationManager {
                 clearTimeout(this.projectUpdateTimeout);
             }
             
-            // 增量同步激活时，加长防抖时间，避免积木编辑时频繁触发全量同步
-            const debounceTime = this.isIncrementalSyncActive ? 1500 : 300;
+            // 资源变化时用较短的防抖，确保及时同步
+            const debounceTime = isResourceEvent ? 500 : 300;
             
             this.projectUpdateTimeout = setTimeout(() => {
                 this.sendProjectUpdate();
