@@ -1018,7 +1018,7 @@ class CollaborationManager {
         }
     }
 
-    // 发送积木更新（和鼠标同步一样的节流算法）
+    // 发送积木更新（轻量同步）
     sendBlocksUpdate() {
         if (!this.roomKey || !this.isConnected || this.isLoadingProject || this.isApplyingRemoteEvent) {
             return;
@@ -1039,18 +1039,11 @@ class CollaborationManager {
             const blocksJson = workspace.toJSON();
             const dataStr = JSON.stringify(blocksJson);
 
-            // 节流，避免发送太频繁（和鼠标同步一样的算法）
-            const now = Date.now();
-            if (this._lastBlocksSendTime && now - this._lastBlocksSendTime < this.blocksThrottleTime) {
-                return;
-            }
-
             // 简单比较，避免重复发送相同数据
             if (dataStr === this._lastBlocksData && targetId === this._lastBlocksTargetId) {
                 return;
             }
 
-            this._lastBlocksSendTime = now;
             this._lastBlocksData = dataStr;
             this._lastBlocksTargetId = targetId;
 
