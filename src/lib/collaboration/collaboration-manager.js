@@ -323,6 +323,9 @@ class CollaborationManager {
         // 停止增量同步
         this.stopIncrementalSync();
         
+        // 停止积木同步
+        this.stopBlocksSync();
+        
         // 停止鼠标跟踪
         this.stopMouseTracking();
         
@@ -390,8 +393,8 @@ class CollaborationManager {
                 // 创建房间后，发送一次完整项目数据
                 this.sendFullProjectUpdate();
                 
-                // 暂时禁用增量同步，改用全量同步+短防抖方案，更稳定
-                // this.startIncrementalSync();
+                // 启动积木同步（和鼠标同步一样的节流算法）
+                this.startBlocksSync();
                 break;
 
             case 'room-joined':
@@ -424,9 +427,11 @@ class CollaborationManager {
                     
                     this.loadProjectData(data.projectData);
                 } else {
-                    // 没有项目数据，暂时禁用增量同步
-                    // this.startIncrementalSync();
+                    // 没有项目数据
                 }
+                
+                // 启动积木同步（和鼠标同步一样的节流算法）
+                this.startBlocksSync();
                 break;
 
             case 'member-joined':
@@ -573,6 +578,51 @@ class CollaborationManager {
         this.mousePositions = {};
         this.emit('mouse-positions-updated', this.mousePositions);
         console.log('[协作] 鼠标跟踪已停止');
+    }
+
+
+    // ========== 积木同步（和鼠标同步一样的节流算法）==========
+
+    // 开始积木同步
+    startBlocksSync() {
+        if (this.isBlocksSyncActive) return;
+
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (!workspace) {
+            console.warn('[协作] Blockly 工作区不存在，稍后重试积木同步');
+            // 延迟重试
+            setTimeout(() => this.startBlocksSync(), 500);
+            return;
+        }
+
+        // 积木节流时间，比鼠标稍慢一点
+        if (!this.blocksThrottleTime) {
+            this.blocksThrottleTime = 50; // 50ms
+        }
+
+        // 添加变化监听器
+        this._blocksChangeListener = () => {
+            this.sendBlocksUpdate();
+        };
+        
+        workspace.addChangeListener(this._blocksChangeListener);
+        this.isBlocksSyncActive = true;
+        
+        console.log('[协作] 积木同步已启动（节流模式）');
+    }
+
+    // 停止积木同步
+    stopBlocksSync() {
+        if (!this.isBlocksSyncActive) return;
+        
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (workspace && this._blocksChangeListener) {
+            workspace.removeChangeListener(this._blocksChangeListener);
+            this._blocksChangeListener = null;
+        }
+        
+        this.isBlocksSyncActive = false;
+        console.log('[协作] 积木同步已停止');
     }
 
     // ========== 增量同步（Blockly 事件） ==========
@@ -861,27 +911,16 @@ class CollaborationManager {
             
             if (isResourceEvent) {
                 this.hasResourceChange = true;
-            }
-            
-            // 资源变化 → 全量同步（包含图片等资源）
-            // 纯积木变化 → 积木轻量同步（只同步积木，不重新加载整个项目，不卡）
-            if (isResourceEvent) {
-                // 资源变化：全量同步
+                
+                // 资源变化 → 全量同步（包含图片等资源）
                 if (this.projectUpdateTimeout) {
                     clearTimeout(this.projectUpdateTimeout);
                 }
                 this.projectUpdateTimeout = setTimeout(() => {
                     this.sendProjectUpdate();
                 }, 300);
-            } else {
-                // 纯积木变化：轻量同步
-                if (this.blocksUpdateTimeout) {
-                    clearTimeout(this.blocksUpdateTimeout);
-                }
-                this.blocksUpdateTimeout = setTimeout(() => {
-                    this.sendBlocksUpdate();
-                }, 200);
             }
+            // 纯积木变化 → 由 Blockly change 事件驱动的节流同步处理（startBlocksSync）
         };
 
         // 尝试监听各种可能的事件
@@ -977,7 +1016,7 @@ class CollaborationManager {
         }
     }
 
-    // 发送积木更新（轻量同步，只同步积木，不重新加载整个项目，不卡）
+    // 发送积木更新（和鼠标同步一样的节流算法）
     sendBlocksUpdate() {
         if (!this.roomKey || !this.isConnected || this.isLoadingProject || this.isApplyingRemoteEvent) {
             return;
@@ -996,13 +1035,20 @@ class CollaborationManager {
 
             // 获取积木 JSON
             const blocksJson = workspace.toJSON();
-            
-            // 简单比较，避免重复发送
             const dataStr = JSON.stringify(blocksJson);
+
+            // 节流，避免发送太频繁（和鼠标同步一样的算法）
+            const now = Date.now();
+            if (this._lastBlocksSendTime && now - this._lastBlocksSendTime < this.blocksThrottleTime) {
+                return;
+            }
+
+            // 简单比较，避免重复发送相同数据
             if (dataStr === this._lastBlocksData && targetId === this._lastBlocksTargetId) {
                 return;
             }
-            
+
+            this._lastBlocksSendTime = now;
             this._lastBlocksData = dataStr;
             this._lastBlocksTargetId = targetId;
 
