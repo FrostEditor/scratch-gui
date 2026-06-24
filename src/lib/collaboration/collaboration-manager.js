@@ -326,6 +326,16 @@ class CollaborationManager {
         // 停止鼠标跟踪
         this.stopMouseTracking();
         
+        // 清除同步定时器
+        if (this.projectUpdateTimeout) {
+            clearTimeout(this.projectUpdateTimeout);
+            this.projectUpdateTimeout = null;
+        }
+        if (this.blocksUpdateTimeout) {
+            clearTimeout(this.blocksUpdateTimeout);
+            this.blocksUpdateTimeout = null;
+        }
+        
         if (this.ws) {
             this.ws.close();
             this.ws = null;
@@ -474,6 +484,10 @@ class CollaborationManager {
 
             case 'blockly-event':
                 this.handleRemoteBlocklyEvent(data);
+                break;
+
+            case 'blocks-update':
+                this.handleBlocksUpdate(data);
                 break;
 
             case 'error':
@@ -741,6 +755,45 @@ class CollaborationManager {
         }
     }
 
+    // 处理远程积木更新（轻量同步，只替换积木，不重新加载整个项目）
+    handleBlocksUpdate(data) {
+        // 如果正在加载项目，忽略
+        if (this.isLoadingProject) return;
+        
+        const workspace = AddonHooks.blocklyWorkspace;
+        if (!workspace) {
+            console.warn('[协作] Blockly 工作区不存在，无法应用积木更新');
+            return;
+        }
+        
+        // 检查角色 ID，只有相同角色才应用
+        if (data.targetId && this.vm && this.vm.editingTarget) {
+            if (data.targetId !== this.vm.editingTarget.id) {
+                // 不同角色，不应用
+                return;
+            }
+        }
+        
+        try {
+            // 标记正在应用远程更新，避免循环发送
+            this.isApplyingRemoteEvent = true;
+            
+            // 替换工作区的积木
+            workspace.clear();
+            workspace.fromJSON(data.blocks);
+            
+            // 更新本地缓存，避免重复发送
+            this._lastBlocksData = JSON.stringify(data.blocks);
+            this._lastBlocksTargetId = data.targetId;
+            
+        } catch (e) {
+            console.error('[协作] 应用积木更新失败:', e);
+        } finally {
+            // 取消标记
+            this.isApplyingRemoteEvent = false;
+        }
+    }
+
     // 设置 VM 监听器
     setupVMListeners() {
         if (!this.vm) {
@@ -810,18 +863,25 @@ class CollaborationManager {
                 this.hasResourceChange = true;
             }
             
-            // 全量同步 + 短防抖方案
-            // 所有变化（积木、角色、造型、声音等）都通过全量同步
-            // 200ms 防抖，连续操作时不闪烁，停下来很快就同步，准实时体验
-            if (this.projectUpdateTimeout) {
-                clearTimeout(this.projectUpdateTimeout);
+            // 资源变化 → 全量同步（包含图片等资源）
+            // 纯积木变化 → 积木轻量同步（只同步积木，不重新加载整个项目，不卡）
+            if (isResourceEvent) {
+                // 资源变化：全量同步
+                if (this.projectUpdateTimeout) {
+                    clearTimeout(this.projectUpdateTimeout);
+                }
+                this.projectUpdateTimeout = setTimeout(() => {
+                    this.sendProjectUpdate();
+                }, 300);
+            } else {
+                // 纯积木变化：轻量同步
+                if (this.blocksUpdateTimeout) {
+                    clearTimeout(this.blocksUpdateTimeout);
+                }
+                this.blocksUpdateTimeout = setTimeout(() => {
+                    this.sendBlocksUpdate();
+                }, 200);
             }
-            
-            const debounceTime = 200; // 200ms 准实时同步
-            
-            this.projectUpdateTimeout = setTimeout(() => {
-                this.sendProjectUpdate();
-            }, debounceTime);
         };
 
         // 尝试监听各种可能的事件
@@ -914,6 +974,46 @@ class CollaborationManager {
             }
         } catch (e) {
             console.error('[协作] 发送项目更新失败:', e);
+        }
+    }
+
+    // 发送积木更新（轻量同步，只同步积木，不重新加载整个项目，不卡）
+    sendBlocksUpdate() {
+        if (!this.roomKey || !this.isConnected || this.isLoadingProject || this.isApplyingRemoteEvent) {
+            return;
+        }
+
+        try {
+            const workspace = AddonHooks.blocklyWorkspace;
+            if (!workspace) return;
+
+            // 获取当前角色 ID
+            let targetId;
+            if (this.vm && this.vm.editingTarget) {
+                targetId = this.vm.editingTarget.id;
+            }
+            if (!targetId) return;
+
+            // 获取积木 JSON
+            const blocksJson = workspace.toJSON();
+            
+            // 简单比较，避免重复发送
+            const dataStr = JSON.stringify(blocksJson);
+            if (dataStr === this._lastBlocksData && targetId === this._lastBlocksTargetId) {
+                return;
+            }
+            
+            this._lastBlocksData = dataStr;
+            this._lastBlocksTargetId = targetId;
+
+            // 发送积木更新
+            this.send({
+                type: 'blocks-update',
+                targetId: targetId,
+                blocks: blocksJson
+            });
+        } catch (e) {
+            console.error('[协作] 发送积木更新失败:', e);
         }
     }
 
