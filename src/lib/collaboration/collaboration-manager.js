@@ -810,31 +810,43 @@ class CollaborationManager {
         // 如果正在加载项目，忽略
         if (this.isLoadingProject) return;
         
-        const workspace = AddonHooks.blocklyWorkspace;
-        if (!workspace) {
-            console.warn('[协作] Blockly 工作区不存在，无法应用积木更新');
-            return;
-        }
-        
-        // 检查角色 ID，只有相同角色才应用
-        if (data.targetId && this.vm && this.vm.editingTarget) {
-            if (data.targetId !== this.vm.editingTarget.id) {
-                // 不同角色，不应用
-                return;
-            }
-        }
+        if (!this.vm || !this.vm.runtime) return;
         
         try {
-            // 标记正在应用远程更新，避免循环发送
-            this.isApplyingRemoteEvent = true;
+            // 1. 先更新 VM 中对应角色的积木数据（这样切换角色时能看到）
+            let target = null;
+            for (const t of this.vm.runtime.targets) {
+                if (t.id === data.targetId) {
+                    target = t;
+                    break;
+                }
+            }
             
-            // 替换工作区的积木
-            workspace.clear();
-            workspace.fromJSON(data.blocks);
+            if (target) {
+                // 更新 VM 中的积木数据
+                target.blocks = JSON.parse(JSON.stringify(data.blocks));
+            } else {
+                // 角色不存在（可能还没同步过来），忽略
+                console.warn('[协作] 收到积木更新，但角色不存在:', data.targetId);
+                return;
+            }
             
-            // 更新本地缓存，避免重复发送
-            this._lastBlocksData = JSON.stringify(data.blocks);
-            this._lastBlocksTargetId = data.targetId;
+            // 2. 如果当前就在这个角色，同时更新 Blockly 工作区（实时看到变化）
+            if (this.vm.editingTarget && this.vm.editingTarget.id === data.targetId) {
+                const workspace = AddonHooks.blocklyWorkspace;
+                if (workspace) {
+                    // 标记正在应用远程更新，避免循环发送
+                    this.isApplyingRemoteEvent = true;
+                    
+                    // 替换工作区的积木
+                    workspace.clear();
+                    workspace.fromJSON(data.blocks);
+                    
+                    // 更新本地缓存，避免重复发送
+                    this._lastBlocksData = JSON.stringify(data.blocks);
+                    this._lastBlocksTargetId = data.targetId;
+                }
+            }
             
         } catch (e) {
             console.error('[协作] 应用积木更新失败:', e);
