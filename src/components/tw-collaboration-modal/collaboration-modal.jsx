@@ -106,6 +106,11 @@ const messages = defineMessages({
         defaultMessage: '服务器地址',
         description: 'Server URL label',
         id: 'tw.collaboration.serverUrl'
+    },
+    description: {
+        defaultMessage: '与朋友一起实时协作编辑项目',
+        description: 'Description of collaboration feature',
+        id: 'tw.collaboration.description'
     }
 });
 
@@ -118,7 +123,7 @@ const CollaborationModal = props => {
     const [isHost, setIsHost] = useState(false);
     const [status, setStatus] = useState('disconnected'); // disconnected, connecting, connected
     const [error, setError] = useState('');
-    const [serverUrl, setServerUrl] = useState('ws://localhost:8765');
+    const [serverUrl, setServerUrl] = useState('https://your-worker.workers.dev');
     const [isLoading, setIsLoading] = useState(false);
     
     const isMounted = useRef(true);
@@ -144,7 +149,7 @@ const CollaborationModal = props => {
 
         const handleError = (data) => {
             if (!isMounted.current) return;
-            setError(data.message || '未知错误');
+            setError(data.message || data.reason || '未知错误');
             setIsLoading(false);
         };
 
@@ -179,6 +184,12 @@ const CollaborationModal = props => {
             }
         }
 
+        // 从 localStorage 读取服务器地址
+        const savedServerUrl = localStorage.getItem('collaborationServerUrl');
+        if (savedServerUrl) {
+            setServerUrl(savedServerUrl);
+        }
+
         return () => {
             isMounted.current = false;
             collaborationManager.off('connected', handleConnected);
@@ -189,42 +200,29 @@ const CollaborationModal = props => {
         };
     }, []);
 
-    // 连接服务器
-    const connectServer = async () => {
-        if (collaborationManager.isConnected) return true;
-
-        setStatus('connecting');
-        setError('');
-
-        try {
-            await collaborationManager.connect(serverUrl);
-            return true;
-        } catch (e) {
-            setError('连接服务器失败，请检查服务器地址是否正确');
-            setStatus('disconnected');
-            return false;
-        }
+    // 保存服务器地址
+    const saveServerUrl = (url) => {
+        localStorage.setItem('collaborationServerUrl', url);
     };
 
     // 创建房间
     const handleCreateRoom = async () => {
         setError('');
         setIsLoading(true);
+        setStatus('connecting');
 
         try {
-            const connected = await connectServer();
-            if (!connected) {
-                setIsLoading(false);
-                return;
-            }
-
-            const result = await collaborationManager.createRoom();
+            saveServerUrl(serverUrl);
+            
+            const result = await collaborationManager.createRoom(serverUrl);
             setRoomKey(result.roomKey);
             setIsHost(result.isHost);
             setMembers(result.members);
             setView('room');
+            setStatus('connected');
         } catch (e) {
             setError(e.message || '创建房间失败');
+            setStatus('disconnected');
         } finally {
             setIsLoading(false);
         }
@@ -239,21 +237,20 @@ const CollaborationModal = props => {
 
         setError('');
         setIsLoading(true);
+        setStatus('connecting');
 
         try {
-            const connected = await connectServer();
-            if (!connected) {
-                setIsLoading(false);
-                return;
-            }
-
-            const result = await collaborationManager.joinRoom(inputKey);
+            saveServerUrl(serverUrl);
+            
+            const result = await collaborationManager.joinRoom(inputKey, serverUrl);
             setRoomKey(result.roomKey);
             setIsHost(result.isHost);
             setMembers(result.members);
             setView('room');
+            setStatus('connected');
         } catch (e) {
             setError(e.message || '加入房间失败');
+            setStatus('disconnected');
         } finally {
             setIsLoading(false);
         }
@@ -273,6 +270,7 @@ const CollaborationModal = props => {
         setRoomKey('');
         setMembers([]);
         setIsHost(false);
+        setStatus('disconnected');
     };
 
     // 踢出成员
@@ -286,7 +284,7 @@ const CollaborationModal = props => {
     const renderMainView = () => (
         <div className={styles.mainView}>
             <p className={styles.description}>
-                与朋友一起实时协作编辑项目
+                {props.intl.formatMessage(messages.description)}
             </p>
 
             {/* 服务器地址设置 */}
@@ -299,7 +297,7 @@ const CollaborationModal = props => {
                     className={styles.serverInput}
                     value={serverUrl}
                     onChange={e => setServerUrl(e.target.value)}
-                    placeholder="ws://localhost:8765"
+                    placeholder="https://your-worker.workers.dev"
                 />
                 <div className={styles.statusIndicator}>
                     <span className={`${styles.statusDot} ${styles[status]}`}></span>
@@ -316,7 +314,7 @@ const CollaborationModal = props => {
 
             {error && (
                 <div className={styles.errorMessage}>
-                    {props.intl.formatMessage(messages.error)}: {error}
+                    {error}
                 </div>
             )}
 
@@ -326,7 +324,7 @@ const CollaborationModal = props => {
                     onClick={handleCreateRoom}
                     disabled={isLoading}
                 >
-                    {isLoading ? '...' : props.intl.formatMessage(messages.createRoom)}
+                    {isLoading ? '创建中...' : props.intl.formatMessage(messages.createRoom)}
                 </button>
                 <button
                     className={styles.secondaryButton}
@@ -426,7 +424,7 @@ const CollaborationModal = props => {
                                 </div>
                                 <div className={styles.memberName}>
                                     {member.username}
-                                    {member.id === collaborationManager.ws?.id && (
+                                    {member.id === collaborationManager.memberId && (
                                         <span className={styles.youLabel}>
                                             {props.intl.formatMessage(messages.you)}
                                         </span>
@@ -438,7 +436,7 @@ const CollaborationModal = props => {
                                     )}
                                 </div>
                             </div>
-                            {isHost && member.id !== collaborationManager.ws?.id && (
+                            {isHost && member.id !== collaborationManager.memberId && (
                                 <button 
                                     className={styles.kickButton}
                                     onClick={() => handleKickMember(member.id)}

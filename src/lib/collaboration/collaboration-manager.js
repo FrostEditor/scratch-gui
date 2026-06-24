@@ -1,5 +1,6 @@
 // 多人协作管理器
-// 处理 WebSocket 连接、房间管理、项目同步
+// 支持 Cloudflare Workers + Durable Objects 模式
+// 也兼容 Node.js 服务器模式
 
 class CollaborationManager {
     constructor() {
@@ -14,6 +15,9 @@ class CollaborationManager {
         this.projectUpdateTimeout = null;
         this.lastProjectData = null;
         this.isLoadingProject = false;
+        this.memberId = null;
+        this.serverUrl = null; // 服务器基础 URL
+        this.serverType = 'workers'; // 'workers' 或 'node'
     }
 
     // 设置 VM
@@ -27,8 +31,166 @@ class CollaborationManager {
         this.username = username || '用户';
     }
 
-    // 连接服务器
+    // 设置服务器地址
+    setServer(url, type = 'workers') {
+        this.serverUrl = url.replace(/\/$/, ''); // 去掉末尾的斜杠
+        this.serverType = type;
+    }
+
+    // 生成成员 ID
+    generateMemberId() {
+        return 'member_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // ========== Workers 模式 ==========
+
+    // 创建房间（Workers 模式）
+    async createRoom(serverUrl = null) {
+        if (serverUrl) {
+            this.setServer(serverUrl, 'workers');
+        }
+
+        if (!this.serverUrl) {
+            throw new Error('请先设置服务器地址');
+        }
+
+        console.log('[协作] 创建房间...');
+
+        try {
+            // 1. 调用 API 获取房间密钥
+            const response = await fetch(`${this.serverUrl}/api/create-room`);
+            const data = await response.json();
+            
+            if (!data.roomKey) {
+                throw new Error('创建房间失败');
+            }
+
+            this.roomKey = data.roomKey;
+            this.memberId = this.generateMemberId();
+
+            console.log('[协作] 房间密钥:', this.roomKey);
+
+            // 2. 连接 WebSocket
+            const wsUrl = this.serverUrl
+                .replace('https://', 'wss://')
+                .replace('http://', 'ws://');
+            
+            const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}`;
+            
+            return this.connectWebSocket(url, true);
+        } catch (e) {
+            console.error('[协作] 创建房间失败:', e);
+            throw e;
+        }
+    }
+
+    // 加入房间（Workers 模式）
+    async joinRoom(roomKey, serverUrl = null) {
+        if (serverUrl) {
+            this.setServer(serverUrl, 'workers');
+        }
+
+        if (!this.serverUrl) {
+            throw new Error('请先设置服务器地址');
+        }
+
+        if (!roomKey) {
+            throw new Error('请输入房间密钥');
+        }
+
+        console.log('[协作] 加入房间:', roomKey);
+
+        this.roomKey = roomKey.toUpperCase();
+        this.memberId = this.generateMemberId();
+
+        // 连接 WebSocket
+        const wsUrl = this.serverUrl
+            .replace('https://', 'wss://')
+            .replace('http://', 'ws://');
+        
+        const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}`;
+        
+        return this.connectWebSocket(url, false);
+    }
+
+    // 连接 WebSocket
+    connectWebSocket(url, isCreating = false) {
+        return new Promise((resolve, reject) => {
+            try {
+                // 如果已有连接，先关闭
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                }
+
+                this.ws = new WebSocket(url);
+
+                let resolved = false;
+
+                this.ws.onopen = () => {
+                    console.log('[协作] WebSocket 已连接');
+                    this.isConnected = true;
+                    this.emit('connected');
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        // 如果是房间创建/加入成功消息，resolve Promise
+                        if (!resolved && (data.type === 'room-created' || data.type === 'room-joined')) {
+                            resolved = true;
+                            this.handleMessage(data);
+                            resolve(data);
+                            return;
+                        }
+
+                        this.handleMessage(data);
+                    } catch (e) {
+                        console.error('[协作] 消息解析失败:', e);
+                    }
+                };
+
+                this.ws.onclose = () => {
+                    console.log('[协作] 连接断开');
+                    this.isConnected = false;
+                    this.emit('disconnected');
+                    
+                    if (!resolved) {
+                        reject(new Error('连接断开'));
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('[协作] 连接错误:', error);
+                    this.emit('error', error);
+                    
+                    if (!resolved) {
+                        reject(error);
+                    }
+                };
+
+                // 超时处理
+                setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        reject(new Error('连接超时'));
+                    }
+                }, 10000);
+
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    // ========== Node.js 模式（兼容旧版） ==========
+
+    // 连接服务器（Node.js 模式）
     connect(serverUrl = 'ws://localhost:8765') {
+        this.serverType = 'node';
+        this.serverUrl = serverUrl;
+
         return new Promise((resolve, reject) => {
             try {
                 this.ws = new WebSocket(serverUrl);
@@ -79,76 +241,15 @@ class CollaborationManager {
         this.roomKey = null;
         this.isHost = false;
         this.members = [];
-    }
-
-    // 创建房间
-    createRoom() {
-        if (!this.isConnected) {
-            return Promise.reject(new Error('未连接到服务器'));
-        }
-
-        return new Promise((resolve, reject) => {
-            const onRoomCreated = (data) => {
-                this.off('room-created', onRoomCreated);
-                this.off('error', onError);
-                resolve(data);
-            };
-
-            const onError = (error) => {
-                this.off('room-created', onRoomCreated);
-                this.off('error', onError);
-                reject(new Error(error.message || '创建房间失败'));
-            };
-
-            this.on('room-created', onRoomCreated);
-            this.on('error', onError);
-
-            this.send({
-                type: 'create-room',
-                username: this.username
-            });
-        });
-    }
-
-    // 加入房间
-    joinRoom(roomKey) {
-        if (!this.isConnected) {
-            return Promise.reject(new Error('未连接到服务器'));
-        }
-
-        return new Promise((resolve, reject) => {
-            const onRoomJoined = (data) => {
-                this.off('room-joined', onRoomJoined);
-                this.off('error', onError);
-                resolve(data);
-            };
-
-            const onError = (error) => {
-                this.off('room-joined', onRoomJoined);
-                this.off('error', onError);
-                reject(new Error(error.message || '加入房间失败'));
-            };
-
-            this.on('room-joined', onRoomJoined);
-            this.on('error', onError);
-
-            this.send({
-                type: 'join-room',
-                roomKey: roomKey,
-                username: this.username
-            });
-        });
+        this.memberId = null;
     }
 
     // 离开房间
     leaveRoom() {
-        if (this.isConnected && this.roomKey) {
+        if (this.isConnected && this.roomKey && this.serverType === 'node') {
             this.send({ type: 'leave-room' });
         }
-        this.roomKey = null;
-        this.isHost = false;
-        this.members = [];
-        this.lastProjectData = null;
+        this.disconnect();
     }
 
     // 踢出成员
@@ -208,7 +309,7 @@ class CollaborationManager {
                 this.members.forEach(m => {
                     m.isHost = m.id === data.newHostId;
                 });
-                if (this.ws && data.newHostId === this.ws.id) {
+                if (this.memberId && data.newHostId === this.memberId) {
                     this.isHost = true;
                 }
                 this.emit('host-changed', data.newHostId);
@@ -225,7 +326,7 @@ class CollaborationManager {
 
             case 'kicked':
                 this.emit('kicked', data);
-                this.leaveRoom();
+                this.disconnect();
                 break;
 
             case 'chat':
@@ -249,13 +350,10 @@ class CollaborationManager {
         }
 
         console.log('[协作] 设置 VM 监听器...');
-        console.log('[协作] VM 方法:', Object.keys(this.vm).filter(k => typeof this.vm[k] === 'function').slice(0, 20));
 
         // 监听工作区变化（防抖）
         const handleWorkspaceChange = (source) => {
             if (!this.roomKey || !this.isConnected || this.isLoadingProject) return;
-            
-            console.log('[协作] 检测到工作区变化，来源:', source);
             
             // 防抖，避免频繁发送
             if (this.projectUpdateTimeout) {
@@ -290,7 +388,6 @@ class CollaborationManager {
         eventsToTry.forEach(eventName => {
             try {
                 this.vm.on(eventName, () => handleWorkspaceChange(eventName));
-                console.log('[协作] 已监听事件:', eventName);
             } catch (e) {
                 // 忽略
             }
@@ -298,8 +395,6 @@ class CollaborationManager {
 
         // 也尝试监听 runtime 的事件
         if (this.vm.runtime) {
-            console.log('[协作] 尝试监听 runtime 事件...');
-            
             const runtimeEvents = [
                 'PROJECT_CHANGED',
                 'workspaceUpdate',
@@ -312,7 +407,6 @@ class CollaborationManager {
             runtimeEvents.forEach(eventName => {
                 try {
                     this.vm.runtime.on(eventName, () => handleWorkspaceChange('runtime.' + eventName));
-                    console.log('[协作] 已监听 runtime 事件:', eventName);
                 } catch (e) {
                     // 忽略
                 }
@@ -325,35 +419,24 @@ class CollaborationManager {
     // 发送项目更新
     sendProjectUpdate() {
         if (!this.vm || !this.roomKey || !this.isConnected || this.isLoadingProject) {
-            console.log('[协作] 跳过发送:', {
-                hasVM: !!this.vm,
-                hasRoomKey: !!this.roomKey,
-                isConnected: this.isConnected,
-                isLoadingProject: this.isLoadingProject
-            });
             return;
         }
 
         try {
-            console.log('[协作] 正在序列化项目数据...');
             const projectData = this.vm.toJSON();
             
             // 简单比较，避免重复发送相同数据
             const dataStr = JSON.stringify(projectData);
             if (dataStr === this.lastProjectData) {
-                console.log('[协作] 项目数据未变化，跳过发送');
                 return;
             }
             
-            console.log('[协作] 发送项目更新，数据大小:', dataStr.length, '字节');
             this.lastProjectData = dataStr;
 
             this.send({
                 type: 'project-update',
                 projectData: projectData
             });
-            
-            console.log('[协作] 项目更新已发送');
         } catch (e) {
             console.error('[协作] 发送项目更新失败:', e);
         }
@@ -366,7 +449,6 @@ class CollaborationManager {
             return;
         }
 
-        console.log('[协作] 收到项目更新，正在加载...');
         this.isLoadingProject = true;
 
         try {
@@ -374,8 +456,6 @@ class CollaborationManager {
                 console.log('[协作] 项目已同步成功');
                 this.lastProjectData = JSON.stringify(projectData);
                 this.isLoadingProject = false;
-                
-                // 触发一个事件通知 UI
                 this.emit('project-loaded');
             }).catch(e => {
                 console.error('[协作] 加载项目失败:', e);
