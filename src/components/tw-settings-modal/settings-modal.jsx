@@ -128,29 +128,6 @@ BooleanSetting.propTypes = {
     label: PropTypes.node.isRequired
 };
 
-// 新增：浮动舞台窗口设置
-const FloatingStageWindow = props => (
-    <BooleanSetting
-        {...props}
-        label={
-            <FormattedMessage
-                defaultMessage="Floating Stage Window"
-                description="Floating stage window setting"
-                id="tw.settingsModal.floatingStageWindow"
-            />
-        }
-        help={
-            <FormattedMessage
-                // eslint-disable-next-line max-len
-                defaultMessage="Make the stage a separate floating window that can be dragged, minimized, and fullscreened independently of the editor layout."
-                description="Floating stage window help"
-                id="tw.settingsModal.floatingStageWindowHelp"
-            />
-        }
-        slug="floating-stage-window"
-    />
-);
-
 const HighQualityPen = props => (
     <BooleanSetting
         {...props}
@@ -445,6 +422,92 @@ StoreProjectOptions.propTypes = {
     onStoreProjectOptions: PropTypes.func
 };
 
+// 自定义编辑器背景设置
+const CustomBackground = ({
+    backgroundImage,
+    blurAmount,
+    onImageChange,
+    onBlurChange,
+    onClearImage
+}) => (
+    <Setting
+        active={!!backgroundImage}
+        primary={(
+            <FormattedMessage
+                defaultMessage="自定义编辑器背景"
+                description="Custom editor background setting"
+                id="tw.settingsModal.customBackground"
+            />
+        )}
+        secondary={(
+            <div className={styles.customBackground}>
+                <div className={styles.customBackgroundControls}>
+                    <label className={styles.uploadButton}>
+                        <FormattedMessage
+                            defaultMessage="上传图片"
+                            description="Upload image button"
+                            id="tw.settingsModal.uploadImage"
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={onImageChange}
+                            style={{display: 'none'}}
+                        />
+                    </label>
+                    {backgroundImage && (
+                        <button
+                            className={styles.clearButton}
+                            onClick={onClearImage}
+                        >
+                            <FormattedMessage
+                                defaultMessage="清除"
+                                description="Clear background button"
+                                id="tw.settingsModal.clearBackground"
+                            />
+                        </button>
+                    )}
+                </div>
+                {backgroundImage && (
+                    <div className={styles.blurControl}>
+                        <span className={styles.blurLabel}>
+                            <FormattedMessage
+                                defaultMessage="模糊度："
+                                description="Blur amount label"
+                                id="tw.settingsModal.blurAmount"
+                            />
+                            {' '}{blurAmount}px
+                        </span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="20"
+                            value={blurAmount}
+                            onChange={onBlurChange}
+                            className={styles.blurSlider}
+                        />
+                    </div>
+                )}
+            </div>
+        )}
+        help={(
+            <FormattedMessage
+                defaultMessage="为代码编辑区上传自定义背景图片，也可以调整模糊程度。"
+                description="Custom background help"
+                id="tw.settingsModal.customBackgroundHelp"
+            />
+        )}
+        slug="custom-background"
+    />
+);
+CustomBackground.propTypes = {
+    backgroundImage: PropTypes.string,
+    blurAmount: PropTypes.number,
+    onImageChange: PropTypes.func,
+    onBlurChange: PropTypes.func,
+    onClearImage: PropTypes.func
+};
+
 const Header = props => (
     <div className={styles.header}>
         {props.children}
@@ -488,17 +551,19 @@ const SettingsModalComponent = props => (
                 onChange={props.onWarpTimerChange}
             />
 
-            {/* 新增：浮动舞台窗口 */}
             <Header>
                 <FormattedMessage
-                    defaultMessage="Window Mode"
-                    description="Settings modal section for window mode"
-                    id="tw.settingsModal.windowMode"
+                    defaultMessage="外观"
+                    description="Settings modal section for appearance"
+                    id="tw.settingsModal.appearance"
                 />
             </Header>
-            <FloatingStageWindow
-                value={props.windowMode}
-                onChange={props.onWindowModeChange}
+            <CustomBackground
+                backgroundImage={props.backgroundImage}
+                blurAmount={props.blurAmount}
+                onImageChange={props.onBackgroundImageChange}
+                onBlurChange={props.onBlurAmountChange}
+                onClearImage={props.onClearBackgroundImage}
             />
 
             <Header>
@@ -566,9 +631,12 @@ SettingsModalComponent.propTypes = {
     onWarpTimerChange: PropTypes.func,
     disableCompiler: PropTypes.bool,
     onDisableCompilerChange: PropTypes.func,
-    // 新增
-    windowMode: PropTypes.bool,
-    onWindowModeChange: PropTypes.func
+    // 自定义背景
+    backgroundImage: PropTypes.string,
+    blurAmount: PropTypes.number,
+    onBackgroundImageChange: PropTypes.func,
+    onBlurAmountChange: PropTypes.func,
+    onClearBackgroundImage: PropTypes.func
 };
 
 export default injectIntl(SettingsModalComponent);

@@ -6,6 +6,7 @@ import {connect} from 'react-redux';
 import {closeSettingsModal} from '../reducers/modals';
 import SettingsModalComponent from '../components/tw-settings-modal/settings-modal.jsx';
 import {defaultStageSize} from '../reducers/custom-stage-size';
+import {applyCustomBackground} from '../lib/custom-background.js';
 
 const messages = defineMessages({
     newFramerate: {
@@ -31,26 +32,24 @@ class UsernameModal extends React.Component {
             'handleStageHeightChange',
             'handleDisableCompilerChange',
             'handleStoreProjectOptions',
-            'handleWindowModeChange'
+            'handleBackgroundImageChange',
+            'handleBlurAmountChange',
+            'handleClearBackgroundImage'
         ]);
-        // 从 localStorage 读取初始值
-        const storedWindowMode = localStorage.getItem('stageWindowMode') === 'true';
+        
+        // 从 localStorage 读取自定义背景设置
+        const storedBackgroundImage = localStorage.getItem('customBackgroundImage');
+        const storedBlurAmount = parseInt(localStorage.getItem('customBlurAmount'), 10) || 0;
+        
         this.state = {
-            windowMode: storedWindowMode
+            backgroundImage: storedBackgroundImage,
+            blurAmount: storedBlurAmount
         };
     }
 
-    // 监听 storage 变化（其他标签页）
-    componentDidMount() {
-        window.addEventListener('storage', this.handleStorageChange);
-    }
-    componentWillUnmount() {
-        window.removeEventListener('storage', this.handleStorageChange);
-    }
-    handleStorageChange = (e) => {
-        if (e.key === 'stageWindowMode') {
-            this.setState({ windowMode: e.newValue === 'true' });
-        }
+    componentDidMount () {
+        // 组件挂载时应用背景
+        applyCustomBackground();
     }
 
     handleFramerateChange (e) {
@@ -106,13 +105,34 @@ class UsernameModal extends React.Component {
         this.props.vm.storeProjectOptions();
     }
 
-    // 新增：处理窗口模式切换
-    handleWindowModeChange (e) {
-        const checked = e.target.checked;
-        this.setState({ windowMode: checked });
-        localStorage.setItem('stageWindowMode', String(checked));
-        // 触发自定义事件，通知其他组件（如舞台）
-        window.dispatchEvent(new CustomEvent('stageWindowModeChange', { detail: { enabled: checked } }));
+    // 处理背景图片上传
+    handleBackgroundImageChange (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const imageData = event.target.result;
+            this.setState({ backgroundImage: imageData });
+            localStorage.setItem('customBackgroundImage', imageData);
+            applyCustomBackground();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 处理模糊度变化
+    handleBlurAmountChange (e) {
+        const value = parseInt(e.target.value, 10);
+        this.setState({ blurAmount: value });
+        localStorage.setItem('customBlurAmount', String(value));
+        applyCustomBackground();
+    }
+
+    // 清除背景图片
+    handleClearBackgroundImage () {
+        this.setState({ backgroundImage: null });
+        localStorage.removeItem('customBackgroundImage');
+        applyCustomBackground();
     }
 
     render () {
@@ -144,9 +164,12 @@ class UsernameModal extends React.Component {
                     this.props.customStageSize.height !== defaultStageSize.height
                 }
                 onStoreProjectOptions={this.handleStoreProjectOptions}
-                // 新增 props
-                windowMode={this.state.windowMode}
-                onWindowModeChange={this.handleWindowModeChange}
+                // 自定义背景
+                backgroundImage={this.state.backgroundImage}
+                blurAmount={this.state.blurAmount}
+                onBackgroundImageChange={this.handleBackgroundImageChange}
+                onBlurAmountChange={this.handleBlurAmountChange}
+                onClearBackgroundImage={this.handleClearBackgroundImage}
                 {...props}
             />
         );

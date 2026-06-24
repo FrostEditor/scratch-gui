@@ -193,7 +193,8 @@ class ExtensionLibrary extends React.PureComponent {
             udbbsExtensions: cachedUdbbsExtensions,
             udbbsError: null,
             extensionManagerOpen: false,
-            loadedExtensions: []
+            loadedExtensions: [],
+            extensionInfoMap: {} // 存储扩展 ID 到扩展信息的映射
         };
     }
     handleOpenAddonSettings () {
@@ -260,6 +261,57 @@ class ExtensionLibrary extends React.PureComponent {
                     });
                 });
         }
+        
+        // 监听扩展添加事件，保存扩展信息
+        this.props.vm.on('EXTENSION_ADDED', this.handleExtensionAdded);
+        
+        // 初始化已加载扩展的信息（对于组件挂载前就加载的扩展）
+        this.initLoadedExtensionsInfo();
+    }
+    initLoadedExtensionsInfo () {
+        // 从 runtime 的 _blockInfo 中获取已加载扩展的信息
+        const runtime = this.props.vm.runtime;
+        if (runtime && runtime._blockInfo) {
+            const extensionInfoMap = {};
+            const coreExtensions = [
+                'motion', 'looks', 'sound', 'events', 'control', 'sensing', 
+                'operators', 'variables', 'myBlocks'
+            ];
+            
+            for (const blockInfo of runtime._blockInfo) {
+                // 跳过核心扩展
+                if (coreExtensions.includes(blockInfo.id)) {
+                    continue;
+                }
+                
+                extensionInfoMap[blockInfo.id] = {
+                    id: blockInfo.id,
+                    name: blockInfo.name,
+                    iconURL: blockInfo.blockIconURI || blockInfo.menuIconURI || null
+                };
+            }
+            
+            this.setState({ extensionInfoMap });
+        }
+    }
+    handleExtensionAdded (extensionInfo) {
+        // 保存扩展信息到映射中
+        this.setState(prevState => ({
+            extensionInfoMap: {
+                ...prevState.extensionInfoMap,
+                [extensionInfo.id]: {
+                    id: extensionInfo.id,
+                    name: extensionInfo.name,
+                    iconURL: extensionInfo.blockIconURI || extensionInfo.menuIconURI || null
+                }
+            }
+        }));
+    }
+    componentWillUnmount () {
+        // 移除事件监听
+        if (this.props.vm) {
+            this.props.vm.removeListener('EXTENSION_ADDED', this.handleExtensionAdded);
+        }
     }
     handleItemSelect (item) {
         if (item.href) {
@@ -313,6 +365,7 @@ class ExtensionLibrary extends React.PureComponent {
 
     getLoadedExtensions () {
         const extensionManager = this.props.vm.extensionManager;
+        const runtime = this.props.vm.runtime;
         const loadedExtensions = [];
         
         // 核心扩展列表（这些是 Scratch 核心分类，不是扩展）
@@ -329,11 +382,107 @@ class ExtensionLibrary extends React.PureComponent {
                     continue;
                 }
                 
+                // 跳过自定义扩展入口
+                if (extensionId === 'customExtension') {
+                    continue;
+                }
+                
+                // 从 runtime._blockInfo 中获取该扩展的积木信息
+                let extBlockInfo = null;
+                if (runtime && runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
+                    extBlockInfo = runtime._blockInfo.find(info => info.id === extensionId);
+                }
+                
+                // 优先从事件保存的扩展信息中获取
+                const savedInfo = this.state.extensionInfoMap[extensionId];
+                let name = extensionId;
+                let description = serviceName;
+                let iconURL = null;
+                let isBuiltin = false;
+                
+                // 检查是否是内置扩展
+                if (extensionManager.isBuiltinExtension && extensionManager.isBuiltinExtension(extensionId)) {
+                    isBuiltin = true;
+                }
+                
+                if (savedInfo) {
+                    name = savedInfo.name || extensionId;
+                    iconURL = savedInfo.iconURL || null;
+                    description = isBuiltin ? '内置扩展' : '';
+                } else {
+                    description = isBuiltin ? '内置扩展' : serviceName;
+                }
+                
+                // 如果没有保存的信息，尝试从扩展库中匹配
+                if (!savedInfo) {
+                    // 获取已加载扩展的 URL
+                    const extensionURLs = extensionManager.getExtensionURLs ? extensionManager.getExtensionURLs() : {};
+                    const extURL = extensionURLs[extensionId];
+                    
+                    // 收集所有扩展库中的扩展，用于匹配
+                    const allLibraryExtensions = [];
+                    
+                    // 添加本地扩展
+                    if (extensionLibraryContent && Array.isArray(extensionLibraryContent)) {
+                        allLibraryExtensions.push(...extensionLibraryContent);
+                    }
+                    
+                    // 添加 TurboWarp 扩展
+                    if (this.state.gallery && Array.isArray(this.state.gallery)) {
+                        allLibraryExtensions.push(...this.state.gallery);
+                    }
+                    
+                    // 添加 AstraEditor 扩展
+                    if (this.state.astraExtensions && Array.isArray(this.state.astraExtensions)) {
+                        allLibraryExtensions.push(...this.state.astraExtensions);
+                    }
+                    
+                    // 添加 UDBBS 扩展
+                    if (this.state.udbbsExtensions && Array.isArray(this.state.udbbsExtensions)) {
+                        allLibraryExtensions.push(...this.state.udbbsExtensions);
+                    }
+                    
+                    // 规范化 URL，用于匹配
+                    const normalizeURL = (url) => {
+                        if (!url) return '';
+                        try {
+                            const u = new URL(url);
+                            return `https://${u.host}${u.pathname}`.toLowerCase();
+                        } catch (e) {
+                            return url.toLowerCase();
+                        }
+                    };
+                    
+                    // 尝试通过 URL 匹配
+                    let matchedExtension = null;
+                    if (extURL) {
+                        const normalizedURL = normalizeURL(extURL);
+                        matchedExtension = allLibraryExtensions.find(ext => 
+                            ext.extensionURL && normalizeURL(ext.extensionURL) === normalizedURL
+                        );
+                    }
+                    
+                    // 如果没找到，尝试通过 extensionId 匹配
+                    if (!matchedExtension) {
+                        matchedExtension = allLibraryExtensions.find(ext => 
+                            ext.extensionId === extensionId
+                        );
+                    }
+                    
+                    if (matchedExtension) {
+                        name = matchedExtension.name || extensionId;
+                        description = isBuiltin ? '内置扩展' : (matchedExtension.description || '');
+                        iconURL = matchedExtension.iconURL || null;
+                    }
+                }
+                
                 loadedExtensions.push({
                     id: extensionId,
-                    name: extensionId,
-                    description: serviceName,
-                    iconURL: null
+                    name: name,
+                    description: description,
+                    iconURL: iconURL,
+                    isBuiltin: isBuiltin,
+                    blocks: extBlockInfo ? extBlockInfo.blocks || [] : []
                 });
             }
         }
@@ -345,45 +494,118 @@ class ExtensionLibrary extends React.PureComponent {
         const extensionManager = this.props.vm.extensionManager;
         const runtime = this.props.vm.runtime;
         
-        // 1. 检查扩展是否存在并获取 serviceName
-        const serviceName = extensionManager._loadedExtensions.get(extensionId);
-        if (!serviceName) {
-            alert(`扩展 ${extensionId} 未找到`);
-            return;
-        }
-        
-        // 2. 从 runtime 的 _blockInfo 中移除扩展分类
-        const blockInfoIndex = runtime._blockInfo.findIndex(info => info.id === extensionId);
-        if (blockInfoIndex !== -1) {
-            runtime._blockInfo.splice(blockInfoIndex, 1);
-        }
-        
-        // 3. 清理 worker 相关信息（如果是 worker 模式）
-        const workerIdMatch = serviceName.match(/extension_(\d+)_/);
-        if (workerIdMatch) {
-            const workerId = parseInt(workerIdMatch[1]);
-            if (extensionManager.workerURLs && extensionManager.workerURLs[workerId]) {
-                delete extensionManager.workerURLs[workerId];
+        try {
+            // 0. 获取该扩展的所有积木 opcode
+            const extensionOpcodes = new Set();
+            if (runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
+                const extInfo = runtime._blockInfo.find(info => info.id === extensionId);
+                if (extInfo && extInfo.blocks) {
+                    for (const block of extInfo.blocks) {
+                        if (block.opcode) {
+                            extensionOpcodes.add(block.opcode);
+                        }
+                    }
+                }
             }
-            if (extensionManager.pendingWorkers && extensionManager.pendingWorkers[workerId]) {
-                delete extensionManager.pendingWorkers[workerId];
+            
+            // 0.1 从 VM 中删除积木
+            if (runtime && runtime.targets && extensionOpcodes.size > 0) {
+                const blocksToDelete = [];
+                
+                for (const target of runtime.targets) {
+                    if (target.blocks && target.blocks._blocks) {
+                        const blocks = target.blocks._blocks;
+                        for (const blockId in blocks) {
+                            if (Object.prototype.hasOwnProperty.call(blocks, blockId)) {
+                                const block = blocks[blockId];
+                                if (block.opcode && extensionOpcodes.has(block.opcode)) {
+                                    blocksToDelete.push({ target, blockId });
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                for (const { target, blockId } of blocksToDelete) {
+                    if (target.blocks && target.blocks.deleteBlock) {
+                        target.blocks.deleteBlock(blockId);
+                    }
+                }
             }
+            
+            // 0.2 直接从 Blockly 工作区删除积木（确保 UI 上也消失）
+            if (typeof Blockly !== 'undefined') {
+                const workspace = Blockly.getMainWorkspace();
+                if (workspace) {
+                    const allBlocks = workspace.getAllBlocks();
+                    const blocksToRemove = allBlocks.filter(block => {
+                        return extensionOpcodes.has(block.type);
+                    });
+                    for (const block of blocksToRemove) {
+                        block.dispose(true);
+                    }
+                }
+            }
+            
+            // 1. 检查扩展是否存在并获取 serviceName
+            let serviceName = null;
+            if (extensionManager._loadedExtensions instanceof Map) {
+                serviceName = extensionManager._loadedExtensions.get(extensionId);
+            } else if (typeof extensionManager._loadedExtensions === 'object') {
+                serviceName = extensionManager._loadedExtensions[extensionId];
+            }
+            
+            if (!serviceName) {
+                alert(`扩展 ${extensionId} 未找到`);
+                return;
+            }
+            
+            // 2. 从 runtime 的 _blockInfo 中移除扩展分类
+            if (runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
+                const blockInfoIndex = runtime._blockInfo.findIndex(info => info.id === extensionId);
+                if (blockInfoIndex !== -1) {
+                    runtime._blockInfo.splice(blockInfoIndex, 1);
+                }
+            }
+            
+            // 3. 清理 worker 相关信息（如果是 worker 模式）
+            if (typeof serviceName === 'string') {
+                const workerIdMatch = serviceName.match(/extension_(\d+)_/);
+                if (workerIdMatch) {
+                    const workerId = parseInt(workerIdMatch[1]);
+                    if (extensionManager.workerURLs && extensionManager.workerURLs[workerId]) {
+                        delete extensionManager.workerURLs[workerId];
+                    }
+                    if (extensionManager.pendingWorkers && extensionManager.pendingWorkers[workerId]) {
+                        delete extensionManager.pendingWorkers[workerId];
+                    }
+                }
+            }
+            
+            // 4. 从 _loadedExtensions 中移除
+            if (extensionManager._loadedExtensions instanceof Map) {
+                extensionManager._loadedExtensions.delete(extensionId);
+            } else if (typeof extensionManager._loadedExtensions === 'object') {
+                delete extensionManager._loadedExtensions[extensionId];
+            }
+            
+            // 5. 触发扩展移除事件，通知 UI 更新
+            if (this.props.vm.emit) {
+                this.props.vm.emit('EXTENSION_REMOVED', { id: extensionId });
+            }
+            
+            // 6. 刷新扩展列表
+            const loadedExtensions = this.getLoadedExtensions();
+            this.setState({
+                loadedExtensions: loadedExtensions
+            });
+            
+            // 7. 提示用户
+            alert(`扩展 ${extensionId} 已卸载。`);
+        } catch (error) {
+            console.error('Failed to remove extension:', error);
+            alert(`卸载扩展失败：${error.message}`);
         }
-        
-        // 4. 从 _loadedExtensions 中移除
-        extensionManager._loadedExtensions.delete(extensionId);
-        
-        // 5. 触发扩展移除事件，通知 UI 更新
-        this.props.vm.emit('EXTENSION_REMOVED', { id: extensionId });
-        
-        // 6. 刷新扩展列表
-        const loadedExtensions = this.getLoadedExtensions();
-        this.setState({
-            loadedExtensions: loadedExtensions
-        });
-        
-        // 7. 提示用户
-        alert(`扩展 ${extensionId} 已卸载。`);
     }
 
     render () {
@@ -445,6 +667,37 @@ class ExtensionLibrary extends React.PureComponent {
                         .map(toLibraryItem)
                 );
             }
+            
+            // 去重：屏蔽与其他分类 ID 相同的扩展
+            const seenExtensionIds = new Set();
+            const deduplicatedLibrary = [];
+            
+            for (const item of library) {
+                // 分隔符直接添加
+                if (item === '---') {
+                    deduplicatedLibrary.push(item);
+                    continue;
+                }
+                
+                // 如果是对象且有 extensionId，检查是否重复
+                if (typeof item === 'object' && item.extensionId) {
+                    // 跳过特殊的分类标题项（如 gallery 标题）
+                    if (item.href && item.extensionId.endsWith('-gallery')) {
+                        deduplicatedLibrary.push(item);
+                        continue;
+                    }
+                    
+                    // 如果已经出现过相同的 extensionId，跳过
+                    if (seenExtensionIds.has(item.extensionId)) {
+                        continue;
+                    }
+                    seenExtensionIds.add(item.extensionId);
+                }
+                
+                deduplicatedLibrary.push(item);
+            }
+            
+            library = deduplicatedLibrary;
         }
 
         return (

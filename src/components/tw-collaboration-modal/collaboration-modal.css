@@ -1,0 +1,418 @@
+@import "../../css/units.css";
+@import "../../css/colors.css";
+
+.modalContent {
+    width: 450px;
+    max-height: 80vh;
+}
+
+.body {
+    background: $ui-white;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
+
+.title {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: $text-primary;
+    text-align: center;
+}
+
+/* 主界面 */
+.mainView {
+    padding: 1rem 0;
+}
+
+.description {
+    text-align: center;
+    color: $ui-black-transparent;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+/* 服务器设置 */
+.serverSettings {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: $ui-secondary;
+    border-radius: 0.5rem;
+    border: 1px solid $ui-tertiary;
+}
+
+.serverLabel {
+    display: block;
+    font-size: 0.85rem;
+    color: $text-primary;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.serverInput {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid $ui-tertiary;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+    margin-bottom: 0.75rem;
+
+    &:focus {
+        outline: none;
+        border-color: $looks-secondary;
+    }
+}
+
+.statusIndicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.statusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.statusDot.connected {
+    background-color: #4caf50;
+}
+
+.statusDot.connecting {
+    background-color: #ff9800;
+    animation: pulse 1.5s infinite;
+}
+
+.statusDot.disconnected {
+    background-color: #f44336;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.statusText {
+    font-size: 0.8rem;
+    color: $ui-black-transparent;
+}
+
+/* 错误消息 */
+.errorMessage {
+    padding: 0.75rem;
+    background-color: $error-transparent;
+    color: $error-primary;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    border: 1px solid $error-primary;
+}
+
+.buttonGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.primaryButton {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background-color: $looks-secondary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: $looks-secondary-dark;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.secondaryButton {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background-color: $ui-secondary;
+    color: $text-primary;
+    border: 1px solid $ui-tertiary;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: $ui-primary;
+    }
+}
+
+/* 加入房间界面 */
+.joinView {
+    padding: 0.5rem 0;
+}
+
+.backButton {
+    background: none;
+    border: none;
+    color: $looks-secondary;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.subtitle {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: $text-primary;
+    text-align: center;
+}
+
+.inputGroup {
+    margin-bottom: 1.5rem;
+}
+
+.inputLabel {
+    display: block;
+    font-size: 0.85rem;
+    color: $text-primary;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.roomKeyInput {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid $ui-tertiary;
+    border-radius: 0.5rem;
+    font-size: 1.25rem;
+    text-align: center;
+    letter-spacing: 0.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    box-sizing: border-box;
+
+    &:focus {
+        outline: none;
+        border-color: $looks-secondary;
+    }
+}
+
+/* 房间界面 */
+.roomView {
+    padding: 0.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.roomHeader {
+    padding: 1rem;
+    background-color: $ui-secondary;
+    border-radius: 0.5rem;
+    border: 1px solid $ui-tertiary;
+}
+
+.roomKeyDisplay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.syncStatus {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #4caf50;
+}
+
+.roomKeyLabel {
+    font-size: 0.9rem;
+    color: $ui-black-transparent;
+    font-weight: 500;
+}
+
+.roomKeyValue {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: $data-primary;
+    letter-spacing: 0.25rem;
+    font-family: monospace;
+}
+
+.copyButton {
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: $looks-secondary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+
+    &:hover {
+        background-color: $looks-secondary-dark;
+    }
+}
+
+/* 成员列表 */
+.membersSection {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.membersTitle {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: $text-primary;
+}
+
+.membersList {
+    border: 1px solid $ui-tertiary;
+    border-radius: 0.5rem;
+    background-color: $ui-secondary;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.memberItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid $ui-tertiary;
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    &:hover {
+        background-color: $ui-primary;
+    }
+}
+
+.memberInfo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.memberAvatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: $looks-secondary;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.memberName {
+    font-size: 0.9rem;
+    color: $text-primary;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.youLabel {
+    font-size: 0.75rem;
+    color: $ui-black-transparent;
+}
+
+.hostBadge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.25rem;
+    background-color: $data-primary;
+    color: white;
+    font-weight: 500;
+}
+
+.kickButton {
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: $error-primary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+
+    &:hover {
+        background-color: $error-light;
+    }
+}
+
+/* 房间操作 */
+.roomActions {
+    padding-top: 0.5rem;
+    border-top: 1px solid $ui-tertiary;
+}
+
+.leaveButton {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border-radius: 0.5rem;
+    background-color: $ui-secondary;
+    color: $error-primary;
+    border: 1px solid $error-primary;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: $error-transparent;
+    }
+}
+
+/* 底部按钮行 */
+.buttonRow {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid $ui-tertiary;
+    margin-top: auto;
+}
+
+.closeButton {
+    padding: 0.5rem 1.5rem;
+    border-radius: 0.25rem;
+    background-color: $looks-secondary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+
+    &:hover {
+        background-color: $looks-secondary-dark;
+    }
+}

@@ -96,6 +96,8 @@ import editIcon from './icon--edit.svg';
 import addonsIcon from './addons.svg';
 import errorIcon from './tw-error.svg';
 import advancedIcon from './tw-advanced.svg';
+import CollaborationIcon from './collaboration-icon.jsx';
+import CollaborationModal from '../tw-collaboration-modal/collaboration-modal.jsx';
 
 import ninetiesLogo from './nineties_logo.svg';
 import catLogo from './cat_logo.svg';
@@ -211,6 +213,9 @@ MenuItemLink.propTypes = {
 class MenuBar extends React.Component {
     constructor (props) {
         super(props);
+        this.state = {
+            collaborationModalOpen: false
+        };
         bindAll(this, [
             'handleClickSeeInside',
             'handleClickNew',
@@ -227,7 +232,9 @@ class MenuBar extends React.Component {
             'handleKeyPress',
             'handleRestoreOption',
             'getSaveToComputerHandler',
-            'restoreOptionMessage'
+            'restoreOptionMessage',
+            'handleClickCollaboration',
+            'handleCloseCollaboration'
         ]);
     }
     componentDidMount () {
@@ -389,6 +396,12 @@ class MenuBar extends React.Component {
     }
     handleClickSeeInside () {
         this.props.onClickSeeInside();
+    }
+    handleClickCollaboration () {
+        this.setState({collaborationModalOpen: true});
+    }
+    handleCloseCollaboration () {
+        this.setState({collaborationModalOpen: false});
     }
     buildAboutMenu (onClickAbout) {
         if (!onClickAbout) {
@@ -885,6 +898,21 @@ class MenuBar extends React.Component {
                             </MenuLabel>
                         )}
 
+                        <div
+                            className={classNames(styles.menuBarItem, styles.hoverable)}
+                            onClick={this.handleClickCollaboration}
+                            title="多人协作"
+                        >
+                            <CollaborationIcon width={20} height={20} />
+                            <span className={styles.collapsibleLabel}>
+                                <FormattedMessage
+                                    defaultMessage="协作"
+                                    description="Menu bar item for collaboration"
+                                    id="tw.menuBar.collaboration"
+                                />
+                            </span>
+                        </div>
+
                         {this.props.onClickAddonSettings && (
                             <div
                                 className={classNames(styles.menuBarItem, styles.hoverable)}
@@ -1048,6 +1076,11 @@ class MenuBar extends React.Component {
             <React.Fragment>
                 {menuBar}
                 <TWNews />
+                {this.state.collaborationModalOpen && (
+                    <CollaborationModal
+                        onClose={this.handleCloseCollaboration}
+                    />
+                )}
             </React.Fragment>
         );
     }
