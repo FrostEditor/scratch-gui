@@ -45,10 +45,6 @@ class CollaborationManager {
         this.moveEventTimeout = null; // MOVE 事件防抖定时器
         this.lastMoveEvent = null; // 最后一个 MOVE 事件
         this.hasResourceChange = false; // 是否有资源变化（图片、声音等），需要发送完整项目
-        
-        // 角色编辑状态（避免同时编辑同一个角色）
-        this._spriteEditingStates = {}; // memberId -> { spriteId, spriteName, username }
-        this._lastEditingSpriteId = null; // 上次编辑的角色ID
     }
 
     // 设置 VM
@@ -446,11 +442,8 @@ class CollaborationManager {
 
             case 'member-left':
                 this.members = this.members.filter(m => m.id !== data.memberId);
-                // 清除该成员的角色编辑状态
-                delete this._spriteEditingStates[data.memberId];
                 this.emit('member-left', data.memberId);
                 this.emit('members-updated', this.members);
-                this.emit('sprite-editing-updated', this._spriteEditingStates);
                 break;
 
             case 'host-changed':
@@ -500,24 +493,6 @@ class CollaborationManager {
 
             case 'blocks-update':
                 this.handleBlocksUpdate(data);
-                break;
-
-            case 'sprite-editing':
-                // 记录对方正在编辑的角色
-                if (data.memberId) {
-                    this._spriteEditingStates[data.memberId] = {
-                        spriteId: data.spriteId,
-                        spriteName: data.spriteName,
-                        username: data.username
-                    };
-                    
-                    // 如果对方正在编辑的角色是我正在编辑的，提示
-                    if (this.vm && this.vm.editingTarget && this.vm.editingTarget.id === data.spriteId) {
-                        alert(`⚠️ ${data.username} 切换到了你正在编辑的角色「${data.spriteName}」`);
-                    }
-                    
-                    this.emit('sprite-editing-updated', this._spriteEditingStates);
-                }
                 break;
 
             case 'error':
@@ -896,42 +871,6 @@ class CollaborationManager {
             
             // 如果正在应用远程事件，不触发全量同步（避免循环和冲突）
             if (this.isApplyingRemoteEvent) return;
-            
-            // 检测角色切换，同步编辑状态
-            if (this.vm && this.vm.editingTarget) {
-                const currentSpriteId = this.vm.editingTarget.id;
-                const currentSpriteName = this.vm.editingTarget.name;
-                
-                if (currentSpriteId !== this._lastEditingSpriteId) {
-                    // 切换了角色
-                    this._lastEditingSpriteId = currentSpriteId;
-                    
-                    // 检查这个角色是否被别人编辑了
-                    let otherEditor = null;
-                    for (const memberId in this._spriteEditingStates) {
-                        if (memberId === this.memberId) continue;
-                        const state = this._spriteEditingStates[memberId];
-                        if (state && state.spriteId === currentSpriteId) {
-                            otherEditor = state;
-                            break;
-                        }
-                    }
-                    
-                    if (otherEditor) {
-                        setTimeout(() => {
-                            alert(`⚠️ 角色「${currentSpriteName}」正在被 ${otherEditor.username} 编辑`);
-                        }, 100);
-                    }
-                    
-                    // 发送消息通知其他人
-                    this.send({
-                        type: 'sprite-editing',
-                        spriteId: currentSpriteId,
-                        spriteName: currentSpriteName,
-                        username: this.username
-                    });
-                }
-            }
             
             // 检测是否是资源相关的变化（需要发送完整项目）
             // 方式1：通过事件名判断
