@@ -51,6 +51,12 @@ class CollaborationManager {
     setVM(vm) {
         this.vm = vm;
         this.setupVMListeners();
+        
+        // 尝试恢复上次的房间连接（刷新后自动重连）
+        // 延迟一下，确保页面加载完成
+        setTimeout(() => {
+            this.restoreLastRoom();
+        }, 1000);
     }
 
     // 设置用户名
@@ -67,6 +73,60 @@ class CollaborationManager {
     // 生成成员 ID
     generateMemberId() {
         return 'member_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    // 保存房间信息到 localStorage（刷新后自动重连用）
+    saveRoomInfo() {
+        try {
+            const roomInfo = {
+                roomKey: this.roomKey,
+                serverUrl: this.serverUrl,
+                serverType: this.serverType,
+                username: this.username
+            };
+            localStorage.setItem('collaborationRoomInfo', JSON.stringify(roomInfo));
+        } catch (e) {
+            console.warn('[协作] 保存房间信息失败:', e);
+        }
+    }
+    
+    // 从 localStorage 清除房间信息
+    clearRoomInfo() {
+        try {
+            localStorage.removeItem('collaborationRoomInfo');
+        } catch (e) {
+            console.warn('[协作] 清除房间信息失败:', e);
+        }
+    }
+    
+    // 恢复上次的房间连接（刷新后自动重连）
+    async restoreLastRoom() {
+        try {
+            const saved = localStorage.getItem('collaborationRoomInfo');
+            if (!saved) return false;
+            
+            const roomInfo = JSON.parse(saved);
+            if (!roomInfo.roomKey || !roomInfo.serverUrl) return false;
+            
+            console.log('[协作] 检测到上次的房间，正在重新连接...');
+            
+            // 设置服务器
+            this.setServer(roomInfo.serverUrl, roomInfo.serverType || 'workers');
+            
+            // 设置用户名
+            if (roomInfo.username) {
+                this.setUsername(roomInfo.username);
+            }
+            
+            // 加入房间
+            await this.joinRoom(roomInfo.roomKey);
+            
+            return true;
+        } catch (e) {
+            console.warn('[协作] 恢复房间连接失败:', e);
+            this.clearRoomInfo();
+            return false;
+        }
     }
 
     // ========== Workers 模式 ==========
@@ -282,6 +342,8 @@ class CollaborationManager {
         if (this.isConnected && this.roomKey && this.serverType === 'node') {
             this.send({ type: 'leave-room' });
         }
+        // 清除保存的房间信息
+        this.clearRoomInfo();
         this.disconnect();
     }
 
@@ -312,6 +374,9 @@ class CollaborationManager {
                 this.emit('room-created', data);
                 this.emit('members-updated', this.members);
                 
+                // 保存房间信息到 localStorage，刷新后可以自动重连
+                this.saveRoomInfo();
+                
                 // 创建房间后，发送一次完整项目数据
                 this.sendFullProjectUpdate();
                 
@@ -325,6 +390,9 @@ class CollaborationManager {
                 this.members = data.members;
                 this.emit('room-joined', data);
                 this.emit('members-updated', this.members);
+                
+                // 保存房间信息到 localStorage，刷新后可以自动重连
+                this.saveRoomInfo();
                 
                 // 如果有完整项目数据，加载完整项目（包含图片等资源）
                 if (data.fullProjectData && this.vm) {
@@ -377,13 +445,22 @@ class CollaborationManager {
             case 'project-update':
                 this.emit('project-update', data);
                 // 加载项目数据
-                if (this.vm && data.projectData && !this.isLoadingProject) {
-                    this.loadProjectData(data.projectData);
+                if (this.vm && !this.isLoadingProject) {
+                    // 如果有完整项目数据（包含图片、声音等），优先加载完整项目
+                    if (data.fullProjectData) {
+                        console.log('[协作] 收到完整项目数据，加载中...');
+                        this.loadFullProjectData(data.fullProjectData);
+                    } else if (data.projectData) {
+                        // 否则只加载 JSON 数据
+                        this.loadProjectData(data.projectData);
+                    }
                 }
                 break;
 
             case 'kicked':
                 this.emit('kicked', data);
+                // 被踢出后清除保存的房间信息，避免自动重连
+                this.clearRoomInfo();
                 this.disconnect();
                 break;
 
