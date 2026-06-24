@@ -575,6 +575,11 @@ class CollaborationManager {
             return;
         }
 
+        // 初始化当前角色 ID，避免第一次事件误判为角色切换
+        if (this.vm && this.vm.editingTarget) {
+            this._lastTargetId = this.vm.editingTarget.id;
+        }
+
         // 添加变化监听器
         this._blocklyChangeListener = (event) => {
             this.handleBlocklyChange(event);
@@ -631,6 +636,20 @@ class CollaborationManager {
         
         // 如果没有角色 ID，不发送（可能是初始化阶段）
         if (!targetId) return;
+        
+        // 检测角色切换
+        // 如果角色变了，说明刚切换角色，接下来一段时间的事件是加载积木导致的，不应该同步
+        if (this._lastTargetId !== targetId) {
+            this._lastTargetId = targetId;
+            // 角色切换后 500ms 内的事件都忽略（加载积木的时间）
+            this._ignoreBlockEventsUntil = Date.now() + 500;
+            return;
+        }
+        
+        // 如果在忽略时间段内，不发送
+        if (this._ignoreBlockEventsUntil && Date.now() < this._ignoreBlockEventsUntil) {
+            return;
+        }
         
         // 序列化事件
         let eventJson;
