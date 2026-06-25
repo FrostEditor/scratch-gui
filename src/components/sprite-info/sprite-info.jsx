@@ -38,16 +38,6 @@ const messages = defineMessages({
         id: 'gui.SpriteInfo.hideSpriteAction',
         defaultMessage: 'Hide sprite',
         description: 'Tooltip for hide sprite button'
-    },
-    showLabel: {
-        id: 'gui.SpriteInfo.showLabel',
-        defaultMessage: 'Show',
-        description: 'Label for show option in visibility menu'
-    },
-    hideLabel: {
-        id: 'gui.SpriteInfo.hideLabel',
-        defaultMessage: 'Hide',
-        description: 'Label for hide option in visibility menu'
     }
 });
 
@@ -208,38 +198,23 @@ class SpriteInfo extends React.Component {
                                 /> :
                                 null
                         }
-                        <div className={styles.visibilityToggle}>
-                            <img
-                                className={styles.visibilityIcon}
-                                src={this.props.visible ? showIcon : hideIcon}
-                                alt={this.props.visible ? 'Show' : 'Hide'}
-                                draggable={false}
-                            />
-                            <div className={styles.visibilityMenu}>
-                                <div
-                                    className={classNames(styles.visibilityMenuItem, {[styles.active]: this.props.visible})}
-                                    onClick={this.props.onClickVisible}
-                                >
-                                    <img src={showIcon} alt="" draggable={false} />
-                                    <FormattedMessage
-                                        defaultMessage="Show"
-                                        description="Label for show option in visibility menu"
-                                        id="gui.SpriteInfo.showLabel"
-                                    />
-                                </div>
-                                <div
-                                    className={classNames(styles.visibilityMenuItem, {[styles.active]: !this.props.visible})}
-                                    onClick={this.props.onClickNotVisible}
-                                >
-                                    <img src={hideIcon} alt="" draggable={false} />
-                                    <FormattedMessage
-                                        defaultMessage="Hide"
-                                        description="Label for hide option in visibility menu"
-                                        id="gui.SpriteInfo.hideLabel"
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                        <ToggleButtons
+                            buttons={[
+                                {
+                                    handleClick: this.props.onClickVisible,
+                                    icon: showIcon,
+                                    isSelected: this.props.visible && !this.props.disabled,
+                                    title: this.props.intl.formatMessage(messages.showSpriteAction)
+                                },
+                                {
+                                    handleClick: this.props.onClickNotVisible,
+                                    icon: hideIcon,
+                                    isSelected: !this.props.visible && !this.props.disabled,
+                                    title: this.props.intl.formatMessage(messages.hideSpriteAction)
+                                }
+                            ]}
+                            disabled={this.props.disabled}
+                        />
                     </div>
                     <div className={classNames(styles.group, styles.largerInput)}>
                         <Label
