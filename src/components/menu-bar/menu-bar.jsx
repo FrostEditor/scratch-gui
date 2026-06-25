@@ -98,6 +98,15 @@ import saveIcon from './icon--save.svg';
 import editIcon from './icon--edit.svg';
 import undoIcon from './icon--undo.svg';
 import redoIcon from './icon--redo.svg';
+import copyIcon from './icon--copy.svg';
+import restoreIcon from './icon--restore.svg';
+import windowIcon from './icon--window.svg';
+import packageIcon from './icon--package.svg';
+import turboIcon from './icon--turbo.svg';
+import framerateIcon from './icon--framerate.svg';
+import userIcon from './icon--user.svg';
+import cloudIcon from './icon--cloud.svg';
+import settingsIcon from './icon--settings.svg';
 import addonsIcon from './addons.svg';
 import errorIcon from './tw-error.svg';
 import advancedIcon from './tw-advanced.svg';
@@ -678,6 +687,13 @@ class MenuBar extends React.Component {
                                             isRtl={this.props.isRtl}
                                             onClick={this.handleClickNewWindow}
                                         >
+                                            <img
+                                                src={windowIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             <FormattedMessage
                                                 defaultMessage="New window"
                                                 // eslint-disable-next-line max-len
@@ -702,11 +718,25 @@ class MenuBar extends React.Component {
                                             )}
                                             {this.props.canCreateCopy && (
                                                 <MenuItem onClick={this.handleClickSaveAsCopy}>
+                                                    <img
+                                                        src={copyIcon}
+                                                        draggable={false}
+                                                        width={16}
+                                                        height={16}
+                                                        style={{marginRight: 8, verticalAlign: 'middle'}}
+                                                    />
                                                     {createCopyMessage}
                                                 </MenuItem>
                                             )}
                                             {this.props.canRemix && (
                                                 <MenuItem onClick={this.handleClickRemix}>
+                                                    <img
+                                                        src={remixIcon}
+                                                        draggable={false}
+                                                        width={16}
+                                                        height={16}
+                                                        style={{marginRight: 8, verticalAlign: 'middle'}}
+                                                    />
                                                     {remixMessage}
                                                 </MenuItem>
                                             )}
@@ -786,6 +816,13 @@ class MenuBar extends React.Component {
                                             <MenuItem
                                                 onClick={this.handleClickPackager}
                                             >
+                                                <img
+                                                    src={packageIcon}
+                                                    draggable={false}
+                                                    width={16}
+                                                    height={16}
+                                                    style={{marginRight: 8, verticalAlign: 'middle'}}
+                                                />
                                                 <FormattedMessage
                                                     defaultMessage="Package project"
                                                     // eslint-disable-next-line max-len
@@ -797,6 +834,13 @@ class MenuBar extends React.Component {
                                     )}
                                     <MenuSection>
                                         <MenuItem onClick={this.handleClickRestorePoints}>
+                                            <img
+                                                src={restoreIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             <FormattedMessage
                                                 defaultMessage="Restore points"
                                                 description="Menu bar item to manage restore points"
@@ -849,6 +893,13 @@ class MenuBar extends React.Component {
                                 <MenuSection>
                                     <TurboMode>{(toggleTurboMode, {turboMode}) => (
                                         <MenuItem onClick={toggleTurboMode}>
+                                            <img
+                                                src={turboIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             {turboMode ? (
                                                 <FormattedMessage
                                                     defaultMessage="Turn off Turbo Mode"
@@ -866,6 +917,13 @@ class MenuBar extends React.Component {
                                     )}</TurboMode>
                                     <FramerateChanger>{(changeFramerate, {framerate}) => (
                                         <MenuItem onClick={changeFramerate}>
+                                            <img
+                                                src={framerateIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             {framerate === 60 ? (
                                                 <FormattedMessage
                                                     defaultMessage="Turn off 60 FPS Mode"
@@ -883,6 +941,13 @@ class MenuBar extends React.Component {
                                     )}</FramerateChanger>
                                     <ChangeUsername>{changeUsername => (
                                         <MenuItem onClick={changeUsername}>
+                                            <img
+                                                src={userIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             <FormattedMessage
                                                 defaultMessage="Change Username"
                                                 description="Menu bar item for changing the username"
@@ -895,6 +960,13 @@ class MenuBar extends React.Component {
                                             className={classNames({[styles.disabled]: !canUseCloudVariables})}
                                             onClick={toggleCloudVariables}
                                         >
+                                            <img
+                                                src={cloudIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             {canUseCloudVariables ? (
                                                 enabled ? (
                                                     <FormattedMessage

@@ -53,6 +53,7 @@ import codeIcon from '!../../lib/tw-recolor/build!./icon--code.svg';
 import costumesIcon from '!../../lib/tw-recolor/build!./icon--costumes.svg';
 import soundsIcon from '!../../lib/tw-recolor/build!./icon--sounds.svg';
 import statementIcon from '!../../lib/tw-recolor/build!./icon--statement.svg';
+import mindmapIcon from '!../../lib/tw-recolor/build!./icon--mindmap.svg';
 
 const messages = defineMessages({
     addExtension: {
@@ -339,15 +340,7 @@ const GUIComponent = props => {
                                 selectedIndex={activeTabIndex}
                                 selectedTabClassName={tabClassNames.tabSelected}
                                 selectedTabPanelClassName={tabClassNames.tabPanelSelected}
-                                onSelect={(index, lastIndex) => {
-                                    onActivateTab(index, lastIndex);
-                                    // 同步标签页状态
-                                    const tabNames = ['code', 'costumes', 'sounds', 'statement'];
-                                    const tabName = tabNames[index] || 'code';
-                                    if (collaborationManager && collaborationManager.isConnected) {
-                                        collaborationManager.sendTabChange(tabName);
-                                    }
-                                }}
+                                onSelect={onActivateTab}
                             >
                                 <TabList className={tabClassNames.tabList}>
                                     <Tab className={tabClassNames.tab}>
@@ -398,7 +391,12 @@ const GUIComponent = props => {
                                         />
                                     </Tab>
                                     <Tab className={tabClassNames.tab}>
-                                        <span>作品声明</span>
+                                        <img
+                                            draggable={false}
+                                            src={statementIcon()}
+                                            alt="作品声明"
+                                            title="作品声明"
+                                        />
                                     </Tab>
                                 </TabList>
                                 <TabPanel className={tabClassNames.tabPanel}>
@@ -444,6 +442,9 @@ const GUIComponent = props => {
                                 </TabPanel>
                                 <TabPanel className={tabClassNames.tabPanel}>
                                     <ProjectStatement vm={vm} />
+                                </TabPanel>
+                                <TabPanel className={tabClassNames.tabPanel}>
+                                    <Mindmap vm={vm} />
                                 </TabPanel>
                             </Tabs>
                             {backpackVisible ? (

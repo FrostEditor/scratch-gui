@@ -102,6 +102,11 @@ const messages = defineMessages({
         description: 'Error label',
         id: 'tw.collaboration.error'
     },
+    roomNotFound: {
+        defaultMessage: '房间不存在或已过期',
+        description: 'Message when room is not found',
+        id: 'tw.collaboration.roomNotFound'
+    },
     serverUrl: {
         defaultMessage: '服务器地址',
         description: 'Server URL label',
@@ -131,6 +136,7 @@ const CollaborationModal = props => {
     const [serverUrl, setServerUrl] = useState('https://server.froste.top');
     const [username, setUsername] = useState('用户');
     const [isLoading, setIsLoading] = useState(false);
+    const [roomNotFound, setRoomNotFound] = useState(false);
     
     const isMounted = useRef(true);
 
@@ -151,6 +157,7 @@ const CollaborationModal = props => {
             setRoomKey('');
             setMembers([]);
             setIsHost(false);
+            setRoomNotFound(false);
         };
 
         const handleError = (data) => {
@@ -173,11 +180,22 @@ const CollaborationModal = props => {
             setIsHost(false);
         };
 
+        const handleRoomNotFound = () => {
+            if (!isMounted.current) return;
+            setRoomNotFound(true);
+            setError(props.intl.formatMessage(messages.roomNotFound));
+            setIsLoading(false);
+            // 自动离开房间
+            collaborationManager.leaveRoom();
+            setView('join');
+        };
+
         collaborationManager.on('connected', handleConnected);
         collaborationManager.on('disconnected', handleDisconnected);
         collaborationManager.on('error', handleError);
         collaborationManager.on('members-updated', handleMembersUpdated);
         collaborationManager.on('kicked', handleKicked);
+        collaborationManager.on('room-not-found', handleRoomNotFound);
 
         // 检查当前状态
         if (collaborationManager.isConnected) {
@@ -210,6 +228,7 @@ const CollaborationModal = props => {
             collaborationManager.off('error', handleError);
             collaborationManager.off('members-updated', handleMembersUpdated);
             collaborationManager.off('kicked', handleKicked);
+            collaborationManager.off('room-not-found', handleRoomNotFound);
         };
     }, []);
 

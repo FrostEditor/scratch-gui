@@ -32,12 +32,6 @@ const SettingsMenu = ({
         onOpen={onRequestOpen}
         onClose={onRequestClose}
     >
-        <img
-            src={settingsIcon}
-            draggable={false}
-            width={20}
-            height={20}
-        />
         <span className={styles.dropdownLabel}>
             <FormattedMessage
                 defaultMessage="Settings"

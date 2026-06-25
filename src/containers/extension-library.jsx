@@ -16,6 +16,7 @@ import LibraryComponent from '../components/library/library.jsx';
 import libraryStyles from '../components/library/library.css';
 import extensionIcon from '../components/action-menu/icon--sprite.svg';
 import ExtensionManagerModal from '../components/tw-extension-manager-modal/extension-manager-modal.jsx';
+import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 
 const messages = defineMessages({
     extensionTitle: {
@@ -593,8 +594,17 @@ class ExtensionLibrary extends React.PureComponent {
             if (this.props.vm.emit) {
                 this.props.vm.emit('EXTENSION_REMOVED', { id: extensionId });
             }
-            
-            // 6. 刷新扩展列表
+
+            // 6. 同步到协作房间（如果在协作中）
+            try {
+                if (collaborationManager && collaborationManager.isConnected) {
+                    collaborationManager.sendExtensionUnload(extensionId);
+                }
+            } catch (e) {
+                // 忽略协作同步错误
+            }
+
+            // 7. 刷新扩展列表
             const loadedExtensions = this.getLoadedExtensions();
             this.setState({
                 loadedExtensions: loadedExtensions
