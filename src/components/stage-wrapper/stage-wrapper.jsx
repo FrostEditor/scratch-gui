@@ -21,11 +21,13 @@ class StageWrapperComponent extends React.Component {
             'handleResizeEnd'
         ]);
         this.state = {
+            customScale: null,
             customWidth: null,
             isResizing: false
         };
         this.resizeStartX = 0;
         this.resizeStartWidth = 0;
+        this.defaultWidth = 480; // 默认舞台宽度（large 模式）
     }
 
     handleResizeStart (e) {
@@ -35,6 +37,10 @@ class StageWrapperComponent extends React.Component {
         const rect = stageWrapper.getBoundingClientRect();
         this.resizeStartX = e.clientX;
         this.resizeStartWidth = rect.width;
+        // 记录当前的缩放比例，基于当前宽度反推
+        // 默认 large 模式是 480px 宽
+        const baseWidth = this.props.stageSize === 'small' ? 240 : 480;
+        this.resizeStartScale = this.state.customScale || (rect.width - 0) / baseWidth; // 减去 padding？
         this.setState({isResizing: true});
         document.addEventListener('mousemove', this.handleResizeMove);
         document.addEventListener('mouseup', this.handleResizeEnd);
@@ -45,14 +51,30 @@ class StageWrapperComponent extends React.Component {
         const deltaX = e.clientX - this.resizeStartX;
         let newWidth = this.resizeStartWidth + deltaX;
         // 最小宽度 240px，最大宽度 1200px
-        newWidth = Math.max(240, Math.min(1200, newWidth));
-        this.setState({customWidth: newWidth});
+        newWidth = Math.max(200, Math.min(1200, newWidth));
+        // 计算缩放比例
+        const baseWidth = this.props.stageSize === 'small' ? 240 : 480;
+        const scale = newWidth / baseWidth;
+        this.setState({
+            customWidth: newWidth,
+            customScale: scale
+        });
     }
 
     handleResizeEnd () {
         this.setState({isResizing: false});
         document.removeEventListener('mousemove', this.handleResizeMove);
         document.removeEventListener('mouseup', this.handleResizeEnd);
+    }
+
+    componentDidUpdate (prevProps) {
+        // 当 stageSize 变化时，重置自定义缩放
+        if (prevProps.stageSize !== this.props.stageSize) {
+            this.setState({
+                customScale: null,
+                customWidth: null
+            });
+        }
     }
 
     setStageWrapperRef (ref) {
@@ -71,8 +93,19 @@ class StageWrapperComponent extends React.Component {
         } = this.props;
 
         const wrapperStyle = {};
+        const canvasWrapperStyle = {};
+        
         if (this.state.customWidth && !isFullScreen && !isEmbedded) {
             wrapperStyle.width = `${this.state.customWidth}px`;
+        }
+        
+        if (this.state.customScale && !isFullScreen && !isEmbedded) {
+            canvasWrapperStyle.transform = `scale(${this.state.customScale})`;
+            canvasWrapperStyle.transformOrigin = 'top left';
+            // 调整 wrapper 的高度以适应缩放后的舞台
+            // 根据 stageSize 确定默认高度
+            const defaultHeight = stageSize === 'small' ? 180 : 360;
+            wrapperStyle.height = `${defaultHeight * this.state.customScale + 44}px`; // +44 是 stage menu 的高度
         }
 
         return (
@@ -97,7 +130,10 @@ class StageWrapperComponent extends React.Component {
                         vm={vm}
                     />
                 </Box>
-                <Box className={styles.stageCanvasWrapper}>
+                <Box 
+                    className={styles.stageCanvasWrapper}
+                    style={canvasWrapperStyle}
+                >
                     {
                         isRendererSupported ?
                             <Stage

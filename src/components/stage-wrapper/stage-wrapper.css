@@ -4,6 +4,7 @@
 
 .stage-wrapper {
     position: relative;
+    overflow: hidden;
 }
 
 .stage-wrapper * {
@@ -13,6 +14,7 @@
 .stage-canvas-wrapper {
     /* Hides negative space between edge of rounded corners + container, when selected */
     user-select: none;
+    position: relative;
 }
 
 .offset-controls .stage-canvas-wrapper {

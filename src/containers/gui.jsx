@@ -43,6 +43,7 @@ import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
 import {initBackgroundObserver} from '../lib/custom-background.js';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 import defaultProjectData from '../lib/default-project/project-data.js';
+import loadRandomDefaultCostume from '../lib/random-default-costume.js';
 
 const {RequestMetadata, setMetadata, unsetMetadata} = storage.scratchFetch;
 
@@ -67,6 +68,11 @@ class GUI extends React.Component {
         // 初始化协作管理器
         collaborationManager.setVM(this.props.vm);
         
+        // 加载随机默认造型（延迟一下，确保项目加载完成）
+        setTimeout(() => {
+            loadRandomDefaultCostume(this.props.vm);
+        }, 500);
+        
         // Electron 桌面端：监听主进程消息
         if (window.electronAPI) {
             this.setupElectronListeners();
@@ -82,7 +88,12 @@ class GUI extends React.Component {
             console.log('[Electron] 新建项目');
             // 加载默认项目
             if (defaultProjectData) {
-                vm.loadProject(defaultProjectData).catch(err => {
+                vm.loadProject(defaultProjectData).then(() => {
+                    // 加载随机默认造型
+                    setTimeout(() => {
+                        loadRandomDefaultCostume(vm);
+                    }, 300);
+                }).catch(err => {
                     console.error('[Electron] 新建项目失败:', err);
                 });
             }

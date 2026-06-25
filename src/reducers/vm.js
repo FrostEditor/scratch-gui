@@ -7,6 +7,13 @@ const defaultVM = new VM();
 defaultVM.setCompatibilityMode(true);
 defaultVM.runtime.cloudOptions.limit = MAXIMUM_CLOUD_VARIABLES;
 defaultVM.attachStorage(storage);
+
+// 设置当前平台为 FrostEditor
+defaultVM.runtime.platform = {
+    name: 'FrostEditor',
+    url: 'https://froste.top/'
+};
+
 const initialState = defaultVM;
 
 const reducer = function (state, action) {

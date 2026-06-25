@@ -13,7 +13,7 @@
     transform: translate(-2px, -2px);
     pointer-events: none;
     will-change: left, top;
-    transition: left 0.1s ease-out, top 0.1s ease-out;
+    transition: left 0.15s ease-out, top 0.15s ease-out;
 }
 
 .cursorPointer {

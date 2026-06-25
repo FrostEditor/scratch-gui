@@ -48,7 +48,7 @@ class CollaborationManager {
         // 鼠标同步
         this.mousePositions = {};
         this.lastMousePosition = null;
-        this.mouseThrottleTime = 150; // 150ms，约7fps，进一步减少消息量，提升稳定性
+        this.mouseThrottleTime = 120; // 120ms，约8fps，平衡流畅度和资源占用
         this._lastMouseSendTime = 0;
         this.memberColors = {};
         this.cursorElements = {}; // 成员光标 DOM 元素
@@ -70,7 +70,7 @@ class CollaborationManager {
         this._blocksChangeListener = null;
         this.isBlocksSyncActive = false;
         this._lastMoveEventSendTime = 0; // move 事件节流
-        this._moveEventThrottleTime = 150; // move 事件节流时间，减少消息量
+        this._moveEventThrottleTime = 200; // move 事件节流时间，减少消息量，提升稳定性
         this._lastMoveEvent = null;
         this._moveEventTimeout = null;
         this._isDraggingBlocks = false; // 是否正在拖拽积木
@@ -766,9 +766,15 @@ class CollaborationManager {
             this.emit('peer-connected', peerMemberId);
             
             // 如果是房主，发送当前项目数据给新成员（强制完整 sb3 格式）
+            // 延迟 500ms 发送，避免数据通道刚打开就发送大量数据导致过载
             if (this.isHost && this.vm) {
-                console.log('[协作] 发送初始项目数据给:', peerMemberId);
-                this.sendProjectUpdate(true);
+                console.log('[协作] 准备发送初始项目数据给:', peerMemberId);
+                setTimeout(() => {
+                    if (this.rtcConnections[peerMemberId]?.isOpen) {
+                        console.log('[协作] 发送初始项目数据给:', peerMemberId);
+                        this.sendProjectUpdate(true);
+                    }
+                }, 500);
             } else {
                 console.log('[协作] 不发送初始数据 - isHost:', this.isHost, 'hasVM:', !!this.vm);
             }
@@ -1754,8 +1760,13 @@ class CollaborationManager {
             }
             
             this.emit('project-updated', data);
-            this.hasReceivedProject = true;
-            console.log('[协作] 项目加载完成');
+            
+            // 延迟设置 hasReceivedProject，确保 Blockly 工作区完全初始化好
+            // 和 isLoadingProject 的重置保持一致（3秒）
+            setTimeout(() => {
+                this.hasReceivedProject = true;
+                console.log('[协作] 项目加载完成，Blockly 工作区已就绪');
+            }, 3000);
         } catch (e) {
             console.error('[协作] 加载项目失败:', e);
             // 出错时也要重置标志，避免一直卡住
@@ -1843,20 +1854,50 @@ class CollaborationManager {
         }, 500);
         
         // 监听 Blockly 的 change 事件（实时增量同步）
-        setTimeout(() => {
+        // 带重试机制，确保工作区准备好后能成功添加监听器
+        const tryAddBlocklyListener = () => {
+            if (this._blocksChangeListener) return; // 已经添加了就不再添加
+            
             try {
-                const workspace = AddonHooks.blocklyWorkspace;
+                const workspace = this._getBlocklyWorkspace();
                 if (workspace && workspace.addChangeListener) {
                     this._blocksChangeListener = (event) => {
                         this.handleBlocklyEvent(event);
                     };
                     workspace.addChangeListener(this._blocksChangeListener);
                     console.log('[协作] 已添加 Blockly 事件监听器（实时同步）');
+                    return true; // 成功
                 }
             } catch (e) {
                 console.error('[协作] 添加 Blockly 事件监听器失败:', e);
             }
-        }, 1000);
+            return false; // 失败，需要重试
+        };
+        
+        // 先尝试一次
+        if (!tryAddBlocklyListener()) {
+            // 如果失败，每隔 500ms 重试一次，最多重试 10 秒
+            let retryCount = 0;
+            const retryInterval = setInterval(() => {
+                retryCount++;
+                if (tryAddBlocklyListener() || retryCount >= 20) {
+                    clearInterval(retryInterval);
+                }
+            }, 500);
+        }
+    }
+    
+    // 获取 Blockly 工作区（多种方式，提高可靠性）
+    _getBlocklyWorkspace() {
+        let workspace = AddonHooks.blocklyWorkspace;
+        if (!workspace && typeof window !== 'undefined') {
+            if (window.Blockly?.getMainWorkspace) {
+                workspace = window.Blockly.getMainWorkspace();
+            } else if (window.ScratchBlocks?.getMainWorkspace) {
+                workspace = window.ScratchBlocks.getMainWorkspace();
+            }
+        }
+        return workspace;
     }
     
     // 添加积木动画样式
@@ -1887,7 +1928,7 @@ class CollaborationManager {
         }
         
         try {
-            const workspace = AddonHooks.blocklyWorkspace;
+            const workspace = this._getBlocklyWorkspace();
             if (workspace && this._blocksChangeListener) {
                 workspace.removeChangeListener(this._blocksChangeListener);
                 this._blocksChangeListener = null;
@@ -1927,7 +1968,7 @@ class CollaborationManager {
             // 尝试获取 Blockly XML（用于直接更新对方的工作区显示）
             let blocksXml = null;
             try {
-                const workspace = AddonHooks.blocklyWorkspace;
+                const workspace = this._getBlocklyWorkspace();
                 if (workspace && window.ScratchBlocks) {
                     const xml = window.ScratchBlocks.Xml.workspaceToDom(workspace);
                     blocksXml = window.ScratchBlocks.Xml.domToText(xml);
@@ -1985,7 +2026,7 @@ class CollaborationManager {
             if (this.vm.editingTarget && (this.vm.editingTarget.id === target.id) && data.blocksXml) {
                 console.log('[协作] 直接加载 XML 到工作区，XML长度:', data.blocksXml.length);
                 try {
-                    const workspace = AddonHooks.blocklyWorkspace;
+                    const workspace = this._getBlocklyWorkspace();
                     if (workspace && window.ScratchBlocks) {
                         const dom = window.ScratchBlocks.Xml.textToDom(data.blocksXml);
                         window.ScratchBlocks.Xml.clearWorkspaceAndLoadFromXml(dom, workspace);
@@ -2176,7 +2217,7 @@ class CollaborationManager {
         this.isApplyingRemoteEvent = true;
         
         try {
-            const workspace = AddonHooks.blocklyWorkspace;
+            const workspace = this._getBlocklyWorkspace();
             if (!workspace) {
                 console.warn('[协作] 找不到 Blockly 工作区');
                 return;
@@ -2278,7 +2319,19 @@ class CollaborationManager {
         if (now - this._lastMouseSendTime < this.mouseThrottleTime) {
             return;
         }
+        
+        // 如果位置变化很小，不发送，节省带宽
+        if (this._lastSentMouseX !== undefined && this._lastSentMouseY !== undefined) {
+            const dx = Math.abs(x - this._lastSentMouseX);
+            const dy = Math.abs(y - this._lastSentMouseY);
+            if (dx < 0.1 && dy < 0.1) {
+                return; // 移动距离小于 0.1%，不发送
+            }
+        }
+        
         this._lastMouseSendTime = now;
+        this._lastSentMouseX = x;
+        this._lastSentMouseY = y;
         
         const message = {
             type: 'mouse-move',
