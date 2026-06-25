@@ -1,0 +1,12 @@
+name = "frosteditor-peerjs-server"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[durable_objects]
+bindings = [
+  { name = "PEERJS_SERVER", class_name = "PeerJSServer" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PeerJSServer"]

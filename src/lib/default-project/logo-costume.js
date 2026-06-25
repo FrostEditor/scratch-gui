@@ -1,6 +1,4 @@
-// ★ 生成 LOGO 角色的造型（背景色 + 叶子 + 文字，全部结合）
-
-import titlesContent from './titles.json'
+// ★ 生成 LOGO 角色的造型（背景色 + 叶子，无文字）
 
 const generateLogoCostume = () => {
     const theme = (() => {
@@ -15,25 +13,11 @@ const generateLogoCostume = () => {
         }
     })();
 
-    const returnRandomText = () => {
-        const userName = localStorage.getItem('tw:username') || '创作者'
-        const titles = titlesContent
-        if (!titles || titles.length === 0) return '你好世界'
-        const randomTitle = titles[Math.floor(Math.random() * titles.length)]
-        return randomTitle.replace('${UserName}', userName)
-    }
-
     const getBG = () => {
         try {
             if (theme.gui == 'light') return '#ffffff'
             return '#000000'
         } catch { return '#000000' }
-    }
-    const getTextColor = () => {
-        try {
-            if (theme.gui == 'light') return '#000000'
-            return '#ffffff'
-        } catch { return '#ffffff' }
     }
 
     return `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -48,10 +32,7 @@ const generateLogoCostume = () => {
                 </g>
             </g>
         </g>
-        <text transform="translate(240, 340)" font-size="16" fill="${getTextColor()}"
-            font-family="Sans Serif" font-weight="bold" text-anchor="middle"
-            xml:space="preserve">${returnRandomText()}</text>
-    </svg><!--rotationCenter:240:180-->`
+    </svg><!--rotationCenter:240:180-->`;
 };
 
 export default generateLogoCostume;

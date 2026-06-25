@@ -58,6 +58,9 @@ const CollaborationCursor = () => {
 
         // 监听协作管理器的鼠标移动事件
         const handleCollaborationMouseMove = (data) => {
+            // 过滤掉自己的光标，不显示自己的远程光标
+            if (data.memberId === collaborationManager.memberId) return;
+            
             setCursors(prev => ({
                 ...prev,
                 [data.memberId]: {

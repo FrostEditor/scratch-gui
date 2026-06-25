@@ -48,7 +48,7 @@ class CollaborationManager {
         // 鼠标同步
         this.mousePositions = {};
         this.lastMousePosition = null;
-        this.mouseThrottleTime = 100; // 10fps，流畅又省带宽（从 50ms 增加到 100ms，减少消息量）
+        this.mouseThrottleTime = 100; // 100ms，10fps，平衡流畅度和消息量
         this._lastMouseSendTime = 0;
         this.memberColors = {};
         this.cursorElements = {}; // 成员光标 DOM 元素
@@ -127,6 +127,35 @@ class CollaborationManager {
     // ========== 设置 VM ==========
     setVM(vm) {
         this.vm = vm;
+        
+        // 包装 toJSON 方法，修改项目元信息中的平台标识
+        const originalToJSON = vm.toJSON.bind(vm);
+        vm.toJSON = () => {
+            const projectData = originalToJSON();
+            
+            // 修改平台标识为 FrostEditor
+            if (projectData.platform) {
+                projectData.platform.name = 'FrostEditor';
+                projectData.platform.url = 'https://froste.top/';
+            } else {
+                projectData.platform = {
+                    name: 'FrostEditor',
+                    url: 'https://froste.top/'
+                };
+            }
+            
+            // 也修改 meta.agent 字段（如果有的话）
+            if (projectData.meta && projectData.meta.agent) {
+                if (typeof projectData.meta.agent === 'string') {
+                    projectData.meta.agent = 'FrostEditor';
+                } else if (typeof projectData.meta.agent === 'object') {
+                    projectData.meta.agent.name = 'FrostEditor';
+                    projectData.meta.agent.url = 'https://froste.top/';
+                }
+            }
+            
+            return projectData;
+        };
         
         // 包装 loadProject 方法，加载项目时暂停同步，加载成功后自动退出协作（和 AE 行为一致）
         const originalLoadProject = vm.loadProject.bind(vm);
@@ -222,10 +251,9 @@ class CollaborationManager {
                 if (roomInfo.username) {
                     this.username = roomInfo.username;
                 }
-                if (roomInfo.hostToken) {
-                    this.hostToken = roomInfo.hostToken;
-                    console.log('[协作] 恢复房主令牌');
-                }
+                // 注意：不恢复房主令牌，避免多人同时恢复时出现"多个房主"的混乱
+                // 房主令牌只在创建房间时由服务器颁发，恢复连接时由服务器重新判定
+                // 如果确实是房主且房间为空，服务器会重新颁发房主令牌
                 this.joinRoom(roomInfo.roomKey);
             }
         } catch (e) {
@@ -360,6 +388,12 @@ class CollaborationManager {
                             // 初始化
                             this.isHost = data.isHost;
                             this.members = data.members || [];
+                            
+                            // 如果是房主，项目已经加载好了，直接设置 hasReceivedProject = true
+                            // 否则房主会忽略所有成员发来的积木事件
+                            if (this.isHost) {
+                                this.hasReceivedProject = true;
+                            }
                             
                             // 保存房主令牌
                             if (data.hostToken) {
@@ -2072,8 +2106,8 @@ class CollaborationManager {
         // 对 move 事件进行节流，但确保最后一个事件一定会发送
         if (event.type === 'move') {
             const now = Date.now();
-            // 节流时间从 16ms 增加到 50ms，减少消息数量
-            if (now - this._lastMoveEventSendTime < 50) {
+            // 节流时间从 50ms 增加到 100ms，大幅减少消息数量，避免数据通道过载
+            if (now - this._lastMoveEventSendTime < 100) {
                 // 保存最后一个事件，延迟发送
                 this._lastMoveEvent = event;
                 if (!this._moveEventTimeout) {
@@ -2241,6 +2275,7 @@ class CollaborationManager {
     handleMouseMove(data) {
         const memberId = data.memberId;
         if (!memberId) return;
+        if (memberId === this.memberId) return; // 忽略自己的鼠标消息
         
         const color = this.memberColors[memberId] || '#FF6B6B';
         
