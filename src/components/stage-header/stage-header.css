@@ -6,6 +6,7 @@
 .stage-header-wrapper {
     position: absolute;
     top: 0;
+    z-index: 10;
 }
 [dir="ltr"] .stage-header-wrapper {
     right: 0;
