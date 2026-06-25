@@ -15,7 +15,7 @@ function createWindow() {
         minWidth: 800,
         minHeight: 600,
         title: 'FrostEditor',
-        icon: path.join(__dirname, 'build', 'images', '512.png'),
+        icon: path.join(__dirname, '..', 'build', 'images', '512.png'),
         backgroundColor: '#111111', // 深色背景，和主题一致
         show: false, // 先隐藏，等加载完再显示
         webPreferences: {
@@ -33,7 +33,7 @@ function createWindow() {
     });
 
     // 加载构建后的编辑器（直接进入编辑器页面）
-    const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, 'build', 'editor.html')}`;
+    const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '..', 'build', 'editor.html')}`;
     mainWindow.loadURL(startUrl);
 
     // 打开开发者工具（开发时用，打包时注释掉）
@@ -108,20 +108,6 @@ function createMenu() {
                 { role: 'copy', label: '复制' },
                 { role: 'paste', label: '粘贴' },
                 { role: 'selectAll', label: '全选' }
-            ]
-        },
-        {
-            label: '查看',
-            submenu: [
-                { role: 'reload', label: '重新加载' },
-                { role: 'forceReload', label: '强制重新加载' },
-                { role: 'toggleDevTools', label: '开发者工具' },
-                { type: 'separator' },
-                { role: 'resetZoom', label: '重置缩放' },
-                { role: 'zoomIn', label: '放大' },
-                { role: 'zoomOut', label: '缩小' },
-                { type: 'separator' },
-                { role: 'togglefullscreen', label: '全屏' }
             ]
         },
         {

@@ -156,7 +156,8 @@
     },
     "files": [
       "build/**/*",
-      "electron.js",
+      "src-main/**/*",
+      "src-preload/**/*",
       "package.json"
     ],
     "win": {
