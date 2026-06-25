@@ -9,7 +9,7 @@
     "type": "git",
     "url": "https://github.com/LLK/scratch-gui.git"
   },
-  "main": "electron.js",
+  "main": "src-main/entrypoint.js",
   "scripts": {
     "build": "npm run clean && webpack --colors --bail",
     "clean": "rimraf ./build && mkdirp build && rimraf ./dist && mkdirp dist",
