@@ -29,6 +29,7 @@ import Cards from '../../containers/cards.jsx';
 import Alerts from '../../containers/alerts.jsx';
 import DragLayer from '../../containers/drag-layer.jsx';
 import ConnectionModal from '../../containers/connection-modal.jsx';
+import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
@@ -338,7 +339,15 @@ const GUIComponent = props => {
                                 selectedIndex={activeTabIndex}
                                 selectedTabClassName={tabClassNames.tabSelected}
                                 selectedTabPanelClassName={tabClassNames.tabPanelSelected}
-                                onSelect={onActivateTab}
+                                onSelect={(index, lastIndex) => {
+                                    onActivateTab(index, lastIndex);
+                                    // 同步标签页状态
+                                    const tabNames = ['code', 'costumes', 'sounds', 'statement'];
+                                    const tabName = tabNames[index] || 'code';
+                                    if (collaborationManager && collaborationManager.isConnected) {
+                                        collaborationManager.sendTabChange(tabName);
+                                    }
+                                }}
                             >
                                 <TabList className={tabClassNames.tabList}>
                                     <Tab className={tabClassNames.tab}>

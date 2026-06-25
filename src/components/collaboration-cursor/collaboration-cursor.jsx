@@ -10,6 +10,7 @@ const CollaborationCursor = () => {
     const [cursors, setCursors] = useState({}); // memberId -> { x, y, color, name }
     const [isActive, setIsActive] = useState(false);
     const [isCodeTabVisible, setIsCodeTabVisible] = useState(true); // 是否在代码标签页
+    const [memberTabs, setMemberTabs] = useState({}); // 各成员所在的标签页 memberId -> tabName
 
     // 获取成员名称
     const getMemberName = useCallback((memberId) => {
@@ -96,10 +97,31 @@ const CollaborationCursor = () => {
         // 监听房间加入/创建
         const handleRoomJoined = () => {
             setIsActive(true);
+            // 初始化成员标签页状态
+            if (collaborationManager.memberTabs) {
+                setMemberTabs({...collaborationManager.memberTabs});
+            }
         };
 
         const handleRoomCreated = () => {
             setIsActive(true);
+        };
+        
+        // 监听成员标签页变化
+        const handleMemberTabChanged = (data) => {
+            setMemberTabs(prev => ({
+                ...prev,
+                [data.memberId]: data.tab
+            }));
+        };
+        
+        // 监听成员离开
+        const handleMemberLeft = (memberId) => {
+            setMemberTabs(prev => {
+                const newTabs = {...prev};
+                delete newTabs[memberId];
+                return newTabs;
+            });
         };
 
         // 添加事件监听
@@ -110,10 +132,15 @@ const CollaborationCursor = () => {
         collaborationManager.on('disconnected', handleDisconnected);
         collaborationManager.on('room-joined', handleRoomJoined);
         collaborationManager.on('room-created', handleRoomCreated);
+        collaborationManager.on('member-tab-changed', handleMemberTabChanged);
+        collaborationManager.on('member-left', handleMemberLeft);
 
         // 检查初始状态
         if (collaborationManager.isConnected && collaborationManager.roomKey) {
             setIsActive(true);
+            if (collaborationManager.memberTabs) {
+                setMemberTabs({...collaborationManager.memberTabs});
+            }
         }
 
         return () => {
@@ -124,14 +151,25 @@ const CollaborationCursor = () => {
             collaborationManager.off('disconnected', handleDisconnected);
             collaborationManager.off('room-joined', handleRoomJoined);
             collaborationManager.off('room-created', handleRoomCreated);
+            collaborationManager.off('member-tab-changed', handleMemberTabChanged);
+            collaborationManager.off('member-left', handleMemberLeft);
         };
     }, [getMemberName]);
 
     if (!isActive || !isCodeTabVisible) return null;
+    
+    // 过滤出在代码标签页的成员的光标
+    const visibleCursors = Object.entries(cursors).filter(([memberId]) => {
+        const tab = memberTabs[memberId];
+        // 如果不知道对方的标签页，默认显示（兼容旧版本）
+        return !tab || tab === 'code';
+    });
+    
+    if (visibleCursors.length === 0) return null;
 
     return (
         <div className={styles.cursorContainer}>
-            {Object.entries(cursors).map(([memberId, cursor]) => (
+            {visibleCursors.map(([memberId, cursor]) => (
                 <div
                     key={memberId}
                     className={styles.remoteCursor}

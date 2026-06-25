@@ -12,7 +12,13 @@ npm-*
 # Build
 /build
 /dist
+/dist-client
+/dist-electron
 /.opt-in
+
+# Electron
+/electron-cache
+/electron-builder-cache
 
 # Generated translation files
 /translations

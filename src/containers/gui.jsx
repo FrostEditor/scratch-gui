@@ -42,6 +42,7 @@ import TWFullScreenResizerHOC from '../lib/tw-fullscreen-resizer-hoc.jsx';
 import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
 import {initBackgroundObserver} from '../lib/custom-background.js';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
+import defaultProjectData from '../lib/default-project/project-data.js';
 
 const {RequestMetadata, setMetadata, unsetMetadata} = storage.scratchFetch;
 
@@ -65,6 +66,60 @@ class GUI extends React.Component {
         initBackgroundObserver();
         // 初始化协作管理器
         collaborationManager.setVM(this.props.vm);
+        
+        // Electron 桌面端：监听主进程消息
+        if (window.electronAPI) {
+            this.setupElectronListeners();
+        }
+    }
+    
+    // 设置 Electron 监听器
+    setupElectronListeners() {
+        const vm = this.props.vm;
+        
+        // 新建项目
+        window.electronAPI.onProjectNew(() => {
+            console.log('[Electron] 新建项目');
+            // 加载默认项目
+            if (defaultProjectData) {
+                vm.loadProject(defaultProjectData).catch(err => {
+                    console.error('[Electron] 新建项目失败:', err);
+                });
+            }
+        });
+        
+        // 加载项目
+        window.electronAPI.onProjectLoad((event, data) => {
+            console.log('[Electron] 加载项目:', data.path);
+            const arrayBuffer = data.data;
+            vm.loadProject(arrayBuffer).catch(err => {
+                console.error('[Electron] 加载项目失败:', err);
+                alert('加载项目失败: ' + err.message);
+            });
+        });
+        
+        // 保存项目请求
+        window.electronAPI.onProjectSaveRequest(() => {
+            console.log('[Electron] 保存项目请求');
+            vm.saveProjectSb3().then(sb3 => {
+                // sb3 是 ArrayBuffer，转换为 Uint8Array 发送
+                window.electronAPI.sendProjectSaveData(new Uint8Array(sb3));
+            }).catch(err => {
+                console.error('[Electron] 保存项目失败:', err);
+                alert('保存项目失败: ' + err.message);
+            });
+        });
+        
+        // 加载扩展
+        window.electronAPI.onExtensionLoad((event, dataUrl) => {
+            console.log('[Electron] 加载扩展:', dataUrl.substring(0, 50) + '...');
+            if (vm.extensionManager && vm.extensionManager.loadExtensionURL) {
+                vm.extensionManager.loadExtensionURL(dataUrl).catch(err => {
+                    console.error('[Electron] 加载扩展失败:', err);
+                    alert('加载扩展失败: ' + err.message);
+                });
+            }
+        });
     }
     componentDidUpdate (prevProps) {
         if (this.props.projectId !== prevProps.projectId) {

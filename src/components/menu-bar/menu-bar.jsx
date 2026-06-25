@@ -92,7 +92,12 @@ import remixIcon from './icon--remix.svg';
 import dropdownCaret from './dropdown-caret.svg';
 import aboutIcon from './icon--about.svg';
 import fileIcon from './icon--file.svg';
+import newIcon from './icon--new.svg';
+import openIcon from './icon--open.svg';
+import saveIcon from './icon--save.svg';
 import editIcon from './icon--edit.svg';
+import undoIcon from './icon--undo.svg';
+import redoIcon from './icon--redo.svg';
 import addonsIcon from './addons.svg';
 import errorIcon from './tw-error.svg';
 import advancedIcon from './tw-advanced.svg';
@@ -659,6 +664,13 @@ class MenuBar extends React.Component {
                                         isRtl={this.props.isRtl}
                                         onClick={this.handleClickNew}
                                     >
+                                        <img
+                                            src={newIcon}
+                                            draggable={false}
+                                            width={16}
+                                            height={16}
+                                            style={{marginRight: 8, verticalAlign: 'middle'}}
+                                        />
                                         {newProjectMessage}
                                     </MenuItem>
                                     {this.props.onClickNewWindow && (
@@ -678,6 +690,13 @@ class MenuBar extends React.Component {
                                         <MenuSection>
                                             {this.props.canSave && (
                                                 <MenuItem onClick={this.handleClickSave}>
+                                                    <img
+                                                        src={saveIcon}
+                                                        draggable={false}
+                                                        width={16}
+                                                        height={16}
+                                                        style={{marginRight: 8, verticalAlign: 'middle'}}
+                                                    />
                                                     {saveNowMessage}
                                                 </MenuItem>
                                             )}
@@ -697,6 +716,13 @@ class MenuBar extends React.Component {
                                         <MenuItem
                                             onClick={this.props.onStartSelectingFileUpload}
                                         >
+                                            <img
+                                                src={openIcon}
+                                                draggable={false}
+                                                width={16}
+                                                height={16}
+                                                style={{marginRight: 8, verticalAlign: 'middle'}}
+                                            />
                                             {this.props.intl.formatMessage(sharedMessages.loadFromComputerTitle)}
                                         </MenuItem>
                                         <SB3Downloader

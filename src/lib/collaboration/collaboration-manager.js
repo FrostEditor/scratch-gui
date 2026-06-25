@@ -82,6 +82,11 @@ class CollaborationManager {
         
         // 资源变化定期检测
         this._resourceCheckInterval = null;
+        this._isApplyingRemoteExtensions = false; // 防止扩展同步循环闪烁
+        
+        // 标签页同步
+        this.currentTab = 'code'; // 当前所在标签页
+        this.memberTabs = {}; // 各成员所在的标签页 memberId -> tabName
         
         // 从 localStorage 读取用户名
         try {
@@ -116,27 +121,51 @@ class CollaborationManager {
     setVM(vm) {
         this.vm = vm;
         
-        // 包装 loadProject 方法，加载项目时暂停同步
+        // 包装 loadProject 方法，加载项目时暂停同步，加载成功后自动退出协作（和 AE 行为一致）
         const originalLoadProject = vm.loadProject.bind(vm);
+        const self = this;
         vm.loadProject = async (...args) => {
             console.log('[协作] 开始加载项目，暂停同步');
-            this.isLoadingProject = true;
+            
+            const isRemote = self._isLoadingRemoteProject;
+            
+            self.isLoadingProject = true;
+            
             try {
                 const result = await originalLoadProject(...args);
+                
+                // 如果是用户主动加载本地项目，并且正在协作中，加载成功后自动退出房间
+                if (self.isConnected && !isRemote) {
+                    console.log('[协作] 加载本地项目成功，自动退出协作房间');
+                    self.leaveRoom();
+                }
+                
                 return result;
+            } catch (e) {
+                // 加载失败，不退出房间，恢复同步
+                console.warn('[协作] 加载项目失败，保持协作连接');
+                throw e;
             } finally {
-                // 延迟一下，等项目完全加载完毕
+                // 延迟一下，等项目完全加载完毕，页面稳定后再恢复同步
+                // 注意：如果上面已经 leaveRoom() 了，这里的恢复就不重要了
                 setTimeout(() => {
-                    console.log('[协作] 项目加载完成，恢复同步');
-                    this.isLoadingProject = false;
+                    console.log('[协作] 项目加载完成');
+                    self.isLoadingProject = false;
+                    self._isLoadingRemoteProject = false;
                     // 重置资源计数
-                    this._updateResourceCounts();
-                    // 发送一次全量项目更新
-                    if (this.isConnected) {
-                        this.sendProjectUpdate(true);
-                        this.sendExtensionsUpdate();
+                    if (self.vm) {
+                        self._updateResourceCounts();
                     }
-                }, 500);
+                    // 只有远程同步加载的项目才需要发送更新（本地加载的已经退出房间了）
+                    if (self.isConnected && isRemote) {
+                        self.sendExtensionsUpdate();
+                        setTimeout(() => {
+                            if (self.isConnected) {
+                                self.sendProjectUpdate(true);
+                            }
+                        }, 1000);
+                    }
+                }, 2000);
             }
         };
         
@@ -433,6 +462,18 @@ class CollaborationManager {
                 .then(() => {
                     console.log('[协作] 重连成功');
                     this._reconnectAttempts = 0;
+                    
+                    // 重连成功后，如果不是房主，请求项目数据
+                    if (!this.isHost && this.vm) {
+                        setTimeout(() => {
+                            console.log('[协作] 重连后请求项目数据');
+                            this.sendData({
+                                type: 'request-project',
+                                memberId: this.memberId
+                            });
+                        }, 1000); // 等 WebRTC 连接建立
+                    }
+                    
                     this.emit('reconnected');
                 })
                 .catch((err) => {
@@ -904,6 +945,20 @@ class CollaborationManager {
                 this.handleStatementUpdate(data, fromMemberId);
                 break;
                 
+            case 'tab-changed':
+                this.handleTabChange(data, fromMemberId);
+                break;
+                
+            case 'loading-project':
+                console.log('[协作] 对方正在加载项目:', data.username);
+                // 可以在这里添加 UI 提示，告诉用户对方正在加载
+                this.emit('peer-loading', {
+                    memberId: fromMemberId,
+                    username: data.username,
+                    isLoading: true
+                });
+                break;
+                
             case 'request-project':
                 // 收到项目请求，只有房主才发送项目数据
                 console.log('[协作] 收到项目请求，来自:', fromMemberId, '自己是否房主:', this.isHost);
@@ -950,6 +1005,11 @@ class CollaborationManager {
             }, 500);
         }
         
+        // 发送自己的标签页状态给新成员
+        setTimeout(() => {
+            this.sendTabChange(this.currentTab);
+        }, 300);
+        
         // 如果是已有的成员（比我先加入的），我已经在加入房间时发起连接了
         // 如果是新加入的成员（比我晚加入的），我需要主动发起连接
         // 但为了避免重复，我们约定：memberId 较小的一方主动发起
@@ -969,6 +1029,7 @@ class CollaborationManager {
         this.members = this.members.filter(m => m.id !== memberId);
         delete this.mousePositions[memberId];
         delete this.memberColors[memberId];
+        delete this.memberTabs[memberId]; // 清除标签页记录
         this.removeRTCConnection(memberId);
         this.emit('member-left', memberId);
         this.emit('members-updated', this.members);
@@ -1053,6 +1114,7 @@ class CollaborationManager {
     // 发送扩展更新
     sendExtensionsUpdate() {
         if (!this.vm || !this.isConnected || this.isLoadingProject) return;
+        if (this._isApplyingRemoteExtensions) return; // 防止循环同步
         
         try {
             const extensionManager = this.vm.extensionManager;
@@ -1088,8 +1150,9 @@ class CollaborationManager {
     }
     
     // 处理扩展更新
-    handleExtensionsUpdate(data) {
+    async handleExtensionsUpdate(data) {
         if (!data.extensions || typeof data.extensions !== 'object') return;
+        if (this._isApplyingRemoteExtensions) return; // 防止循环
         
         console.log('[协作] 收到扩展更新，来自:', data.memberId, '扩展数量:', Object.keys(data.extensions).length);
         
@@ -1097,11 +1160,16 @@ class CollaborationManager {
             const extensionManager = this.vm.extensionManager;
             if (!extensionManager || !extensionManager.loadExtensionURL) return;
             
+            // 设置标志位，防止循环同步
+            this._isApplyingRemoteExtensions = true;
+            
             const coreExtensions = [
                 'motion', 'looks', 'sound', 'events', 'control', 'sensing',
                 'operators', 'variables', 'myBlocks', 'customExtension'
             ];
             
+            // 1. 加载缺失的扩展
+            const loadPromises = [];
             let loadedCount = 0;
             for (const [extensionId, extensionUrl] of Object.entries(data.extensions)) {
                 // 跳过核心扩展
@@ -1110,17 +1178,107 @@ class CollaborationManager {
                 if (extensionManager.isExtensionLoaded && extensionManager.isExtensionLoaded(extensionId)) continue;
                 
                 console.log('[协作] 加载扩展:', extensionId, extensionUrl);
-                extensionManager.loadExtensionURL(extensionUrl).catch(err => {
-                    console.warn('[协作] 加载扩展失败:', extensionId, err);
-                });
+                const promise = extensionManager.loadExtensionURL(extensionUrl)
+                    .then(() => {
+                        console.log('[协作] 扩展加载成功:', extensionId);
+                    })
+                    .catch(err => {
+                        console.warn('[协作] 加载扩展失败:', extensionId, err);
+                    });
+                loadPromises.push(promise);
                 loadedCount++;
+            }
+            
+            // 2. 卸载多余的扩展（本地有但对方没有的）
+            let unloadedCount = 0;
+            const localExtensions = extensionManager.getExtensionURLs ? extensionManager.getExtensionURLs() : {};
+            for (const extensionId of Object.keys(localExtensions)) {
+                // 跳过核心扩展
+                if (coreExtensions.includes(extensionId)) continue;
+                // 如果对方没有这个扩展，就卸载
+                if (!data.extensions[extensionId]) {
+                    console.log('[协作] 卸载扩展:', extensionId);
+                    this._unloadExtension(extensionId);
+                    unloadedCount++;
+                }
             }
             
             if (loadedCount > 0) {
                 console.log(`[协作] 正在加载 ${loadedCount} 个扩展`);
             }
+            if (unloadedCount > 0) {
+                console.log(`[协作] 已卸载 ${unloadedCount} 个扩展`);
+            }
+            
+            // 等待所有扩展加载完成
+            if (loadPromises.length > 0) {
+                await Promise.all(loadPromises);
+                console.log('[协作] 所有扩展加载完成');
+            }
+            
+            // 刷新积木区，显示新加载的扩展
+            try {
+                if (this.vm.refreshWorkspace) {
+                    this.vm.refreshWorkspace();
+                }
+                // 也尝试刷新扩展积木
+                if (extensionManager.refreshBlocks) {
+                    extensionManager.refreshBlocks();
+                }
+            } catch (e) {
+                // 忽略刷新错误
+            }
+            
+            // 更新扩展签名，避免定期检测误判
+            this._updateResourceCounts();
+            try {
+                if (extensionManager && extensionManager.getExtensionURLs) {
+                    const extensions = extensionManager.getExtensionURLs() || {};
+                    const extIds = [];
+                    for (const extensionId of Object.keys(extensions)) {
+                        if (!coreExtensions.includes(extensionId)) {
+                            extIds.push(extensionId);
+                        }
+                    }
+                    extIds.sort();
+                    this._lastExtensionsSignature = extIds.join(',');
+                }
+            } catch (e) {
+                // 忽略
+            }
+            
+            this._isApplyingRemoteExtensions = false;
+            
         } catch (e) {
             console.warn('[协作] 处理扩展更新失败:', e);
+            this._isApplyingRemoteExtensions = false;
+        }
+    }
+    
+    // 卸载扩展（尽力而为，Scratch VM 没有官方卸载 API）
+    _unloadExtension(extensionId) {
+        try {
+            const extensionManager = this.vm.extensionManager;
+            if (!extensionManager._loadedExtensions) return;
+            
+            // 从已加载列表中移除
+            extensionManager._loadedExtensions.delete(extensionId);
+            
+            // 尝试找到并终止 worker（如果是 worker 模式）
+            // Service names for extension workers are in the format "extension.WORKER_ID.EXTENSION_ID"
+            // 这里我们简单处理，不强制终止 worker，避免出错
+            
+            // 刷新积木列表
+            if (extensionManager.refreshBlocks) {
+                extensionManager.refreshBlocks().catch(e => {
+                    console.warn('[协作] 刷新积木失败:', e);
+                });
+            }
+            
+            // 重新计算扩展签名
+            this._updateResourceCounts();
+        } catch (e) {
+            console.warn('[协作] 卸载扩展失败:', extensionId, e);
         }
     }
     
@@ -1163,6 +1321,40 @@ class CollaborationManager {
         } catch (e) {
             console.warn('[协作] 处理作品声明更新失败:', e);
         }
+    }
+    
+    // 发送标签页切换
+    sendTabChange(tabName) {
+        if (!this.isConnected) return;
+        
+        this.currentTab = tabName;
+        
+        const message = {
+            type: 'tab-changed',
+            tab: tabName,
+            memberId: this.memberId,
+            username: this.username
+        };
+        
+        this.sendData(message);
+        console.log('[协作] 发送标签页切换:', tabName);
+    }
+    
+    // 处理标签页切换
+    handleTabChange(data, fromMemberId) {
+        if (!data || !data.tab) return;
+        if (fromMemberId === this.memberId) return;
+        
+        console.log('[协作] 收到标签页切换，来自:', data.username || fromMemberId, '标签:', data.tab);
+        
+        this.memberTabs[fromMemberId] = data.tab;
+        
+        // 触发事件，通知 UI 更新
+        this.emit('member-tab-changed', {
+            memberId: fromMemberId,
+            username: data.username,
+            tab: data.tab
+        });
     }
     
     // ========== 项目同步 ==========
@@ -1254,6 +1446,7 @@ class CollaborationManager {
         console.log('[协作] 加载项目更新，格式:', data.format, '来自:', data.memberId);
         
         this.isLoadingProject = true;
+        this._isLoadingRemoteProject = true; // 标记为远程加载，避免循环发送
         
         try {
             if (data.format === 'sb3-base64') {
@@ -1281,8 +1474,6 @@ class CollaborationManager {
                 await this.vm.loadProject(data.data);
                 console.log('[协作] 已加载 JSON 项目');
             }
-            
-            this._updateResourceCounts();
             
             // 加载缺失的扩展
             if (data.extensions && typeof data.extensions === 'object') {
@@ -1323,13 +1514,12 @@ class CollaborationManager {
             console.log('[协作] 项目加载完成');
         } catch (e) {
             console.error('[协作] 加载项目失败:', e);
-        } finally {
-            // 延迟一点再重置，避免立即触发发送
-            setTimeout(() => {
-                this.isLoadingProject = false;
-                console.log('[协作] 项目加载标志已重置');
-            }, 500);
+            // 出错时也要重置标志，避免一直卡住
+            this.isLoadingProject = false;
+            this._isLoadingRemoteProject = false;
         }
+        // 注意：isLoadingProject、_isLoadingRemoteProject 的重置和 _updateResourceCounts()
+        // 都由 vm.loadProject 的包装统一处理（1500ms 延迟），确保项目完全稳定
     }
     
     // ArrayBuffer 转 Base64
@@ -1368,31 +1558,35 @@ class CollaborationManager {
         // 启动资源变化定期检测（确保变量、列表、广播等都能同步）
         this._resourceCheckInterval = setInterval(() => {
             if (!this.isConnected) return;
+            if (this.isLoadingProject) return; // 加载项目时不检测
             
             // 检测扩展变化（单独同步，更及时）
-            try {
-                const extensionManager = this.vm.extensionManager;
-                if (extensionManager && extensionManager.getExtensionURLs) {
-                    const extensions = extensionManager.getExtensionURLs() || {};
-                    const coreExtensions = [
-                        'motion', 'looks', 'sound', 'events', 'control', 'sensing',
-                        'operators', 'variables', 'myBlocks', 'customExtension'
-                    ];
-                    const extIds = [];
-                    for (const extensionId of Object.keys(extensions)) {
-                        if (!coreExtensions.includes(extensionId)) {
-                            extIds.push(extensionId);
+            if (!this._isApplyingRemoteExtensions) {
+                try {
+                    const extensionManager = this.vm.extensionManager;
+                    if (extensionManager && extensionManager.getExtensionURLs) {
+                        const extensions = extensionManager.getExtensionURLs() || {};
+                        const coreExtensions = [
+                            'motion', 'looks', 'sound', 'events', 'control', 'sensing',
+                            'operators', 'variables', 'myBlocks', 'customExtension'
+                        ];
+                        const extIds = [];
+                        for (const extensionId of Object.keys(extensions)) {
+                            if (!coreExtensions.includes(extensionId)) {
+                                extIds.push(extensionId);
+                            }
+                        }
+                        extIds.sort();
+                        const currentSignature = extIds.join(',');
+                        if (currentSignature !== this._lastExtensionsSignature) {
+                            console.log('[协作] 检测到扩展变化（定期检测），扩展列表:', extIds.join(', ') || '无');
+                            this._lastExtensionsSignature = currentSignature; // 立即更新签名，避免重复发送
+                            this.sendExtensionsUpdate();
                         }
                     }
-                    extIds.sort();
-                    const currentSignature = extIds.join(',');
-                    if (currentSignature !== this._lastExtensionsSignature) {
-                        console.log('[协作] 检测到扩展变化（定期检测），扩展列表:', extIds.join(', ') || '无');
-                        this.sendExtensionsUpdate();
-                    }
+                } catch (e) {
+                    // 忽略错误
                 }
-            } catch (e) {
-                // 忽略错误
             }
             
             // 检测资源变化（触发全量同步）
@@ -1401,7 +1595,7 @@ class CollaborationManager {
                 this.hasResourceChange = true;
                 this.sendProjectUpdate();
             }
-        }, 1000);
+        }, 500);
         
         // 监听 Blockly 的 change 事件（实时增量同步）
         setTimeout(() => {
@@ -1625,23 +1819,8 @@ class CollaborationManager {
     }
     
     // 处理本地 Blockly 事件（发送给对方）
-    handleBlocklyEvent(event) {
-        if (this.isApplyingRemoteEvent || this.isLoadingProject || !this.isConnected) return;
-        
-        // 过滤掉纯 UI 事件（滚动、缩放、选中变化等）
-        if (event.type === 'ui') {
-            return;
-        }
-        
-        // 对 move 事件进行节流（每 16ms 一次，约 60fps，保证流畅又不占太多带宽）
-        if (event.type === 'move') {
-            const now = Date.now();
-            if (now - this._lastMoveEventSendTime < 16) {
-                return;
-            }
-            this._lastMoveEventSendTime = now;
-        }
-        
+    // 立即发送 Blockly 事件（内部方法）
+    _sendBlocklyEventImmediate(event) {
         try {
             // 序列化事件
             let eventJson;
@@ -1664,6 +1843,55 @@ class CollaborationManager {
         } catch (e) {
             console.error('[协作] 发送 Blockly 事件失败:', e);
         }
+    }
+    
+    handleBlocklyEvent(event) {
+        if (this.isApplyingRemoteEvent || this.isLoadingProject || !this.isConnected) return;
+        
+        // 过滤掉纯 UI 事件（滚动、缩放、选中变化等）
+        if (event.type === 'ui') {
+            return;
+        }
+        
+        // 拖拽结束时，立即发送最后一个 move 事件，确保最终位置准确
+        if (event.type === 'endDrag') {
+            if (this._moveEventTimeout) {
+                clearTimeout(this._moveEventTimeout);
+                this._moveEventTimeout = null;
+            }
+            if (this._lastMoveEvent) {
+                this._sendBlocklyEventImmediate(this._lastMoveEvent);
+                this._lastMoveEvent = null;
+            }
+            this._lastMoveEventSendTime = 0; // 重置节流计时器
+        }
+        
+        // 对 move 事件进行节流，但确保最后一个事件一定会发送
+        if (event.type === 'move') {
+            const now = Date.now();
+            if (now - this._lastMoveEventSendTime < 16) {
+                // 保存最后一个事件，延迟发送
+                this._lastMoveEvent = event;
+                if (!this._moveEventTimeout) {
+                    this._moveEventTimeout = setTimeout(() => {
+                        if (this._lastMoveEvent) {
+                            this._sendBlocklyEventImmediate(this._lastMoveEvent);
+                            this._lastMoveEvent = null;
+                        }
+                        this._moveEventTimeout = null;
+                    }, 16);
+                }
+                return;
+            }
+            this._lastMoveEventSendTime = now;
+            this._lastMoveEvent = null;
+            if (this._moveEventTimeout) {
+                clearTimeout(this._moveEventTimeout);
+                this._moveEventTimeout = null;
+            }
+        }
+        
+        this._sendBlocklyEventImmediate(event);
     }
     
     // 处理收到的远程 Blockly 事件（应用到本地）
@@ -1781,6 +2009,7 @@ class CollaborationManager {
     // 发送鼠标位置
     sendMousePosition(x, y) {
         if (!this.isConnected) return;
+        if (this.isLoadingProject) return; // 加载项目时暂停鼠标同步
         
         const now = Date.now();
         if (now - this._lastMouseSendTime < this.mouseThrottleTime) {
@@ -1824,13 +2053,22 @@ class CollaborationManager {
         // 监听目标变化事件（添加/删除角色、造型、声音、变量等都会触发）
         // 检测到资源数量变化时发送完整项目同步
         // 积木变化通过专门的 Blockly 事件增量同步
+        let targetsUpdateTimeout = null;
         try {
             this.vm.on('TARGETS_UPDATE', () => {
-                if (this.isConnected && this._detectResourceChange()) {
-                    console.log('[协作] 检测到资源变化（TARGETS_UPDATE），发送全量同步');
-                    this.hasResourceChange = true;
-                    this.sendProjectUpdate();
+                if (!this.isConnected || this.isLoadingProject) return;
+                
+                // 防抖：150ms 内多次触发只检测一次，避免频繁全量同步
+                if (targetsUpdateTimeout) {
+                    clearTimeout(targetsUpdateTimeout);
                 }
+                targetsUpdateTimeout = setTimeout(() => {
+                    if (this._detectResourceChange()) {
+                        console.log('[协作] 检测到资源变化（TARGETS_UPDATE），发送全量同步');
+                        this.hasResourceChange = true;
+                        this.sendProjectUpdate();
+                    }
+                }, 150);
             });
         } catch (e) {
             console.error('[协作] 监听 TARGETS_UPDATE 事件失败:', e);
@@ -1875,7 +2113,6 @@ class CollaborationManager {
         let totalBroadcasts = 0;
         let costumesSignature = ''; // 造型签名，用于检测内容变化
         let soundsSignature = ''; // 声音签名
-        let extensionsSignature = ''; // 扩展签名
         
         targets.forEach(target => {
             if (target.isOriginal) {
@@ -1909,28 +2146,6 @@ class CollaborationManager {
             }
         });
         
-        // 生成扩展签名（排除核心扩展）
-        try {
-            const extensionManager = this.vm.extensionManager;
-            if (extensionManager && extensionManager.getExtensionURLs) {
-                const extensions = extensionManager.getExtensionURLs() || {};
-                const coreExtensions = [
-                    'motion', 'looks', 'sound', 'events', 'control', 'sensing',
-                    'operators', 'variables', 'myBlocks', 'customExtension'
-                ];
-                const extIds = [];
-                for (const extensionId of Object.keys(extensions)) {
-                    if (!coreExtensions.includes(extensionId)) {
-                        extIds.push(extensionId);
-                    }
-                }
-                extIds.sort();
-                extensionsSignature = extIds.join(',');
-            }
-        } catch (e) {
-            // 忽略错误
-        }
-        
         this._lastSpriteCount = spriteCount;
         this._lastTotalCostumes = totalCostumes;
         this._lastTotalSounds = totalSounds;
@@ -1939,7 +2154,6 @@ class CollaborationManager {
         this._lastTotalBroadcasts = totalBroadcasts;
         this._lastCostumesSignature = costumesSignature;
         this._lastSoundsSignature = soundsSignature;
-        this._lastExtensionsSignature = extensionsSignature;
     }
     
     // 检测资源是否有变化
@@ -1955,7 +2169,6 @@ class CollaborationManager {
         let totalBroadcasts = 0;
         let costumesSignature = '';
         let soundsSignature = '';
-        let extensionsSignature = '';
         
         targets.forEach(target => {
             if (target.isOriginal) {
@@ -1986,28 +2199,6 @@ class CollaborationManager {
             }
         });
         
-        // 计算扩展签名
-        try {
-            const extensionManager = this.vm.extensionManager;
-            if (extensionManager && extensionManager.getExtensionURLs) {
-                const extensions = extensionManager.getExtensionURLs() || {};
-                const coreExtensions = [
-                    'motion', 'looks', 'sound', 'events', 'control', 'sensing',
-                    'operators', 'variables', 'myBlocks', 'customExtension'
-                ];
-                const extIds = [];
-                for (const extensionId of Object.keys(extensions)) {
-                    if (!coreExtensions.includes(extensionId)) {
-                        extIds.push(extensionId);
-                    }
-                }
-                extIds.sort();
-                extensionsSignature = extIds.join(',');
-            }
-        } catch (e) {
-            // 忽略错误
-        }
-        
         if (spriteCount !== this._lastSpriteCount ||
             totalCostumes !== this._lastTotalCostumes ||
             totalSounds !== this._lastTotalSounds ||
@@ -2015,8 +2206,7 @@ class CollaborationManager {
             totalLists !== this._lastTotalLists ||
             totalBroadcasts !== this._lastTotalBroadcasts ||
             costumesSignature !== this._lastCostumesSignature ||
-            soundsSignature !== this._lastSoundsSignature ||
-            extensionsSignature !== this._lastExtensionsSignature) {
+            soundsSignature !== this._lastSoundsSignature) {
             return true;
         }
         
