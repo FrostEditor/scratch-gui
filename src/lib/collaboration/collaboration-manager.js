@@ -48,8 +48,10 @@ class CollaborationManager {
         // 鼠标同步
         this.mousePositions = {};
         this.lastMousePosition = null;
-        this.mouseThrottleTime = 120; // 120ms，约8fps，平衡流畅度和资源占用
+        this.mouseThrottleTime = 200; // 200ms，约5fps，优先保证稳定性
         this._lastMouseSendTime = 0;
+        this._lastSentMouseX = undefined;
+        this._lastSentMouseY = undefined;
         this.memberColors = {};
         this.cursorElements = {}; // 成员光标 DOM 元素
         this.colorPalette = [
@@ -70,7 +72,7 @@ class CollaborationManager {
         this._blocksChangeListener = null;
         this.isBlocksSyncActive = false;
         this._lastMoveEventSendTime = 0; // move 事件节流
-        this._moveEventThrottleTime = 200; // move 事件节流时间，减少消息量，提升稳定性
+        this._moveEventThrottleTime = 300; // move 事件节流时间，减少消息量，提升稳定性
         this._lastMoveEvent = null;
         this._moveEventTimeout = null;
         this._isDraggingBlocks = false; // 是否正在拖拽积木
@@ -2324,8 +2326,8 @@ class CollaborationManager {
         if (this._lastSentMouseX !== undefined && this._lastSentMouseY !== undefined) {
             const dx = Math.abs(x - this._lastSentMouseX);
             const dy = Math.abs(y - this._lastSentMouseY);
-            if (dx < 0.1 && dy < 0.1) {
-                return; // 移动距离小于 0.1%，不发送
+            if (dx < 0.5 && dy < 0.5) {
+                return; // 移动距离小于 0.5%，不发送
             }
         }
         
