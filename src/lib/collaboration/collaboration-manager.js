@@ -115,6 +115,31 @@ class CollaborationManager {
     // ========== 设置 VM ==========
     setVM(vm) {
         this.vm = vm;
+        
+        // 包装 loadProject 方法，加载项目时暂停同步
+        const originalLoadProject = vm.loadProject.bind(vm);
+        vm.loadProject = async (...args) => {
+            console.log('[协作] 开始加载项目，暂停同步');
+            this.isLoadingProject = true;
+            try {
+                const result = await originalLoadProject(...args);
+                return result;
+            } finally {
+                // 延迟一下，等项目完全加载完毕
+                setTimeout(() => {
+                    console.log('[协作] 项目加载完成，恢复同步');
+                    this.isLoadingProject = false;
+                    // 重置资源计数
+                    this._updateResourceCounts();
+                    // 发送一次全量项目更新
+                    if (this.isConnected) {
+                        this.sendProjectUpdate(true);
+                        this.sendExtensionsUpdate();
+                    }
+                }, 500);
+            }
+        };
+        
         this.setupVMListeners();
         
         // 尝试恢复上次的房间
@@ -1027,7 +1052,7 @@ class CollaborationManager {
     
     // 发送扩展更新
     sendExtensionsUpdate() {
-        if (!this.vm || !this.isConnected) return;
+        if (!this.vm || !this.isConnected || this.isLoadingProject) return;
         
         try {
             const extensionManager = this.vm.extensionManager;

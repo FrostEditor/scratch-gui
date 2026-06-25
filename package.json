@@ -9,7 +9,7 @@
     "type": "git",
     "url": "https://github.com/LLK/scratch-gui.git"
   },
-  "main": "./dist/scratch-gui.js",
+  "main": "electron.js",
   "scripts": {
     "build": "npm run clean && webpack --colors --bail",
     "clean": "rimraf ./build && mkdirp build && rimraf ./dist && mkdirp dist",
@@ -24,7 +24,10 @@
     "test:lint": "eslint . --ext .js,.jsx",
     "test:unit": "jest test[\\\\/]unit[\\\\/]addons",
     "test:smoke": "jest --runInBand test[\\\\/]smoke",
-    "watch": "webpack --colors --watch"
+    "watch": "webpack --colors --watch",
+    "electron:dev": "electron electron.js",
+    "electron:pack": "npm run build && electron-builder --dir",
+    "electron:dist": "npm run build && electron-builder"
   },
   "config": {
     "commitizen": {
@@ -115,6 +118,8 @@
     "babel-eslint": "10.1.0",
     "babel-loader": "8.3.0",
     "chromedriver": "117.0.3",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
     "enzyme": "3.10.0",
     "enzyme-adapter-react-16": "1.15.7",
     "eslint": "8.55.0",
@@ -142,6 +147,46 @@
     "webpack-cli": "3.3.12",
     "webpack-dev-server": "3.11.2",
     "yauzl": "2.10.0"
+  },
+  "build": {
+    "appId": "com.froste.editor",
+    "productName": "FrostEditor",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "build/**/*",
+      "electron.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/images/512.png",
+      "sign": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FrostEditor"
+    },
+    "portable": {
+      "artifactName": "FrostEditor-Portable-${version}.exe"
+    }
   },
   "jest": {
     "setupFiles": [
