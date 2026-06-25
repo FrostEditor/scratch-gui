@@ -3,6 +3,9 @@ import './live2d-mascot.css';
 
 const LIVE2D_API_BASE = 'https://bd.qaiu.cn/l2d';
 
+// CORS 代理服务（解决跨域问题）
+const CORS_PROXY = 'https://corsproxy.io/?';
+
 class Live2dMascot extends React.Component {
     constructor(props) {
         super(props);
@@ -69,9 +72,11 @@ class Live2dMascot extends React.Component {
         try {
             this.setState({ isLoading: true, loadError: false });
             
-            // 从 API 获取模型配置
+            // 从 API 获取模型配置（使用 CORS 代理解决跨域问题）
             const modelId = `${this.state.currentGroup}-${this.state.currentSkin}`;
-            const response = await fetch(`${LIVE2D_API_BASE}/get/?id=${modelId}`);
+            const apiUrl = `${LIVE2D_API_BASE}/get/?id=${modelId}`;
+            const proxiedUrl = CORS_PROXY + encodeURIComponent(apiUrl);
+            const response = await fetch(proxiedUrl);
             if (!response.ok) {
                 throw new Error('API 请求失败');
             }
@@ -218,7 +223,9 @@ class Live2dMascot extends React.Component {
     // 切换皮肤
     switchSkin = async () => {
         try {
-            const response = await fetch(`${LIVE2D_API_BASE}/switch/?id=${this.state.currentGroup}`);
+            const apiUrl = `${LIVE2D_API_BASE}/switch/?id=${this.state.currentGroup}`;
+            const proxiedUrl = CORS_PROXY + encodeURIComponent(apiUrl);
+            const response = await fetch(proxiedUrl);
             if (response.ok) {
                 // 皮肤序号 +1
                 this.setState(prev => {
