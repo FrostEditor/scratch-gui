@@ -192,10 +192,19 @@ const loadRandomDefaultCostume = async (vm) => {
             const renderer = vm.runtime.renderer;
             console.log('[随机默认造型] renderer methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(renderer)));
             
+            // 调试：查看 drawable 的信息
+            const drawableId = logoTarget.drawableID;
+            if (drawableId) {
+                console.log('[随机默认造型] drawableId:', drawableId);
+                // 试试 getSkin 或者 _allSkins
+                if (renderer._allSkins) {
+                    console.log('[随机默认造型] _allSkins 数量:', Object.keys(renderer._allSkins).length);
+                }
+            }
+            
             // 尝试更新皮肤
             if (renderer.updateSkin) {
                 try {
-                    const drawableId = logoTarget.drawableID;
                     if (drawableId) {
                         renderer.updateSkin(drawableId, 0);
                         console.log('[随机默认造型] 已更新渲染器皮肤');
@@ -277,37 +286,37 @@ const loadRandomDefaultCostume = async (vm) => {
             console.log('[随机默认造型] 已设置角色位置到中心');
         }
         
-        // 终极方案：如果直接修改不行，就重新加载项目
-        setTimeout(() => {
-            try {
-                console.log('[随机默认造型] 尝试终极方案：重新加载项目');
-                const projectData = vm.toJSON();
-                if (typeof projectData === 'string') {
-                    const projectObj = JSON.parse(projectData);
-                    // 找到 LOGO 角色并修改造型
-                    if (projectObj.targets) {
-                        const logoTarget = projectObj.targets.find(t => t.name === 'LOGO' && !t.isStage);
-                        if (logoTarget && logoTarget.costumes && logoTarget.costumes[0]) {
-                            logoTarget.costumes[0].assetId = asset.assetId;
-                            logoTarget.costumes[0].md5ext = `${asset.assetId}.png`;
-                            logoTarget.costumes[0].dataFormat = 'png';
-                            logoTarget.costumes[0].bitmapResolution = 2;
-                            logoTarget.costumes[0].rotationCenterX = targetWidth / 2;
-                            logoTarget.costumes[0].rotationCenterY = targetHeight / 2;
-                            // 确保角色在舞台中心
-                            logoTarget.x = 0;
-                            logoTarget.y = 0;
-                            console.log('[随机默认造型] 已修改项目数据中的造型和位置');
-                        }
-                    }
-                    // 重新加载项目
-                    vm.loadProject(JSON.stringify(projectObj));
-                    console.log('[随机默认造型] ✅ 终极方案：项目重新加载完成');
-                }
-            } catch (e) {
-                console.warn('[随机默认造型] 终极方案失败:', e);
+        // 调试：查看 costume 和 storage 的结构
+        console.log('[随机默认造型] costume 对象:', Object.keys(costume));
+        console.log('[随机默认造型] costume.asset:', costume.asset ? '存在' : '不存在');
+        console.log('[随机默认造型] storage methods:', Object.keys(storage).filter(k => typeof storage[k] === 'function'));
+        
+        // 尝试将资源存储到 storage 中
+        try {
+            // 方法1：试试 storage.assets 或者 storage._assets
+            if (storage.assets) {
+                storage.assets[asset.assetId] = asset;
+                console.log('[随机默认造型] 已存储到 storage.assets');
             }
-        }, 500);
+            if (storage._assets) {
+                storage._assets[asset.assetId] = asset;
+                console.log('[随机默认造型] 已存储到 storage._assets');
+            }
+            
+            // 方法2：试试 storage.builtinHelper
+            if (storage.builtinHelper && storage.builtinHelper._storeAsset) {
+                storage.builtinHelper._storeAsset(asset.assetId, asset);
+                console.log('[随机默认造型] 已存储到 builtinHelper');
+            }
+            
+            // 方法3：试试 storage.add 或者 storage.save
+            if (typeof storage.add === 'function') {
+                storage.add(asset);
+                console.log('[随机默认造型] 已调用 storage.add');
+            }
+        } catch (e) {
+            console.warn('[随机默认造型] 存储资源失败:', e);
+        }
         
     } catch (err) {
         // 静默失败，保持默认造型
