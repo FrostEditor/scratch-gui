@@ -270,6 +270,13 @@ const loadRandomDefaultCostume = async (vm) => {
         
         console.log('[随机默认造型] ✅ 替换成功！');
         
+        // 确保角色在舞台中心
+        if (logoTarget.sprite) {
+            logoTarget.sprite.x = 0;
+            logoTarget.sprite.y = 0;
+            console.log('[随机默认造型] 已设置角色位置到中心');
+        }
+        
         // 终极方案：如果直接修改不行，就重新加载项目
         setTimeout(() => {
             try {
@@ -287,7 +294,10 @@ const loadRandomDefaultCostume = async (vm) => {
                             logoTarget.costumes[0].bitmapResolution = 2;
                             logoTarget.costumes[0].rotationCenterX = targetWidth / 2;
                             logoTarget.costumes[0].rotationCenterY = targetHeight / 2;
-                            console.log('[随机默认造型] 已修改项目数据中的造型');
+                            // 确保角色在舞台中心
+                            logoTarget.x = 0;
+                            logoTarget.y = 0;
+                            console.log('[随机默认造型] 已修改项目数据中的造型和位置');
                         }
                     }
                     // 重新加载项目
@@ -297,7 +307,7 @@ const loadRandomDefaultCostume = async (vm) => {
             } catch (e) {
                 console.warn('[随机默认造型] 终极方案失败:', e);
             }
-        }, 1000);
+        }, 500);
         
     } catch (err) {
         // 静默失败，保持默认造型

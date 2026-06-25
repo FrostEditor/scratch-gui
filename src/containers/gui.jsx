@@ -68,10 +68,10 @@ class GUI extends React.Component {
         // 初始化协作管理器
         collaborationManager.setVM(this.props.vm);
         
-        // 加载随机默认造型（延迟一下，确保项目加载完成）
+        // 加载随机默认造型（缩短延迟，尽快加载）
         setTimeout(() => {
             loadRandomDefaultCostume(this.props.vm);
-        }, 500);
+        }, 300);
         
         // Electron 桌面端：监听主进程消息
         if (window.electronAPI) {
