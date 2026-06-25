@@ -139,6 +139,16 @@ const loadRandomDefaultCostume = async (vm) => {
         
         console.log('[随机默认造型] Asset 创建成功，ID:', asset.assetId);
         
+        // 把 asset 存储到 storage 缓存中，确保 VM 能找到
+        if (storage._assets) {
+            storage._assets[asset.assetId] = asset;
+            console.log('[随机默认造型] 已存储到 storage._assets');
+        }
+        if (storage.assets) {
+            storage.assets[asset.assetId] = asset;
+            console.log('[随机默认造型] 已存储到 storage.assets');
+        }
+        
         // 替换第一个造型
         const costume = logoTarget.sprite.costumes[0];
         const oldAssetId = costume.assetId;
@@ -153,6 +163,28 @@ const loadRandomDefaultCostume = async (vm) => {
         costume.rotationCenterX = targetWidth / 2;
         costume.rotationCenterY = targetHeight / 2;
         costume.size = [canvas.width, canvas.height];
+        
+        // 直接设置 asset 对象，避免重新加载
+        costume.asset = asset;
+        
+        console.log('[随机默认造型] 造型属性已更新');
+        
+        // 强制刷新皮肤（如果有渲染器）
+        if (vm.runtime && vm.runtime.renderer) {
+            const renderer = vm.runtime.renderer;
+            // 尝试更新皮肤
+            if (renderer.updateSkin) {
+                try {
+                    const drawableId = logoTarget.drawableID;
+                    if (drawableId) {
+                        renderer.updateSkin(drawableId, 0);
+                        console.log('[随机默认造型] 已更新渲染器皮肤');
+                    }
+                } catch (e) {
+                    console.warn('[随机默认造型] 更新皮肤失败:', e);
+                }
+            }
+        }
         
         // 触发目标更新
         if (typeof vm.emitTargetsUpdate === 'function') {
@@ -170,6 +202,14 @@ const loadRandomDefaultCostume = async (vm) => {
         if (logoTarget.setCostume) {
             logoTarget.setCostume(0);
             console.log('[随机默认造型] 已重新设置造型');
+        }
+        
+        // 再次请求重绘
+        if (vm.runtime && typeof vm.runtime.requestRedraw === 'function') {
+            setTimeout(() => {
+                vm.runtime.requestRedraw();
+                console.log('[随机默认造型] 延迟重绘');
+            }, 100);
         }
         
         console.log('[随机默认造型] ✅ 替换成功！');
