@@ -53,7 +53,6 @@ import codeIcon from '!../../lib/tw-recolor/build!./icon--code.svg';
 import costumesIcon from '!../../lib/tw-recolor/build!./icon--costumes.svg';
 import soundsIcon from '!../../lib/tw-recolor/build!./icon--sounds.svg';
 import statementIcon from '!../../lib/tw-recolor/build!./icon--statement.svg';
-import mindmapIcon from '!../../lib/tw-recolor/build!./icon--mindmap.svg';
 
 const messages = defineMessages({
     addExtension: {
@@ -442,9 +441,6 @@ const GUIComponent = props => {
                                 </TabPanel>
                                 <TabPanel className={tabClassNames.tabPanel}>
                                     <ProjectStatement vm={vm} />
-                                </TabPanel>
-                                <TabPanel className={tabClassNames.tabPanel}>
-                                    <Mindmap vm={vm} />
                                 </TabPanel>
                             </Tabs>
                             {backpackVisible ? (
