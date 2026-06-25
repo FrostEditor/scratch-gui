@@ -48,7 +48,7 @@ class CollaborationManager {
         // 鼠标同步
         this.mousePositions = {};
         this.lastMousePosition = null;
-        this.mouseThrottleTime = 50; // 20fps，流畅又省带宽
+        this.mouseThrottleTime = 100; // 10fps，流畅又省带宽（从 50ms 增加到 100ms，减少消息量）
         this._lastMouseSendTime = 0;
         this.memberColors = {};
         this.cursorElements = {}; // 成员光标 DOM 元素
@@ -165,7 +165,7 @@ class CollaborationManager {
                     }
                     // 远程加载的项目不需要再发送回去，避免循环
                     // 如果确实有变化，资源变化检测会自动处理
-                }, 2000);
+                }, 3000); // 延长到 3 秒，确保 Blockly 工作区完全渲染
             }
         };
         
@@ -2100,6 +2100,11 @@ class CollaborationManager {
     
     // 处理收到的远程 Blockly 事件（应用到本地）
     handleBlocklyEventMessage(data) {
+        // 还没收到过项目数据，忽略所有积木事件（避免操作不存在的积木）
+        if (!this.hasReceivedProject) {
+            return;
+        }
+        
         if (this.isLoadingProject) {
             return;
         }

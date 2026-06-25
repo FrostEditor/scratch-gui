@@ -186,6 +186,14 @@ class LoaderComponent extends React.Component {
                             />
                         </div>
                     )}
+                    
+                    {/* 进度条 */}
+                    <div className={styles['bar-outer']}>
+                        <div
+                            className={styles['bar-inner']}
+                            ref={this.barInnerRef}
+                        />
+                    </div>
                 </div>
             </div>
         );

@@ -119,6 +119,7 @@
 .featured-image {
     width: 100%;
     aspect-ratio: 2;
+    object-fit: contain; /* 保持原始比例，不被压扁 */
 }
 
 .featured-text {

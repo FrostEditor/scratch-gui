@@ -279,6 +279,13 @@ const GUIComponent = props => {
                         vm={vm}
                     />
                 ) : null}
+                {loading ? (
+                    <Loader
+                        vm={vm}
+                        isFullScreen={isFullScreen}
+                        messageId={isCreating ? 'gui.loader.creating' : 'gui.loader.headline'}
+                    />
+                ) : null}
                 {costumeLibraryVisible ? (
                     <CostumeLibrary
                         vm={vm}
