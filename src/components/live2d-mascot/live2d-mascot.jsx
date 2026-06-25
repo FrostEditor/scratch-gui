@@ -1,6 +1,8 @@
 import React from 'react';
 import './live2d-mascot.css';
 
+const LIVE2D_API_BASE = 'https://bd.qaiu.cn/l2d';
+
 class Live2dMascot extends React.Component {
     constructor(props) {
         super(props);
@@ -14,13 +16,14 @@ class Live2dMascot extends React.Component {
                 x = pos.x;
                 y = pos.y;
             } catch (e) {
-                x = window.innerWidth - 180;
-                y = window.innerHeight - 220;
+                // 默认位置：左下角
+                x = 10;
+                y = window.innerHeight - 280;
             }
         } else {
-            // 默认位置：右下角
-            x = window.innerWidth - 180;
-            y = window.innerHeight - 220;
+            // 默认位置：左下角
+            x = 10;
+            y = window.innerHeight - 280;
         }
         
         this.state = {
@@ -28,47 +31,26 @@ class Live2dMascot extends React.Component {
             y: y,
             isDragging: false,
             isMinimized: false,
-            rotationX: 0,
-            rotationY: 0,
-            scale: 1,
+            isLoading: true,
+            loadError: false,
+            modelImage: '',
             message: '',
-            messages: [
-                '你好呀~',
-                '今天也要加油哦！',
-                '有什么我可以帮你的吗？',
-                '记得保存作品哦~',
-                '创作愉快！',
-                '累了就休息一下吧~',
-                '你真棒！',
-                '一起加油吧！'
-            ]
+            currentGroup: 1,
+            currentSkin: 1
         };
         
         this.dragStartX = 0;
         this.dragStartY = 0;
-        this.elementRef = React.createRef();
+        this.containerRef = React.createRef();
         this.messageTimeout = null;
     }
     
     componentDidMount() {
-        // 随机显示一条消息
-        this.showRandomMessage();
-        
-        // 每隔一段时间随机显示消息
-        this.messageInterval = setInterval(() => {
-            if (Math.random() > 0.7) {
-                this.showRandomMessage();
-            }
-        }, 10000);
-        
-        // 监听窗口大小变化
+        this.loadModel();
         window.addEventListener('resize', this.handleWindowResize);
     }
     
     componentWillUnmount() {
-        if (this.messageInterval) {
-            clearInterval(this.messageInterval);
-        }
         if (this.messageTimeout) {
             clearTimeout(this.messageTimeout);
         }
@@ -76,31 +58,77 @@ class Live2dMascot extends React.Component {
     }
     
     handleWindowResize = () => {
-        // 确保看板娘不会超出屏幕
         this.setState(prev => ({
-            x: Math.min(prev.x, window.innerWidth - 100),
-            y: Math.min(prev.y, window.innerHeight - 100)
+            x: Math.max(0, Math.min(prev.x, window.innerWidth - 180)),
+            y: Math.max(0, Math.min(prev.y, window.innerHeight - 80))
         }));
     }
     
-    // 显示随机消息
-    showRandomMessage = () => {
-        const messages = this.state.messages;
-        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-        this.setState({ message: randomMessage });
-        
-        if (this.messageTimeout) {
-            clearTimeout(this.messageTimeout);
+    // 加载模型
+    loadModel = async () => {
+        try {
+            this.setState({ isLoading: true, loadError: false });
+            
+            // 从 API 获取模型配置
+            const modelId = `${this.state.currentGroup}-${this.state.currentSkin}`;
+            const response = await fetch(`${LIVE2D_API_BASE}/get/?id=${modelId}`);
+            if (!response.ok) {
+                throw new Error('API 请求失败');
+            }
+            
+            const modelConfig = await response.json();
+            console.log('[看板娘] 模型配置:', modelConfig);
+            
+            // 获取纹理图片 URL
+            if (modelConfig.textures && modelConfig.textures.length > 0) {
+                const texturePath = modelConfig.textures[0];
+                const imageUrl = this.convertPathToAbsolute(texturePath);
+                console.log('[看板娘] 图片 URL:', imageUrl);
+                
+                // 预加载图片
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    this.setState({ modelImage: imageUrl, isLoading: false });
+                };
+                img.onerror = () => {
+                    console.warn('[看板娘] 图片加载失败');
+                    this.setState({ loadError: true, isLoading: false });
+                };
+                img.src = imageUrl;
+            } else {
+                throw new Error('没有纹理图片');
+            }
+            
+        } catch (err) {
+            console.warn('[看板娘] 模型加载失败:', err);
+            this.setState({ loadError: true, isLoading: false });
         }
-        
-        this.messageTimeout = setTimeout(() => {
-            this.setState({ message: '' });
-        }, 4000);
+    }
+    
+    // 转换相对路径为绝对路径
+    convertPathToAbsolute = (path) => {
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+            return path;
+        }
+        // 处理 ../ 相对路径
+        let absolutePath = LIVE2D_API_BASE + '/' + path;
+        // 规范化路径
+        const parts = absolutePath.split('/');
+        const result = [];
+        for (const part of parts) {
+            if (part === '..') {
+                result.pop();
+            } else if (part !== '.') {
+                result.push(part);
+            }
+        }
+        return result.join('/');
     }
     
     // 开始拖拽
     handleMouseDown = (e) => {
-        if (e.button !== 0) return; // 只响应左键
+        if (e.button !== 0) return;
         
         e.preventDefault();
         e.stopPropagation();
@@ -121,34 +149,15 @@ class Live2dMascot extends React.Component {
         let newY = e.clientY - this.dragStartY;
         
         // 限制在屏幕范围内
-        newX = Math.max(0, Math.min(newX, window.innerWidth - 160));
-        newY = Math.max(0, Math.min(newY, window.innerHeight - 200));
+        newX = Math.max(0, Math.min(newX, window.innerWidth - 180));
+        newY = Math.max(0, Math.min(newY, window.innerHeight - 80));
         
-        // 计算 3D 倾斜效果
-        const rect = this.elementRef.current?.getBoundingClientRect();
-        if (rect) {
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const deltaX = (e.clientX - centerX) / rect.width;
-            const deltaY = (e.clientY - centerY) / rect.height;
-            
-            this.setState({
-                x: newX,
-                y: newY,
-                rotationY: deltaX * 20, // 左右倾斜
-                rotationX: -deltaY * 20 // 上下倾斜
-            });
-        } else {
-            this.setState({
-                x: newX,
-                y: newY
-            });
-        }
+        this.setState({ x: newX, y: newY });
     }
     
     // 结束拖拽
     handleMouseUp = () => {
-        this.setState({ isDragging: false, rotationX: 0, rotationY: 0 });
+        this.setState({ isDragging: false });
         
         // 保存位置到 localStorage
         localStorage.setItem('mascotPosition', JSON.stringify({
@@ -162,11 +171,42 @@ class Live2dMascot extends React.Component {
     
     // 点击看板娘
     handleClick = (e) => {
-        // 如果是拖拽，不触发点击
         if (this.state.isDragging) return;
-        
         e.stopPropagation();
-        this.showRandomMessage();
+        
+        // 显示随机消息
+        const messages = [
+            '你好呀~',
+            '嘿嘿~',
+            '有什么事吗？',
+            '不要戳人家啦~',
+            '好痒啊~',
+            '再戳我就生气了哦！',
+            '今天也要加油哦！',
+            '创作愉快~'
+        ];
+        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+        this.showMessage(randomMessage);
+    }
+    
+    // 右键切换皮肤
+    handleContextMenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.switchSkin();
+    }
+    
+    // 显示消息
+    showMessage = (msg) => {
+        this.setState({ message: msg });
+        
+        if (this.messageTimeout) {
+            clearTimeout(this.messageTimeout);
+        }
+        
+        this.messageTimeout = setTimeout(() => {
+            this.setState({ message: '' });
+        }, 3000);
     }
     
     // 双击最小化/还原
@@ -175,22 +215,31 @@ class Live2dMascot extends React.Component {
         this.setState(prev => ({ isMinimized: !prev.isMinimized }));
     }
     
-    // 鼠标进入
-    handleMouseEnter = () => {
-        if (!this.state.isDragging) {
-            this.setState({ scale: 1.05 });
-        }
-    }
-    
-    // 鼠标离开
-    handleMouseLeave = () => {
-        if (!this.state.isDragging) {
-            this.setState({ scale: 1, rotationX: 0, rotationY: 0 });
+    // 切换皮肤
+    switchSkin = async () => {
+        try {
+            const response = await fetch(`${LIVE2D_API_BASE}/switch/?id=${this.state.currentGroup}`);
+            if (response.ok) {
+                // 皮肤序号 +1
+                this.setState(prev => {
+                    const newSkin = prev.currentSkin + 1;
+                    return { currentSkin: newSkin };
+                }, () => {
+                    this.loadModel();
+                });
+                this.showMessage('换了件衣服~');
+            }
+        } catch (err) {
+            console.warn('[看板娘] 切换皮肤失败:', err);
+            // 失败了就重置为 1
+            this.setState({ currentSkin: 1 }, () => {
+                this.loadModel();
+            });
         }
     }
     
     render() {
-        const { x, y, isMinimized, rotationX, rotationY, scale, message } = this.state;
+        const { x, y, isMinimized, isLoading, loadError, modelImage, message } = this.state;
         
         if (isMinimized) {
             return (
@@ -200,26 +249,20 @@ class Live2dMascot extends React.Component {
                     onClick={this.handleDoubleClick}
                     title="双击展开"
                 >
-                    <span className="mascot-min-icon">🌸</span>
+                    <span className="mascot-min-icon">🎀</span>
                 </div>
             );
         }
         
         return (
             <div
-                ref={this.elementRef}
+                ref={this.containerRef}
                 className="live2d-mascot"
-                style={{
-                    left: x,
-                    top: y,
-                    transform: `perspective(1000px) rotateX(${rotationX}deg) rotateY(${rotationY}deg) scale(${scale})`,
-                    transition: this.state.isDragging ? 'none' : 'transform 0.3s ease-out'
-                }}
+                style={{ left: x, top: y }}
                 onMouseDown={this.handleMouseDown}
                 onClick={this.handleClick}
                 onDoubleClick={this.handleDoubleClick}
-                onMouseEnter={this.handleMouseEnter}
-                onMouseLeave={this.handleMouseLeave}
+                onContextMenu={this.handleContextMenu}
             >
                 {/* 消息气泡 */}
                 {message && (
@@ -228,53 +271,40 @@ class Live2dMascot extends React.Component {
                     </div>
                 )}
                 
-                {/* 看板娘角色 */}
-                <div className="mascot-character">
-                    {/* 可爱的二次元风格角色 SVG */}
-                    <svg viewBox="0 0 200 250" className="mascot-svg">
-                        {/* 身体 */}
-                        <ellipse cx="100" cy="200" rx="50" ry="40" fill="#FFB6C1" opacity="0.8"/>
-                        
-                        {/* 头 */}
-                        <circle cx="100" cy="100" r="60" fill="#FFE4E1"/>
-                        
-                        {/* 头发 */}
-                        <ellipse cx="100" cy="70" rx="65" ry="45" fill="#FFB6C1"/>
-                        <ellipse cx="60" cy="90" rx="20" ry="50" fill="#FFB6C1"/>
-                        <ellipse cx="140" cy="90" rx="20" ry="50" fill="#FFB6C1"/>
-                        
-                        {/* 刘海 */}
-                        <path d="M 55 60 Q 70 80 85 65 Q 100 80 115 65 Q 130 80 145 60 L 145 75 Q 130 90 100 85 Q 70 90 55 75 Z" fill="#FF9CAD"/>
-                        
-                        {/* 眼睛 */}
-                        <ellipse cx="75" cy="100" rx="12" ry="15" fill="white"/>
-                        <ellipse cx="125" cy="100" rx="12" ry="15" fill="white"/>
-                        <circle cx="77" cy="102" r="7" fill="#87CEEB"/>
-                        <circle cx="127" cy="102" r="7" fill="#87CEEB"/>
-                        <circle cx="79" cy="99" r="3" fill="white"/>
-                        <circle cx="129" cy="99" r="3" fill="white"/>
-                        
-                        {/* 腮红 */}
-                        <ellipse cx="55" cy="115" rx="10" ry="6" fill="#FFB6C1" opacity="0.6"/>
-                        <ellipse cx="145" cy="115" rx="10" ry="6" fill="#FFB6C1" opacity="0.6"/>
-                        
-                        {/* 嘴巴 */}
-                        <path d="M 90 125 Q 100 135 110 125" stroke="#FF69B4" strokeWidth="2" fill="none" strokeLinecap="round"/>
-                        
-                        {/* 蝴蝶结 */}
-                        <path d="M 70 45 L 55 35 L 55 55 Z" fill="#FF69B4"/>
-                        <path d="M 70 45 L 85 35 L 85 55 Z" fill="#FF69B4"/>
-                        <circle cx="70" cy="45" r="5" fill="#FF1493"/>
-                        
-                        {/* 手 */}
-                        <ellipse cx="45" cy="180" rx="12" ry="15" fill="#FFE4E1"/>
-                        <ellipse cx="155" cy="180" rx="12" ry="15" fill="#FFE4E1"/>
-                    </svg>
-                </div>
+                {/* 加载中 */}
+                {isLoading && (
+                    <div className="mascot-loading">
+                        <div className="mascot-loading-spinner"></div>
+                        <span>加载中...</span>
+                    </div>
+                )}
+                
+                {/* 加载失败 */}
+                {loadError && (
+                    <div className="mascot-error">
+                        <div className="mascot-error-icon">😢</div>
+                        <span>加载失败</span>
+                        <button className="mascot-retry-btn" onClick={this.loadModel}>
+                            重试
+                        </button>
+                    </div>
+                )}
+                
+                {/* 看板娘图片 */}
+                {modelImage && !isLoading && !loadError && (
+                    <div className="mascot-image-container">
+                        <img
+                            src={modelImage}
+                            alt="看板娘"
+                            className="mascot-image"
+                            draggable={false}
+                        />
+                    </div>
+                )}
                 
                 {/* 提示文字 */}
                 <div className="mascot-hint">
-                    拖动移动 · 双击最小化
+                    拖动移动 · 双击最小化 · 右键换肤
                 </div>
             </div>
         );
