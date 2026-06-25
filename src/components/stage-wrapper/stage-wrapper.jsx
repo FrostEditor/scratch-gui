@@ -5,7 +5,7 @@ import bindAll from 'lodash.bindall';
 import VM from 'scratch-vm';
 
 import Box from '../box/box.jsx';
-import {STAGE_DISPLAY_SIZES} from '../../lib/layout-constants.js';
+import {STAGE_DISPLAY_SIZES, FIXED_WIDTH} from '../../lib/layout-constants.js';
 import StageHeader from '../../containers/stage-header.jsx';
 import Stage from '../../containers/stage.jsx';
 import Loader from '../loader/loader.jsx';
@@ -21,11 +21,23 @@ class StageWrapperComponent extends React.Component {
             'handleResizeEnd'
         ]);
         this.state = {
-            customWidth: null,
+            customScale: null,
             isResizing: false
         };
         this.resizeStartX = 0;
         this.resizeStartWidth = 0;
+    }
+
+    getBaseWidth () {
+        const {stageSize} = this.props;
+        if (stageSize === STAGE_DISPLAY_SIZES.small) {
+            return FIXED_WIDTH * 0.5;
+        }
+        return FIXED_WIDTH; // large 模式
+    }
+
+    getBaseHeight () {
+        return this.getBaseWidth() * 0.75; // 4:3 比例
     }
 
     handleResizeStart (e) {
@@ -44,9 +56,11 @@ class StageWrapperComponent extends React.Component {
         if (!this.state.isResizing) return;
         const deltaX = e.clientX - this.resizeStartX;
         let newWidth = this.resizeStartWidth + deltaX;
-        // 最小宽度 240px，最大宽度 1200px
-        newWidth = Math.max(240, Math.min(1200, newWidth));
-        this.setState({customWidth: newWidth});
+        // 最小宽度 200px，最大宽度 1200px
+        newWidth = Math.max(200, Math.min(1200, newWidth));
+        const baseWidth = this.getBaseWidth();
+        const scale = newWidth / baseWidth;
+        this.setState({customScale: scale});
     }
 
     handleResizeEnd () {
@@ -70,9 +84,18 @@ class StageWrapperComponent extends React.Component {
             vm
         } = this.props;
 
+        const baseWidth = this.getBaseWidth();
+        const baseHeight = this.getBaseHeight();
+        const scale = this.state.customScale || 1;
+
         const wrapperStyle = {};
-        if (this.state.customWidth && !isFullScreen && !isEmbedded) {
-            wrapperStyle.width = `${this.state.customWidth}px`;
+        const canvasWrapperStyle = {};
+        if (this.state.customScale && !isFullScreen && !isEmbedded) {
+            wrapperStyle.width = `${baseWidth * scale + 2}px`; // +2 是边框
+            canvasWrapperStyle.transform = `scale(${scale})`;
+            canvasWrapperStyle.transformOrigin = 'top left';
+            canvasWrapperStyle.width = `${baseWidth}px`;
+            canvasWrapperStyle.height = `${baseHeight}px`;
         }
 
         return (
@@ -85,7 +108,8 @@ class StageWrapperComponent extends React.Component {
                         [styles.fullScreen]: isFullScreen,
                         [styles.loading]: loading,
                         [styles.offsetControls]: !(isEmbedded || isFullScreen),
-                        [styles.isResizing]: this.state.isResizing
+                        [styles.isResizing]: this.state.isResizing,
+                        [styles.customSize]: this.state.customScale && !isFullScreen && !isEmbedded
                     }
                 )}
                 dir={isRtl ? 'rtl' : 'ltr'}
@@ -97,7 +121,10 @@ class StageWrapperComponent extends React.Component {
                         vm={vm}
                     />
                 </Box>
-                <Box className={styles.stageCanvasWrapper}>
+                <Box
+                    className={styles.stageCanvasWrapper}
+                    style={canvasWrapperStyle}
+                >
                     {
                         isRendererSupported ?
                             <Stage

@@ -48,7 +48,7 @@ class CollaborationManager {
         // 鼠标同步
         this.mousePositions = {};
         this.lastMousePosition = null;
-        this.mouseThrottleTime = 100; // 100ms，10fps，平衡流畅度和消息量
+        this.mouseThrottleTime = 150; // 150ms，约7fps，进一步减少消息量，提升稳定性
         this._lastMouseSendTime = 0;
         this.memberColors = {};
         this.cursorElements = {}; // 成员光标 DOM 元素
@@ -70,6 +70,7 @@ class CollaborationManager {
         this._blocksChangeListener = null;
         this.isBlocksSyncActive = false;
         this._lastMoveEventSendTime = 0; // move 事件节流
+        this._moveEventThrottleTime = 150; // move 事件节流时间，减少消息量
         this._lastMoveEvent = null;
         this._moveEventTimeout = null;
         this._isDraggingBlocks = false; // 是否正在拖拽积木
@@ -2124,8 +2125,8 @@ class CollaborationManager {
         // 对 move 事件进行节流，但确保最后一个事件一定会发送
         if (event.type === 'move') {
             const now = Date.now();
-            // 节流时间从 50ms 增加到 100ms，大幅减少消息数量，避免数据通道过载
-            if (now - this._lastMoveEventSendTime < 100) {
+            // 节流时间增加到 150ms，大幅减少消息数量，避免数据通道过载
+            if (now - this._lastMoveEventSendTime < this._moveEventThrottleTime) {
                 // 保存最后一个事件，延迟发送
                 this._lastMoveEvent = event;
                 if (!this._moveEventTimeout) {
@@ -2135,7 +2136,7 @@ class CollaborationManager {
                             this._lastMoveEvent = null;
                         }
                         this._moveEventTimeout = null;
-                    }, 50);
+                    }, 80);
                 }
                 return;
             }
@@ -2271,6 +2272,7 @@ class CollaborationManager {
     sendMousePosition(x, y) {
         if (!this.isConnected) return;
         if (this.isLoadingProject) return; // 加载项目时暂停鼠标同步
+        if (this._isDraggingBlocks) return; // 拖拽积木时暂停鼠标同步，减少消息量
         
         const now = Date.now();
         if (now - this._lastMouseSendTime < this.mouseThrottleTime) {

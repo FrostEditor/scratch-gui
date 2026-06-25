@@ -38,6 +38,16 @@ const messages = defineMessages({
         id: 'gui.SpriteInfo.hideSpriteAction',
         defaultMessage: 'Hide sprite',
         description: 'Tooltip for hide sprite button'
+    },
+    showLabel: {
+        id: 'gui.SpriteInfo.showLabel',
+        defaultMessage: 'Show',
+        description: 'Label for show option in visibility menu'
+    },
+    hideLabel: {
+        id: 'gui.SpriteInfo.hideLabel',
+        defaultMessage: 'Hide',
+        description: 'Label for hide option in visibility menu'
     }
 });
 
@@ -213,8 +223,8 @@ class SpriteInfo extends React.Component {
                                     <img src={showIcon} alt="" draggable={false} />
                                     <FormattedMessage
                                         defaultMessage="Show"
-                                        description="Show sprite"
-                                        id="gui.SpriteInfo.show"
+                                        description="Label for show option in visibility menu"
+                                        id="gui.SpriteInfo.showLabel"
                                     />
                                 </div>
                                 <div
@@ -224,8 +234,8 @@ class SpriteInfo extends React.Component {
                                     <img src={hideIcon} alt="" draggable={false} />
                                     <FormattedMessage
                                         defaultMessage="Hide"
-                                        description="Hide sprite"
-                                        id="gui.SpriteInfo.hide"
+                                        description="Label for hide option in visibility menu"
+                                        id="gui.SpriteInfo.hideLabel"
                                     />
                                 </div>
                             </div>
