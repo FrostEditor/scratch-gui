@@ -131,14 +131,28 @@ class CollaborationManager {
         // 包装 toJSON 方法，修改项目元信息中的平台标识
         const originalToJSON = vm.toJSON.bind(vm);
         vm.toJSON = () => {
-            const projectData = originalToJSON();
+            const result = originalToJSON();
+            
+            // toJSON 返回的是 JSON 字符串，需要先转成对象再修改
+            let projectData;
+            if (typeof result === 'string') {
+                try {
+                    projectData = JSON.parse(result);
+                } catch (e) {
+                    console.warn('[协作] 解析项目 JSON 失败，直接返回原始数据');
+                    return result;
+                }
+            } else {
+                projectData = result;
+            }
             
             // 修改平台标识为 FrostEditor
-            if (projectData.platform) {
-                projectData.platform.name = 'FrostEditor';
-                projectData.platform.url = 'https://froste.top/';
+            if (projectData.meta && projectData.meta.platform) {
+                projectData.meta.platform.name = 'FrostEditor';
+                projectData.meta.platform.url = 'https://froste.top/';
             } else {
-                projectData.platform = {
+                if (!projectData.meta) projectData.meta = {};
+                projectData.meta.platform = {
                     name: 'FrostEditor',
                     url: 'https://froste.top/'
                 };
@@ -154,6 +168,10 @@ class CollaborationManager {
                 }
             }
             
+            // 如果原来返回的是字符串，就转回字符串
+            if (typeof result === 'string') {
+                return JSON.stringify(projectData);
+            }
             return projectData;
         };
         
