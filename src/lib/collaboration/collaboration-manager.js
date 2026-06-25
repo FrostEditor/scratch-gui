@@ -72,7 +72,7 @@ class CollaborationManager {
         this._blocksChangeListener = null;
         this.isBlocksSyncActive = false;
         this._lastMoveEventSendTime = 0; // move 事件节流
-        this._moveEventThrottleTime = 300; // move 事件节流时间，减少消息量，提升稳定性
+        this._moveEventThrottleTime = 150; // move 事件节流时间，平衡稳定性和同步精度
         this._lastMoveEvent = null;
         this._moveEventTimeout = null;
         this._isDraggingBlocks = false; // 是否正在拖拽积木
