@@ -1080,11 +1080,21 @@ class CollaborationManager {
         this.emit('member-joined', member);
         this.emit('members-updated', this.members);
         
-        // 如果是房主，给新成员发送扩展列表
+        // 如果是房主，给新成员发送扩展列表和初始项目
         if (this.isHost) {
+            // 发送扩展列表
             setTimeout(() => {
                 this.sendExtensionsUpdate();
             }, 500);
+            
+            // 发送初始项目数据（通过 WebSocket 中继，确保一定能送到）
+            // 延迟 800ms，给新成员一点准备时间
+            setTimeout(() => {
+                if (this.vm && this.isConnected) {
+                    console.log('[协作] 新成员加入，发送初始项目数据给:', member.username);
+                    this._sendInitialProjectToMember(member.id);
+                }
+            }, 800);
         }
         
         // 发送自己的标签页状态给新成员
@@ -1102,6 +1112,67 @@ class CollaborationManager {
             if (this.memberId < member.id) {
                 this.initiateRTCConnection(member.id);
             }
+        }
+    }
+    
+    // 给指定成员发送初始项目数据（通过 WebSocket 中继，确保送达）
+    async _sendInitialProjectToMember(toMemberId) {
+        if (!this.vm || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.warn('[协作] 无法发送初始项目：VM 或 WebSocket 未就绪');
+            return;
+        }
+        
+        try {
+            console.log('[协作] 准备发送初始项目给:', toMemberId);
+            
+            // 获取扩展 URL 列表
+            let extensions = {};
+            try {
+                const extensionManager = this.vm.extensionManager;
+                if (extensionManager && extensionManager.getExtensionURLs) {
+                    extensions = extensionManager.getExtensionURLs() || {};
+                }
+            } catch (e) {
+                console.warn('[协作] 获取扩展列表失败:', e);
+            }
+            
+            // 获取完整 sb3 项目
+            const sb3 = await this.vm.saveProjectSb3();
+            let arrayBuffer;
+            if (sb3 instanceof Blob) {
+                arrayBuffer = await sb3.arrayBuffer();
+            } else if (sb3 instanceof ArrayBuffer) {
+                arrayBuffer = sb3;
+            } else {
+                arrayBuffer = await sb3.arrayBuffer();
+            }
+            
+            const base64 = this.arrayBufferToBase64(arrayBuffer);
+            console.log('[协作] 初始项目大小:', arrayBuffer.byteLength, '字节，base64 长度:', base64.length);
+            
+            const projectData = {
+                type: 'project-update',
+                format: 'sb3-base64',
+                data: base64,
+                memberId: this.memberId,
+                isHost: this.isHost,
+                extensions: extensions,
+                isInitial: true // 标记为初始项目
+            };
+            
+            // 通过 WebSocket 中继发送
+            this.ws.send(JSON.stringify({
+                type: 'data-relay',
+                roomKey: this.roomKey,
+                from: this.memberId,
+                to: toMemberId,
+                payload: projectData
+            }));
+            
+            console.log('[协作] 初始项目已通过 WebSocket 发送给:', toMemberId);
+            
+        } catch (e) {
+            console.error('[协作] 发送初始项目失败:', e);
         }
     }
     
