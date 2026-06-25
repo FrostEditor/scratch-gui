@@ -75,3 +75,89 @@
 .sprite-input {
     width: 8rem;
 }
+
+/* 输入框小圆角 */
+.sprite-info input.input-form {
+    border-radius: 0.375rem;
+}
+
+/* 显示/隐藏按钮容器 */
+.visibility-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.visibility-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    filter: $filter-icon-gray;
+    transition: transform 0.1s;
+}
+
+.visibility-toggle:hover .visibility-icon {
+    animation: blink 0.4s ease-in-out;
+}
+
+@keyframes blink {
+    0%, 100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(0.1);
+    }
+}
+
+/* 悬停时显示的切换菜单 */
+.visibility-menu {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0.25rem;
+    padding: 0.25rem;
+    background-color: $ui-white;
+    border: 1px solid $ui-black-transparent;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    display: none;
+    z-index: 100;
+    white-space: nowrap;
+}
+
+.visibility-toggle:hover .visibility-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.visibility-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    color: $text-primary;
+    cursor: pointer;
+}
+
+.visibility-menu-item:hover {
+    background-color: $ui-black-transparent;
+}
+
+.visibility-menu-item.active {
+    color: $looks-secondary;
+    font-weight: bold;
+}
+
+.visibility-menu-item img {
+    width: 1rem;
+    height: 1rem;
+    filter: $filter-icon-gray;
+}

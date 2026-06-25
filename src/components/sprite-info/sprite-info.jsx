@@ -198,23 +198,38 @@ class SpriteInfo extends React.Component {
                                 /> :
                                 null
                         }
-                        <ToggleButtons
-                            buttons={[
-                                {
-                                    handleClick: this.props.onClickVisible,
-                                    icon: showIcon,
-                                    isSelected: this.props.visible && !this.props.disabled,
-                                    title: this.props.intl.formatMessage(messages.showSpriteAction)
-                                },
-                                {
-                                    handleClick: this.props.onClickNotVisible,
-                                    icon: hideIcon,
-                                    isSelected: !this.props.visible && !this.props.disabled,
-                                    title: this.props.intl.formatMessage(messages.hideSpriteAction)
-                                }
-                            ]}
-                            disabled={this.props.disabled}
-                        />
+                        <div className={styles.visibilityToggle}>
+                            <img
+                                className={styles.visibilityIcon}
+                                src={this.props.visible ? showIcon : hideIcon}
+                                alt={this.props.visible ? 'Show' : 'Hide'}
+                                draggable={false}
+                            />
+                            <div className={styles.visibilityMenu}>
+                                <div
+                                    className={classNames(styles.visibilityMenuItem, {[styles.active]: this.props.visible})}
+                                    onClick={this.props.onClickVisible}
+                                >
+                                    <img src={showIcon} alt="" draggable={false} />
+                                    <FormattedMessage
+                                        defaultMessage="Show"
+                                        description="Show sprite"
+                                        id="gui.SpriteInfo.show"
+                                    />
+                                </div>
+                                <div
+                                    className={classNames(styles.visibilityMenuItem, {[styles.active]: !this.props.visible})}
+                                    onClick={this.props.onClickNotVisible}
+                                >
+                                    <img src={hideIcon} alt="" draggable={false} />
+                                    <FormattedMessage
+                                        defaultMessage="Hide"
+                                        description="Hide sprite"
+                                        id="gui.SpriteInfo.hide"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div className={classNames(styles.group, styles.largerInput)}>
                         <Label

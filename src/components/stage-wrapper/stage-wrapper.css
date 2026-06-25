@@ -40,3 +40,31 @@
 .stage-wrapper.embedded {
     background-color: transparent;
 }
+
+/* 舞台大小调整手柄 */
+.resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    z-index: 10;
+    background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.2) 50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.stage-wrapper:hover .resize-handle {
+    opacity: 1;
+}
+
+.stage-wrapper.is-resizing {
+    user-select: none;
+    cursor: nwse-resize;
+}
+
+.stage-wrapper.is-resizing * {
+    user-select: none;
+    pointer-events: none;
+}
