@@ -117,6 +117,23 @@ const loadRandomDefaultCostume = async function (vm) {
         costume.rotationCenterY = rotationCenter[1] * 2;
         costume.dataFormat = 'png';
         
+        // 关键：更新 drawable 的皮肤！
+        if (logoTarget.drawableID) {
+            renderer.updateDrawableSkinId(logoTarget.drawableID, skinId);
+            console.log('[随机默认造型] 已更新 drawable 皮肤');
+            
+            // 触发视觉变化
+            if (logoTarget.visible) {
+                if (typeof logoTarget.emitVisualChange === 'function') {
+                    logoTarget.emitVisualChange();
+                }
+                if (typeof vm.runtime.requestRedraw === 'function') {
+                    vm.runtime.requestRedraw();
+                }
+                console.log('[随机默认造型] 已请求重绘');
+            }
+        }
+        
         // 同时创建 asset（用于保存项目）
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         const arrayBuffer = await blob.arrayBuffer();
