@@ -2286,22 +2286,32 @@ class CollaborationManager {
             if (!workspace) return;
             
             const block = workspace.getBlockById(blockId);
-            if (!block) return;
+            if (!block) {
+                console.warn('[协作] 发送连接状态：找不到积木:', blockId);
+                return;
+            }
             
-            // 获取父积木
-            const parentBlock = block.getParent();
             let parentId = null;
             let inputName = null;
             
-            if (parentBlock) {
-                parentId = parentBlock.id;
-                
-                // 判断是值连接还是语句连接，获取 inputName
-                const inputs = parentBlock.inputList;
-                for (const input of inputs) {
-                    if (input.connection && input.connection.targetBlock() === block) {
-                        inputName = input.name;
-                        break;
+            // 方式1：检查语句连接（previousConnection -> nextConnection）
+            if (block.previousConnection && block.previousConnection.isConnected()) {
+                const targetBlock = block.previousConnection.targetBlock();
+                if (targetBlock) {
+                    parentId = targetBlock.id;
+                    // 语句连接没有 inputName
+                    console.log('[协作] 积木连接状态（语句）:', blockId, '->', parentId);
+                }
+            }
+            // 方式2：检查值连接（outputConnection -> input）
+            else if (block.outputConnection && block.outputConnection.isConnected()) {
+                const targetConnection = block.outputConnection.targetConnection;
+                if (targetConnection) {
+                    const targetBlock = targetConnection.getSourceBlock();
+                    if (targetBlock) {
+                        parentId = targetBlock.id;
+                        inputName = targetConnection.name;
+                        console.log('[协作] 积木连接状态（值）:', blockId, '->', parentId, 'input:', inputName);
                     }
                 }
             }
@@ -2420,6 +2430,11 @@ class CollaborationManager {
             if (!workspace) {
                 console.warn('[协作] 找不到 Blockly 工作区');
                 return;
+            }
+            
+            // 调试日志
+            if (data.event.type === 'move' || data.event.type === 'create' || data.event.type === 'delete') {
+                console.log('[协作] 收到积木事件:', data.event.type, '积木ID:', data.event.blockId, '角色:', data.spriteName);
             }
             
             // 反序列化事件
@@ -2565,14 +2580,18 @@ class CollaborationManager {
                 return;
             }
             
+            console.log('[协作] 收到连接同步:', data.blockId, '->', data.parentId, 'input:', data.inputName);
+            
             const block = workspace.getBlockById(data.blockId);
             if (!block) {
+                console.warn('[协作] 连接同步：找不到积木:', data.blockId);
                 return;
             }
             
             if (data.parentId) {
                 const parentBlock = workspace.getBlockById(data.parentId);
                 if (!parentBlock) {
+                    console.warn('[协作] 连接同步：找不到父积木:', data.parentId);
                     return;
                 }
                 
@@ -2580,17 +2599,23 @@ class CollaborationManager {
                     // 值连接：output -> input
                     const input = parentBlock.getInput(data.inputName);
                     if (input && input.connection && block.outputConnection) {
+                        console.log('[协作] 建立值连接:', data.blockId, '->', data.parentId, '.', data.inputName);
                         input.connection.connect(block.outputConnection);
+                    } else {
+                        console.warn('[协作] 值连接失败，input或connection不存在');
                     }
                 } else {
                     // 语句连接：previous -> next
                     if (parentBlock.nextConnection && block.previousConnection) {
+                        console.log('[协作] 建立语句连接:', data.blockId, '->', data.parentId);
                         parentBlock.nextConnection.connect(block.previousConnection);
+                    } else {
+                        console.warn('[协作] 语句连接失败，nextConnection或previousConnection不存在');
                     }
                 }
             }
         } catch (e) {
-            // 静默失败，不影响正常流程
+            console.warn('[协作] 应用积木连接失败:', e);
         } finally {
             setTimeout(() => {
                 this.isApplyingRemoteEvent = false;
