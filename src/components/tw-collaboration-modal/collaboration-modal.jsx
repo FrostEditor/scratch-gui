@@ -445,7 +445,6 @@ const CollaborationModal = props => {
                     >
                         {isLoading ? '加入中...' : props.intl.formatMessage(messages.join)}
                     </button>
-            </div>
         </div>
     );
 
