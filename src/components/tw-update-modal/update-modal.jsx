@@ -1,6 +1,7 @@
 import React from 'react';
 import { markVersionAsSeen } from '../../lib/update-checker';
-import './update-modal.css';
+import styles from './update-modal.css';
+import logo from '../../../static/images/512.png';
 
 class UpdateModal extends React.Component {
     constructor(props) {
@@ -85,45 +86,48 @@ class UpdateModal extends React.Component {
         const htmlUrl = release?.html_url || '';
         
         return (
-            <div className="updateModalOverlay" onClick={this.handleClose}>
-                <div className="updateModal" onClick={(e) => e.stopPropagation()}>
-                    <div className="updateModalHeader">
-                        <div className="updateModalTitle">
-                            <span className="updateIcon">🎉</span>
-                            <span>发现新版本</span>
+            <div className={styles.updateModalOverlay} onClick={this.handleClose}>
+                <div className={styles.updateModal} onClick={(e) => e.stopPropagation()}>
+                    <div className={styles.updateModalHeader}>
+                        <div className={styles.updateModalTitle}>
+                            <img src={logo} alt="FrostEditor" className={styles.updateLogo} />
+                            <div>
+                                <div className={styles.updateTitleText}>发现新版本</div>
+                                <div className={styles.updateSubtitle}>FrostEditor 更新日志</div>
+                            </div>
                         </div>
-                        <button className="updateModalClose" onClick={this.handleClose}>
+                        <button className={styles.updateModalClose} onClick={this.handleClose}>
                             ×
                         </button>
                     </div>
                     
-                    <div className="updateModalBody">
-                        <div className="updateVersionInfo">
-                            <span className="updateVersionNumber">{version}</span>
-                            {name && <span className="updateVersionName">{name}</span>}
+                    <div className={styles.updateModalBody}>
+                        <div className={styles.updateVersionInfo}>
+                            <span className={styles.updateVersionNumber}>{version}</span>
+                            {name && <span className={styles.updateVersionName}>{name}</span>}
                         </div>
                         
                         {publishedAt && (
-                            <div className="updateDate">
+                            <div className={styles.updateDate}>
                                 发布时间：{this.formatDate(publishedAt)}
                             </div>
                         )}
                         
-                        <div className="updateChangelog">
+                        <div className={styles.updateChangelog}>
                             <h4>更新内容</h4>
                             <div 
-                                className="updateChangelogContent"
+                                className={styles.updateChangelogContent}
                                 dangerouslySetInnerHTML={{ __html: this.parseMarkdown(body) || '<p>暂无更新说明</p>' }}
                             />
                         </div>
                     </div>
                     
-                    <div className="updateModalFooter">
-                        <button className="updateSecondaryBtn" onClick={this.handleDontShowAgain}>
+                    <div className={styles.updateModalFooter}>
+                        <button className={styles.updateSecondaryBtn} onClick={this.handleDontShowAgain}>
                             不再提示此版本
                         </button>
                         <a 
-                            className="updatePrimaryBtn" 
+                            className={styles.updatePrimaryBtn} 
                             href={htmlUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
