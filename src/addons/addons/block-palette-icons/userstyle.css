@@ -1,8 +1,10 @@
-.scratchCategoryItemBubble {
+/* 只有启用时才应用图标样式 */
+body.block-palette-icons-enabled .scratchCategoryItemBubble {
   position: relative;
+  background-color: transparent !important;
 }
 
-.scratchCategoryItemBubble::after {
+body.block-palette-icons-enabled .scratchCategoryItemBubble::after {
   content: "";
   position: absolute;
   top: 0;
@@ -11,45 +13,111 @@
   right: 0;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: 70%;
+  background-color: currentColor;
+  -webkit-mask-size: 70%;
+  mask-size: 70%;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
-.scratchCategoryId-motion .scratchCategoryItemBubble::after {
-  background-image: url(icons/motion_icon.svg);
+/* 运动 - 蓝色 */
+body.block-palette-icons-enabled .scratchCategoryId-motion .scratchCategoryItemBubble {
+  color: #4C97FF;
+}
+body.block-palette-icons-enabled .scratchCategoryId-motion .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/motion_icon.svg);
+  mask-image: url(icons/motion_icon.svg);
 }
 
-.scratchCategoryId-looks .scratchCategoryItemBubble::after {
-  background-image: url(icons/looks_icon.svg);
+/* 外观 - 紫色 */
+body.block-palette-icons-enabled .scratchCategoryId-looks .scratchCategoryItemBubble {
+  color: #9966FF;
+}
+body.block-palette-icons-enabled .scratchCategoryId-looks .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/looks_icon.svg);
+  mask-image: url(icons/looks_icon.svg);
 }
 
-.scratchCategoryId-sound .scratchCategoryItemBubble::after {
-  background-image: url(icons/sound_icon.svg);
+/* 声音 - 粉色 */
+body.block-palette-icons-enabled .scratchCategoryId-sound .scratchCategoryItemBubble {
+  color: #CF63CF;
+}
+body.block-palette-icons-enabled .scratchCategoryId-sound .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/sound_icon.svg);
+  mask-image: url(icons/sound_icon.svg);
 }
 
-.scratchCategoryId-events .scratchCategoryItemBubble::after {
-  background-image: url(icons/events_icon.svg);
+/* 事件 - 黄色 */
+body.block-palette-icons-enabled .scratchCategoryId-events .scratchCategoryItemBubble {
+  color: #FFBF00;
+}
+body.block-palette-icons-enabled .scratchCategoryId-events .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/events_icon.svg);
+  mask-image: url(icons/events_icon.svg);
 }
 
-.scratchCategoryId-control .scratchCategoryItemBubble::after {
-  background-image: url(icons/control_icon.svg);
+/* 控制 - 橙色 */
+body.block-palette-icons-enabled .scratchCategoryId-control .scratchCategoryItemBubble {
+  color: #FFAB19;
+}
+body.block-palette-icons-enabled .scratchCategoryId-control .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/control_icon.svg);
+  mask-image: url(icons/control_icon.svg);
 }
 
-.scratchCategoryId-sensing .scratchCategoryItemBubble::after {
-  background-image: url(icons/sensing_icon.svg);
+/* 侦测 - 青色 */
+body.block-palette-icons-enabled .scratchCategoryId-sensing .scratchCategoryItemBubble {
+  color: #5CB1D6;
+}
+body.block-palette-icons-enabled .scratchCategoryId-sensing .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/sensing_icon.svg);
+  mask-image: url(icons/sensing_icon.svg);
 }
 
-.scratchCategoryId-operators .scratchCategoryItemBubble::after {
-  background-image: url(icons/operators_icon.svg);
+/* 运算 - 绿色 */
+body.block-palette-icons-enabled .scratchCategoryId-operators .scratchCategoryItemBubble {
+  color: #59C059;
+}
+body.block-palette-icons-enabled .scratchCategoryId-operators .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/operators_icon.svg);
+  mask-image: url(icons/operators_icon.svg);
 }
 
-.scratchCategoryId-variables .scratchCategoryItemBubble::after {
-  background-image: url(icons/variables_icon.svg);
+/* 变量 - 橙色 */
+body.block-palette-icons-enabled .scratchCategoryId-variables .scratchCategoryItemBubble {
+  color: #FF8C1A;
+}
+body.block-palette-icons-enabled .scratchCategoryId-variables .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/variables_icon.svg);
+  mask-image: url(icons/variables_icon.svg);
 }
 
-.scratchCategoryId-lists .scratchCategoryItemBubble::after {
-  background-image: url(icons/list_icon.svg);
+/* 列表 - 深橙色 */
+body.block-palette-icons-enabled .scratchCategoryId-lists .scratchCategoryItemBubble {
+  color: #FF661A;
+}
+body.block-palette-icons-enabled .scratchCategoryId-lists .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/list_icon.svg);
+  mask-image: url(icons/list_icon.svg);
 }
 
-.scratchCategoryId-myBlocks .scratchCategoryItemBubble::after {
-  background-image: url(icons/block_icon.svg);
+/* 自制积木 - 红色 */
+body.block-palette-icons-enabled .scratchCategoryId-myBlocks .scratchCategoryItemBubble {
+  color: #FF6680;
+}
+body.block-palette-icons-enabled .scratchCategoryId-myBlocks .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/block_icon.svg);
+  mask-image: url(icons/block_icon.svg);
+}
+
+/* 插件/扩展 - 青色 */
+body.block-palette-icons-enabled .scratchCategoryId-extensions .scratchCategoryItemBubble {
+  color: #29beb8;
+}
+body.block-palette-icons-enabled .scratchCategoryId-extensions .scratchCategoryItemBubble::after {
+  -webkit-mask-image: url(icons/extensions_icon.svg);
+  mask-image: url(icons/extensions_icon.svg);
 }

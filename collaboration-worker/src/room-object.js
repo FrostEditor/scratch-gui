@@ -8,11 +8,13 @@ export class RoomObject {
     
     // 房间状态
     this.roomKey = null;
-    this.members = new Map(); // memberId -> { id, username, isHost, ws }
+    this.members = new Map(); // memberId -> { id, username, isHost, canEdit, ws }
     this.projectData = null;
     this.fullProjectData = null; // 完整项目数据（sb3 base64）
     this.hostId = null;
     this.hostToken = null; // 房主令牌，用于恢复房主身份
+    this.isPrivate = false; // 是否是私密房间
+    this.pendingRequests = new Map(); // 待处理的加入申请 memberId -> { id, username, ws }
     
     // 从存储中恢复状态（如果有的话）
     this.state.blockConcurrencyWhile(async () => {
@@ -41,10 +43,12 @@ export class RoomObject {
     const username = url.searchParams.get('username') || '匿名用户';
     const roomKey = url.searchParams.get('roomKey');
     const hostToken = url.searchParams.get('hostToken');
+    const isPrivate = url.searchParams.get('isPrivate') === 'true';
 
-    // 如果是新房间，设置房间密钥
+    // 如果是新房间，设置房间密钥和私密状态
     if (!this.roomKey && roomKey) {
       this.roomKey = roomKey;
+      this.isPrivate = isPrivate;
     }
 
     // 创建 WebSocket 对
@@ -53,6 +57,54 @@ export class RoomObject {
 
     // 接受 WebSocket 连接
     server.accept();
+    
+    // 检查是否是私密房间的加入申请
+    if (this.roomKey && this.isPrivate && this.members.size > 0) {
+      // 检查是否是房主（通过房主令牌）
+      const isHostByToken = hostToken && this.hostToken && hostToken === this.hostToken;
+      
+      if (!isHostByToken) {
+        // 加入待处理申请队列
+        this.pendingRequests.set(memberId, {
+          id: memberId,
+          username: username,
+          ws: server
+        });
+        
+        console.log(`[房间 ${this.roomKey}] 新的加入申请: ${username} (${memberId})`);
+        
+        // 通知申请者等待批准
+        this.sendToMemberWS(server, {
+          type: 'join-request-pending',
+          roomKey: this.roomKey
+        });
+        
+        // 通知房主有新的加入申请
+        this.broadcast({
+          type: 'join-request',
+          memberId: memberId,
+          username: username
+        });
+        
+        // 设置消息处理（处理取消申请等）
+        server.addEventListener('message', (event) => {
+          this.handlePendingMessage(memberId, event.data);
+        });
+        
+        // 设置关闭处理
+        server.addEventListener('close', () => {
+          this.pendingRequests.delete(memberId);
+          console.log(`[房间 ${this.roomKey}] 加入申请取消: ${username}`);
+          // 通知房主申请已取消
+          this.broadcast({
+            type: 'join-request-cancelled',
+            memberId: memberId
+          });
+        });
+        
+        return new Response(null, { status: 101, webSocket: client });
+      }
+    }
 
     // 添加成员
     const isFirstMember = this.members.size === 0;
@@ -87,6 +139,7 @@ export class RoomObject {
       id: memberId,
       username: username,
       isHost: isHost,
+      canEdit: true, // 默认有编辑权限
       ws: server
     };
 
@@ -162,6 +215,19 @@ export class RoomObject {
         case 'kick-member':
           this.handleKickMember(sender, message);
           break;
+          
+        case 'set-member-permission':
+          this.handleSetMemberPermission(sender, message);
+          break;
+          
+        case 'approve-join':
+          this.handleApproveJoin(sender, message);
+          break;
+          
+        case 'reject-join':
+          this.handleRejectJoin(sender, message);
+          break;
+          
         case 'chat':
           this.handleChat(sender, message);
           break;
@@ -201,6 +267,8 @@ export class RoomObject {
 
   // 处理项目更新
   handleProjectUpdate(sender, message) {
+    if (!sender.canEdit) return; // 没有编辑权限则忽略
+    
     this.projectData = message.projectData;
     
     // 如果有完整项目数据，也保存下来
@@ -255,7 +323,144 @@ export class RoomObject {
       this.saveState();
     }
   }
-
+  
+  // 处理设置成员权限
+  handleSetMemberPermission(sender, message) {
+    if (!sender.isHost) return; // 只有房主能修改权限
+    
+    const targetId = message.memberId;
+    const canEdit = message.canEdit;
+    const target = this.members.get(targetId);
+    
+    if (target) {
+      target.canEdit = canEdit;
+      
+      console.log(`[房间 ${this.roomKey}] 成员权限变更: ${target.username} -> canEdit=${canEdit}`);
+      
+      // 通知目标成员
+      this.sendToMember(targetId, {
+        type: 'permission-changed',
+        canEdit: canEdit
+      });
+      
+      // 广播给所有成员
+      this.broadcast({
+        type: 'member-permission-changed',
+        memberId: targetId,
+        canEdit: canEdit
+      });
+      
+      this.saveState();
+    }
+  }
+  
+  // 处理批准加入申请
+  handleApproveJoin(sender, message) {
+    if (!sender.isHost) return; // 只有房主能批准
+    
+    const targetId = message.memberId;
+    const request = this.pendingRequests.get(targetId);
+    
+    if (request) {
+      console.log(`[房间 ${this.roomKey}] 批准加入申请: ${request.username}`);
+      
+      // 从待处理队列移除
+      this.pendingRequests.delete(targetId);
+      
+      // 添加到成员列表
+      const member = {
+        id: targetId,
+        username: request.username,
+        isHost: false,
+        canEdit: true,
+        ws: request.ws
+      };
+      
+      this.members.set(targetId, member);
+      
+      // 设置消息处理
+      request.ws.addEventListener('message', (event) => {
+        this.handleMessage(targetId, event.data);
+      });
+      
+      request.ws.addEventListener('close', () => {
+        this.handleMemberLeave(targetId);
+      });
+      
+      // 发送加入成功消息
+      this.sendToMemberWS(request.ws, {
+        type: 'room-joined',
+        roomKey: this.roomKey,
+        members: this.getMembersList(),
+        isHost: false,
+        projectData: this.projectData,
+        fullProjectData: this.fullProjectData
+      });
+      
+      // 广播新成员加入
+      this.broadcast({
+        type: 'member-joined',
+        member: {
+          id: targetId,
+          username: request.username,
+          isHost: false,
+          canEdit: true
+        }
+      }, targetId);
+      
+      // 通知房主申请已处理
+      this.broadcast({
+        type: 'join-request-approved',
+        memberId: targetId
+      });
+      
+      this.saveState();
+    }
+  }
+  
+  // 处理拒绝加入申请
+  handleRejectJoin(sender, message) {
+    if (!sender.isHost) return; // 只有房主能拒绝
+    
+    const targetId = message.memberId;
+    const request = this.pendingRequests.get(targetId);
+    
+    if (request) {
+      console.log(`[房间 ${this.roomKey}] 拒绝加入申请: ${request.username}`);
+      
+      // 发送被拒绝消息
+      this.sendToMemberWS(request.ws, {
+        type: 'join-rejected',
+        reason: message.reason || '房主拒绝了你的加入申请'
+      });
+      
+      // 关闭连接
+      try {
+        request.ws.close();
+      } catch (e) {}
+      
+      // 从待处理队列移除
+      this.pendingRequests.delete(targetId);
+      
+      // 通知房主申请已处理
+      this.broadcast({
+        type: 'join-request-rejected',
+        memberId: targetId
+      });
+    }
+  }
+  
+  // 处理待处理申请的消息
+  handlePendingMessage(memberId, data) {
+    try {
+      const message = JSON.parse(data);
+      // 待处理申请的消息目前不需要处理什么
+      console.log(`[房间 ${this.roomKey}] 待处理申请消息:`, message.type);
+    } catch (e) {
+      console.error(`[房间 ${this.roomKey}] 待处理申请消息解析失败:`, e);
+    }
+  }
+  
   // 处理聊天消息
   handleChat(sender, message) {
     this.broadcast({
@@ -280,6 +485,8 @@ export class RoomObject {
 
   // 处理 Blockly 事件（增量同步）
   handleBlocklyEvent(sender, message) {
+    if (!sender.canEdit) return; // 没有编辑权限则忽略
+    
     // 直接广播给其他成员，不保存状态（实时事件）
     this.broadcast({
       type: 'blockly-event',
@@ -291,6 +498,8 @@ export class RoomObject {
 
   // 处理积木更新（轻量同步）
   handleBlocksUpdate(sender, message) {
+    if (!sender.canEdit) return; // 没有编辑权限则忽略
+    
     // 直接广播给其他成员，不保存状态
     this.broadcast({
       type: 'blocks-update',
@@ -382,6 +591,17 @@ export class RoomObject {
       }
     }
   }
+  
+  // 直接给 WebSocket 发送消息
+  sendToMemberWS(ws, message) {
+    if (ws && ws.readyState === 1) {
+      try {
+        ws.send(JSON.stringify(message));
+      } catch (e) {
+        console.error(`[房间 ${this.roomKey}] 发送消息失败:`, e);
+      }
+    }
+  }
 
   // 广播消息给所有成员
   broadcast(message, excludeId = null) {
@@ -405,7 +625,8 @@ export class RoomObject {
       members.push({
         id: member.id,
         username: member.username,
-        isHost: member.isHost
+        isHost: member.isHost,
+        canEdit: member.canEdit
       });
     }
     return members;

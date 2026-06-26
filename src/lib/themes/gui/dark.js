@@ -1,75 +1,75 @@
 const guiColors = {
     'color-scheme': 'dark',
 
-    'ui-primary': '#111111',
-    'ui-secondary': '#1e1e1e',
-    'ui-tertiary': '#2e2e2e',
+    'ui-primary': '#0d0d0f',
+    'ui-secondary': '#16161a',
+    'ui-tertiary': '#1f1f26',
 
-    'ui-modal-overlay': '#333333aa',
-    'ui-modal-background': '#111111',
-    'ui-modal-foreground': '#eeeeee',
-    'ui-modal-header-background': '#333333',
+    'ui-modal-overlay': '#000000cc',
+    'ui-modal-background': '#121217',
+    'ui-modal-foreground': '#e8e8ed',
+    'ui-modal-header-background': '#1a1a20',
     'ui-modal-header-foreground': '#ffffff',
 
-    'ui-white': '#111111',
+    'ui-white': '#0d0d0f',
 
-    'ui-black-transparent': '#ffffff26',
+    'ui-black-transparent': '#ffffff1a',
 
-    'text-primary': '#eeeeee',
+    'text-primary': '#e8e8ed',
 
-    'menu-bar-background': '#333333',
+    'menu-bar-background': '#14141a',
 
-    'assets-background': '#111111',
+    'assets-background': '#0d0d0f',
 
-    'input-background': '#1e1e1e',
+    'input-background': '#1a1a20',
 
-    'popover-background': '#1e1e1e',
+    'popover-background': '#16161a',
 
-    'badge-background': '#16202c',
-    'badge-border': '#203652',
+    'badge-background': '#1a2533',
+    'badge-border': '#2a3a50',
 
-    'fullscreen-background': '#111111',
-    'fullscreen-accent': '#111111',
+    'fullscreen-background': '#0d0d0f',
+    'fullscreen-accent': '#0d0d0f',
 
-    'page-background': '#111111',
-    'page-foreground': '#eeeeee',
+    'page-background': '#0d0d0f',
+    'page-foreground': '#e8e8ed',
 
     'project-title-inactive': 'var(--ui-secondary)',
-    'project-title-hover': '#ffffff3f',
+    'project-title-hover': '#ffffff2a',
 
-    'link-color': '#44aaff',
+    'link-color': '#5cb8ff',
 
     'filter-icon-black': 'invert(100%)',
-    'filter-icon-gray': 'grayscale(100%) brightness(1.7)',
+    'filter-icon-gray': 'grayscale(100%) brightness(1.8)',
     'filter-icon-white': 'brightness(0) invert(100%)',
 
-    'paint-filter-icon-gray': 'brightness(1.7)'
+    'paint-filter-icon-gray': 'brightness(1.8)'
 };
 
 const blockColors = {
-    insertionMarker: '#cccccc',
-    workspace: '#1e1e1e',
-    toolboxSelected: '#1e1e1e',
-    toolboxText: '#cccccc',
-    toolbox: '#111111',
-    flyout: '#111111',
-    scrollbar: '#666666',
-    valueReportBackground: '#1e1e1e',
-    valueReportBorder: '#333333',
-    valueReportForeground: '#eeeeee',
-    contextMenuBackground: '#111111',
-    contextMenuBorder: '#ffffff26',
-    contextMenuForeground: '#eeeeee',
-    contextMenuActiveBackground: '#2e2e2e',
-    contextMenuDisabledForeground: '#666666',
-    flyoutLabelColor: '#cccccc',
-    checkboxInactiveBackground: '#222222',
-    checkboxInactiveBorder: '#c8c8c8',
-    buttonBorder: '#c6c6c6',
-    buttonActiveBackground: '#222222',
-    buttonForeground: '#cccccc',
+    insertionMarker: '#b0b0b8',
+    workspace: '#14141a',
+    toolboxSelected: '#1a1a20',
+    toolboxText: '#c0c0c8',
+    toolbox: '#0d0d0f',
+    flyout: '#101015',
+    scrollbar: '#404048',
+    valueReportBackground: '#1a1a20',
+    valueReportBorder: '#2a2a32',
+    valueReportForeground: '#e8e8ed',
+    contextMenuBackground: '#16161a',
+    contextMenuBorder: '#ffffff15',
+    contextMenuForeground: '#e8e8ed',
+    contextMenuActiveBackground: '#1f1f26',
+    contextMenuDisabledForeground: '#606068',
+    flyoutLabelColor: '#a0a0a8',
+    checkboxInactiveBackground: '#1a1a20',
+    checkboxInactiveBorder: '#808088',
+    buttonBorder: '#606068',
+    buttonActiveBackground: '#1a1a20',
+    buttonForeground: '#c0c0c8',
     zoomIconFilter: 'invert(100%)',
-    gridColor: '#484848'
+    gridColor: '#282830'
 };
 
 export {

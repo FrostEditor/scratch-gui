@@ -68,10 +68,16 @@ class GUI extends React.Component {
         // 初始化协作管理器
         collaborationManager.setVM(this.props.vm);
         
-        // 加载随机默认造型（缩短延迟，尽快加载）
-        setTimeout(() => {
-            loadRandomDefaultCostume(this.props.vm);
-        }, 300);
+        // 初始化积木分类图标设置
+        const blockPaletteIcons = localStorage.getItem('tw-blockPaletteIcons');
+        if (blockPaletteIcons === 'false') {
+            document.body.classList.add('block-palette-icons-disabled');
+        } else {
+            document.body.classList.add('block-palette-icons-enabled');
+        }
+        
+        // 加载随机默认造型（立即开始，和作品加载并行进行）
+        loadRandomDefaultCostume(this.props.vm);
         
         // Electron 桌面端：监听主进程消息
         if (window.electronAPI) {
@@ -88,12 +94,9 @@ class GUI extends React.Component {
             console.log('[Electron] 新建项目');
             // 加载默认项目
             if (defaultProjectData) {
-                vm.loadProject(defaultProjectData).then(() => {
-                    // 加载随机默认造型
-                    setTimeout(() => {
-                        loadRandomDefaultCostume(vm);
-                    }, 300);
-                }).catch(err => {
+                // 并行加载：项目加载和随机造型加载同时进行
+                loadRandomDefaultCostume(vm);
+                vm.loadProject(defaultProjectData).catch(err => {
                     console.error('[Electron] 新建项目失败:', err);
                 });
             }

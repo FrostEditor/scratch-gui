@@ -508,6 +508,51 @@ CustomBackground.propTypes = {
     onClearImage: PropTypes.func
 };
 
+// 积木分类图标设置
+const BlockPaletteIcons = () => {
+    const [enabled, setEnabled] = React.useState(() => {
+        const saved = localStorage.getItem('tw-blockPaletteIcons');
+        return saved !== 'false'; // 默认开启
+    });
+
+    React.useEffect(() => {
+        if (enabled) {
+            document.body.classList.add('block-palette-icons-enabled');
+            document.body.classList.remove('block-palette-icons-disabled');
+        } else {
+            document.body.classList.remove('block-palette-icons-enabled');
+            document.body.classList.add('block-palette-icons-disabled');
+        }
+    }, [enabled]);
+
+    const handleChange = () => {
+        const newValue = !enabled;
+        setEnabled(newValue);
+        localStorage.setItem('tw-blockPaletteIcons', newValue.toString());
+    };
+
+    return (
+        <BooleanSetting
+            value={enabled}
+            onChange={handleChange}
+            label={
+                <FormattedMessage
+                    defaultMessage="积木分类图标"
+                    description="Block palette icons setting"
+                    id="tw.settingsModal.blockPaletteIcons"
+                />
+            }
+            help={
+                <FormattedMessage
+                    defaultMessage="在积木分类侧边栏显示主题相关的 SVG 图标，关闭则显示原来的彩色圆点。"
+                    description="Block palette icons help"
+                    id="tw.settingsModal.blockPaletteIconsHelp"
+                />
+            }
+        />
+    );
+};
+
 const Header = props => (
     <div className={styles.header}>
         {props.children}
@@ -558,6 +603,7 @@ const SettingsModalComponent = props => (
                     id="tw.settingsModal.appearance"
                 />
             </Header>
+            <BlockPaletteIcons />
             <CustomBackground
                 backgroundImage={props.backgroundImage}
                 blurAmount={props.blurAmount}

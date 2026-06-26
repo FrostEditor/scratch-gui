@@ -40,6 +40,8 @@ import TWFontsModal from '../../containers/tw-fonts-modal.jsx';
 import TWUnknownPlatformModal from '../../containers/tw-unknown-platform-modal.jsx';
 import TWInvalidProjectModal from '../../containers/tw-invalid-project-modal.jsx';
 import CollaborationCursor from '../collaboration-cursor/collaboration-cursor.jsx';
+import UpdateModal from '../tw-update-modal/update-modal.jsx';
+import { checkForUpdates } from '../../lib/update-checker';
 
 import {STAGE_SIZE_MODES, FIXED_WIDTH, UNCONSTRAINED_NON_STAGE_WIDTH} from '../../lib/layout-constants';
 import {resolveStageSize} from '../../lib/screen-utils';
@@ -165,6 +167,26 @@ const GUIComponent = props => {
         vm,
         ...componentProps
     } = omit(props, 'dispatch');
+    
+    // 启动时自动检查更新（延迟 2 秒，不影响启动速度）
+    React.useEffect(() => {
+        const timer = setTimeout(async () => {
+            try {
+                const result = await checkForUpdates();
+                if (result.hasUpdate && result.isFirstSeen && result.release) {
+                    window.dispatchEvent(new CustomEvent('show-update-modal', {
+                        detail: { release: result.release }
+                    }));
+                }
+            } catch (e) {
+                // 静默失败，不影响正常使用
+                console.warn('[更新检测] 检查失败:', e);
+            }
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+    }, []);
+    
     if (children) {
         return <Box {...componentProps}>{children}</Box>;
     }
@@ -191,6 +213,7 @@ const GUIComponent = props => {
                 <TWSecurityManager securityManager={securityManager} />
                 <TWRestorePointManager />
                 <CollaborationCursor />
+                <UpdateModal />
                 {usernameModalVisible && <TWUsernameModal />}
                 {settingsModalVisible && <TWSettingsModal />}
                 {customExtensionModalVisible && <TWCustomExtensionModal />}
@@ -397,12 +420,16 @@ const GUIComponent = props => {
                                         />
                                     </Tab>
                                     <Tab className={tabClassNames.tab}>
-                                        <img
-                                            draggable={false}
-                                            src={statementIcon()}
-                                            alt="作品声明"
-                                            title="作品声明"
-                                        />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <img
+                                                draggable={false}
+                                                src={statementIcon()}
+                                                alt="作品说明"
+                                                title="作品说明"
+                                                style={{ width: '16px', height: '16px' }}
+                                            />
+                                            <span>作品说明</span>
+                                        </div>
                                     </Tab>
                                 </TabList>
                                 <TabPanel className={tabClassNames.tabPanel}>

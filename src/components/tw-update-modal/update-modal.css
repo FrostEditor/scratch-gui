@@ -1,0 +1,225 @@
+/* 更新日志模态框 */
+
+.updateModalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.updateModal {
+    background: var(--ui-modal-background, #121217);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s ease-out;
+    color: var(--text-primary, #e8e8ed);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.updateModalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--ui-tertiary, #1f1f26);
+}
+
+.updateModalTitle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.updateIcon {
+    font-size: 22px;
+}
+
+.updateModalClose {
+    background: none;
+    border: none;
+    color: var(--text-primary, #e8e8ed);
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background 0.2s;
+    opacity: 0.7;
+}
+
+.updateModalClose:hover {
+    background: var(--ui-tertiary, #1f1f26);
+    opacity: 1;
+}
+
+.updateModalBody {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.updateVersionInfo {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.updateVersionNumber {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #855cd6, #ff9b33);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.updateVersionName {
+    font-size: 16px;
+    color: var(--text-primary, #e8e8ed);
+    opacity: 0.9;
+}
+
+.updateDate {
+    font-size: 13px;
+    color: var(--text-primary, #e8e8ed);
+    opacity: 0.6;
+    margin-bottom: 20px;
+}
+
+.updateChangelog h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary, #e8e8ed);
+}
+
+.updateChangelogContent {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-primary, #e8e8ed);
+    opacity: 0.9;
+}
+
+.updateChangelogContent h1,
+.updateChangelogContent h2,
+.updateChangelogContent h3 {
+    margin: 16px 0 8px 0;
+    font-weight: 600;
+}
+
+.updateChangelogContent h1 { font-size: 20px; }
+.updateChangelogContent h2 { font-size: 18px; }
+.updateChangelogContent h3 { font-size: 16px; }
+
+.updateChangelogContent ul {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.updateChangelogContent li {
+    margin: 4px 0;
+}
+
+.updateChangelogContent a {
+    color: #855cd6;
+    text-decoration: none;
+}
+
+.updateChangelogContent a:hover {
+    text-decoration: underline;
+}
+
+.updateChangelogContent strong {
+    font-weight: 600;
+}
+
+.updateModalFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid var(--ui-tertiary, #1f1f26);
+    gap: 12px;
+}
+
+.updateSecondaryBtn {
+    background: none;
+    border: 1px solid var(--ui-tertiary, #1f1f26);
+    color: var(--text-primary, #e8e8ed);
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    opacity: 0.8;
+}
+
+.updateSecondaryBtn:hover {
+    background: var(--ui-tertiary, #1f1f26);
+    opacity: 1;
+}
+
+.updatePrimaryBtn {
+    background: linear-gradient(135deg, #855cd6, #7045c0);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(133, 92, 214, 0.3);
+}
+
+.updatePrimaryBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(133, 92, 214, 0.4);
+}
+
+/* 滚动条样式 */
+.updateModalBody::-webkit-scrollbar {
+    width: 6px;
+}
+
+.updateModalBody::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.updateModalBody::-webkit-scrollbar-thumb {
+    background: var(--scrollbar, #404048);
+    border-radius: 3px;
+}

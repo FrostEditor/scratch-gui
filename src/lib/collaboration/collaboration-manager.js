@@ -40,6 +40,7 @@ class CollaborationManager {
         this.lastProjectData = null;
         this.isLoadingProject = false;
         this.hasReceivedProject = false; // 是否已收到过项目数据
+        this.canEdit = true; // 是否有编辑权限
         this.hasResourceChange = false;
         this._lastSpriteCount = undefined;
         this._lastTotalCostumes = undefined;
@@ -76,6 +77,18 @@ class CollaborationManager {
         this._lastMoveEvent = null;
         this._moveEventTimeout = null;
         this._isDraggingBlocks = false; // 是否正在拖拽积木
+        
+        // 房间存在性校验
+        this._roomExistenceCheckTimeout = null;
+        this._roomExistenceChecked = false;
+        
+        // 权限控制
+        this.canEdit = true; // 自己是否有编辑权限
+        this.memberPermissions = {}; // 成员权限映射 memberId -> { canEdit }
+        
+        // 私密房间
+        this.isPrivateRoom = false; // 房间是否私密
+        this.pendingJoinRequests = []; // 待处理的加入申请
         
         // 聊天
         this.chatMessages = [];
@@ -300,7 +313,7 @@ class CollaborationManager {
     }
     
     // 创建房间
-    async createRoom(serverUrl = null) {
+    async createRoom(serverUrl = null, isPrivate = false) {
         if (serverUrl) {
             this.setServer(serverUrl, 'workers');
         }
@@ -322,15 +335,16 @@ class CollaborationManager {
             
             this.roomKey = data.roomKey;
             this.memberId = this.generateMemberId();
+            this.isPrivateRoom = isPrivate;
             
-            console.log('[协作] 房间密钥:', this.roomKey);
+            console.log('[协作] 房间密钥:', this.roomKey, '私密:', isPrivate);
             
             // 2. 连接 WebSocket
             const wsUrl = this.serverUrl
                 .replace('https://', 'wss://')
                 .replace('http://', 'ws://');
             
-            const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}`;
+            const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}&isPrivate=${isPrivate}`;
             
             return this.connectWebSocket(url, true);
         } catch (e) {
@@ -913,8 +927,79 @@ class CollaborationManager {
                 break;
                 
             case 'host-changed':
-                this.isHost = data.isHost;
+                // 根据 newHostId 判断自己是不是新房主
+                this.isHost = data.newHostId === this.memberId;
+                
+                // 更新成员列表中的房主状态
+                if (this.members) {
+                    this.members.forEach(member => {
+                        member.isHost = member.id === data.newHostId;
+                    });
+                }
+                
+                console.log('[协作] 房主变更:', data.newHostId, '我是房主:', this.isHost);
+                
                 this.emit('host-changed', data);
+                this.emit('members-updated', this.members);
+                break;
+                
+            case 'member-permission-changed':
+                // 更新成员权限
+                if (this.members) {
+                    const member = this.members.find(m => m.id === data.memberId);
+                    if (member) {
+                        member.canEdit = data.canEdit;
+                        console.log('[协作] 成员权限变更:', member.username, 'canEdit:', data.canEdit);
+                    }
+                }
+                
+                // 如果是自己的权限变了，发出事件
+                if (data.memberId === this.memberId) {
+                    this.canEdit = data.canEdit;
+                    this.emit('permission-changed', data);
+                }
+                
+                this.emit('members-updated', this.members);
+                break;
+                
+            case 'join-request-pending':
+                // 加入申请已提交，等待房主批准
+                console.log('[协作] 加入申请已提交，等待房主批准...');
+                this.emit('join-request-pending', data);
+                break;
+                
+            case 'join-request':
+                // 收到新的加入申请（房主）
+                console.log('[协作] 收到新的加入申请:', data.username);
+                this.pendingJoinRequests.push({
+                    memberId: data.memberId,
+                    username: data.username
+                });
+                this.emit('join-request', data);
+                this.emit('join-requests-updated', this.pendingJoinRequests);
+                break;
+                
+            case 'join-request-cancelled':
+                // 加入申请被取消
+                console.log('[协作] 加入申请被取消:', data.memberId);
+                this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== data.memberId);
+                this.emit('join-requests-updated', this.pendingJoinRequests);
+                break;
+                
+            case 'join-request-approved':
+                // 加入申请被批准（通知房主）
+                console.log('[协作] 加入申请已批准:', data.memberId);
+                break;
+                
+            case 'join-request-rejected':
+                // 加入申请被拒绝（通知房主）
+                console.log('[协作] 加入申请已拒绝:', data.memberId);
+                break;
+                
+            case 'join-rejected':
+                // 加入申请被拒绝（申请者收到）
+                console.log('[协作] 加入被拒绝:', data.reason);
+                this.emit('join-rejected', data);
                 break;
                 
             case 'kicked':
@@ -998,6 +1083,10 @@ class CollaborationManager {
                 
             case 'blockly-event':
                 this.handleBlocklyEventMessage(data);
+                break;
+                
+            case 'block-connect':
+                this.handleBlockConnectMessage(data);
                 break;
                 
             case 'mouse-move':
@@ -1254,6 +1343,55 @@ class CollaborationManager {
                 memberId: memberId,
                 reason: reason
             }));
+        }
+    }
+    
+    // 设置成员编辑权限（房主功能）
+    setMemberPermission(memberId, canEdit) {
+        if (!this.isHost) return;
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'set-member-permission',
+                roomKey: this.roomKey,
+                memberId: memberId,
+                canEdit: canEdit
+            }));
+        }
+    }
+    
+    // 批准加入申请（房主功能）
+    approveJoinRequest(memberId) {
+        if (!this.isHost) return;
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'approve-join',
+                roomKey: this.roomKey,
+                memberId: memberId
+            }));
+            
+            // 从待处理列表移除
+            this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== memberId);
+            this.emit('join-requests-updated', this.pendingJoinRequests);
+        }
+    }
+    
+    // 拒绝加入申请（房主功能）
+    rejectJoinRequest(memberId, reason = '') {
+        if (!this.isHost) return;
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'reject-join',
+                roomKey: this.roomKey,
+                memberId: memberId,
+                reason: reason
+            }));
+            
+            // 从待处理列表移除
+            this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== memberId);
+            this.emit('join-requests-updated', this.pendingJoinRequests);
         }
     }
     
@@ -2190,6 +2328,23 @@ class CollaborationManager {
                 eventJson = JSON.parse(JSON.stringify(event));
             }
             
+            // 对于 move 事件，手动确保连接属性被序列化（防止 toJson 遗漏）
+            if (event.type === 'move') {
+                const connectProps = [
+                    'newParentId', 'oldParentId', 
+                    'newInputName', 'oldInputName',
+                    'newInput', 'oldInput',
+                    'newParentId_', 'oldParentId_',
+                    'newInputName_', 'oldInputName_',
+                    'newInput_', 'oldInput_'
+                ];
+                connectProps.forEach(prop => {
+                    if (event[prop] !== undefined) {
+                        eventJson[prop] = event[prop];
+                    }
+                });
+            }
+            
             const message = {
                 type: 'blockly-event',
                 event: eventJson,
@@ -2201,6 +2356,49 @@ class CollaborationManager {
             this.sendData(message);
         } catch (e) {
             console.error('[协作] 发送 Blockly 事件失败:', e);
+        }
+    }
+    
+    // 发送积木连接状态（拖拽结束后主动发送，确保拼接同步可靠）
+    _sendBlockConnectionState(blockId) {
+        try {
+            const workspace = this._getBlocklyWorkspace();
+            if (!workspace) return;
+            
+            const block = workspace.getBlockById(blockId);
+            if (!block) return;
+            
+            // 获取父积木
+            const parentBlock = block.getParent();
+            let parentId = null;
+            let inputName = null;
+            
+            if (parentBlock) {
+                parentId = parentBlock.id;
+                
+                // 判断是值连接还是语句连接，获取 inputName
+                const inputs = parentBlock.inputList;
+                for (const input of inputs) {
+                    if (input.connection && input.connection.targetBlock() === block) {
+                        inputName = input.name;
+                        break;
+                    }
+                }
+            }
+            
+            const message = {
+                type: 'block-connect',
+                blockId: blockId,
+                parentId: parentId,
+                inputName: inputName,
+                targetId: this.vm.editingTarget?.id,
+                spriteName: this.vm.editingTarget?.sprite?.name,
+                memberId: this.memberId
+            };
+            
+            this.sendData(message);
+        } catch (e) {
+            console.warn('[协作] 发送积木连接状态失败:', e);
         }
     }
     
@@ -2234,10 +2432,18 @@ class CollaborationManager {
                 this._lastMoveEvent = null;
             }
             this._lastMoveEventSendTime = 0; // 重置节流计时器
+            
+            // 拖拽结束后，主动发送积木连接状态（确保拼接同步可靠）
+            if (this._lastDraggedBlockId) {
+                this._sendBlockConnectionState(this._lastDraggedBlockId);
+            }
         }
         
         // 对 move 事件进行节流，但确保最后一个事件一定会发送
         if (event.type === 'move') {
+            // 保存最后拖拽的积木 ID
+            this._lastDraggedBlockId = event.blockId;
+            
             const now = Date.now();
             // 节流时间增加到 150ms，大幅减少消息数量，避免数据通道过载
             if (now - this._lastMoveEventSendTime < this._moveEventThrottleTime) {
@@ -2346,12 +2552,52 @@ class CollaborationManager {
                 console.warn('[协作] 事件反序列化失败:', e);
             }
             
+            // 对于 move 事件，手动确保连接属性被正确复制（防止 fromJson 遗漏）
+            if (event && data.event.type === 'move') {
+                const connectProps = [
+                    'newParentId', 'oldParentId', 
+                    'newInputName', 'oldInputName',
+                    'newInput', 'oldInput'
+                ];
+                connectProps.forEach(prop => {
+                    if (data.event[prop] !== undefined) {
+                        event[prop] = data.event[prop];
+                    }
+                });
+            }
+            
             // 应用事件
             if (event) {
                 if (event.run) {
                     event.run(true);
                 } else if (workspace.dispatchEvent) {
                     workspace.dispatchEvent(event);
+                }
+                
+                // 对于 move 事件，手动确保连接被建立（防止 event.run 遗漏连接）
+                if (data.event.type === 'move' && data.event.newParentId) {
+                    try {
+                        const blockId = data.event.blockId || event.blockId;
+                        const block = workspace.getBlockById(blockId);
+                        const parentBlock = workspace.getBlockById(data.event.newParentId);
+                        
+                        if (block && parentBlock) {
+                            if (data.event.newInputName) {
+                                // 值连接：output -> input
+                                const input = parentBlock.getInput(data.event.newInputName);
+                                if (input && input.connection && block.outputConnection) {
+                                    input.connection.connect(block.outputConnection);
+                                }
+                            } else {
+                                // 语句连接：previous -> next
+                                if (parentBlock.nextConnection && block.previousConnection) {
+                                    parentBlock.nextConnection.connect(block.previousConnection);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // 静默失败，不影响正常流程
+                    }
                 }
             } else {
                 console.warn('[协作] 无法创建事件对象，跳过应用');
@@ -2363,6 +2609,68 @@ class CollaborationManager {
             // 失败时回退到全量同步请求
             console.log('[协作] 事件应用失败，请求全量同步');
             this.requestProject();
+        } finally {
+            setTimeout(() => {
+                this.isApplyingRemoteEvent = false;
+            }, 30);
+        }
+    }
+    
+    // 处理积木连接同步消息（拖拽结束后主动发送，确保拼接同步可靠）
+    handleBlockConnectMessage(data) {
+        // 还没收到过项目数据，忽略
+        if (!this.hasReceivedProject) {
+            return;
+        }
+        
+        if (this.isLoadingProject) {
+            return;
+        }
+        
+        // 检查是否是当前编辑的角色
+        if (this.vm.editingTarget) {
+            const targetIdMatch = data.targetId && this.vm.editingTarget.id === data.targetId;
+            const spriteNameMatch = data.spriteName && this.vm.editingTarget.sprite?.name === data.spriteName;
+            
+            if (!targetIdMatch && !spriteNameMatch) {
+                return;
+            }
+        }
+        
+        this.isApplyingRemoteEvent = true;
+        
+        try {
+            const workspace = this._getBlocklyWorkspace();
+            if (!workspace) {
+                return;
+            }
+            
+            const block = workspace.getBlockById(data.blockId);
+            if (!block) {
+                return;
+            }
+            
+            if (data.parentId) {
+                const parentBlock = workspace.getBlockById(data.parentId);
+                if (!parentBlock) {
+                    return;
+                }
+                
+                if (data.inputName) {
+                    // 值连接：output -> input
+                    const input = parentBlock.getInput(data.inputName);
+                    if (input && input.connection && block.outputConnection) {
+                        input.connection.connect(block.outputConnection);
+                    }
+                } else {
+                    // 语句连接：previous -> next
+                    if (parentBlock.nextConnection && block.previousConnection) {
+                        parentBlock.nextConnection.connect(block.previousConnection);
+                    }
+                }
+            }
+        } catch (e) {
+            // 静默失败，不影响正常流程
         } finally {
             setTimeout(() => {
                 this.isApplyingRemoteEvent = false;

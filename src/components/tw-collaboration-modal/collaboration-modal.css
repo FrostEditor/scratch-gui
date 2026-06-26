@@ -4,6 +4,9 @@
 .modalContent {
     width: 450px;
     max-height: 80vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
 }
 
 .body {
@@ -17,9 +20,10 @@
 .title {
     margin: 0 0 1rem 0;
     font-size: 1.25rem;
-    font-weight: bold;
+    font-weight: 600;
     color: $text-primary;
     text-align: center;
+    letter-spacing: 0.02em;
 }
 
 /* 主界面 */
@@ -122,39 +126,55 @@
 .primaryButton {
     width: 100%;
     padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
+    border-radius: 8px;
     background-color: $looks-secondary;
     color: white;
     border: none;
     cursor: pointer;
     font-size: 1rem;
     font-weight: 500;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
     &:hover {
         background-color: $looks-secondary-dark;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    &:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     &:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
     }
 }
 
 .secondaryButton {
     width: 100%;
     padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
+    border-radius: 8px;
     background-color: $ui-secondary;
     color: $text-primary;
     border: 1px solid $ui-tertiary;
     cursor: pointer;
     font-size: 1rem;
     font-weight: 500;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
 
     &:hover {
-        background-color: $ui-primary;
+        background-color: $ui-tertiary;
+        border-color: $ui-black-transparent;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 }
 
@@ -201,17 +221,21 @@
     width: 100%;
     padding: 0.75rem;
     border: 2px solid $ui-tertiary;
-    border-radius: 0.5rem;
+    border-radius: 8px;
     font-size: 1.25rem;
     text-align: center;
     letter-spacing: 0.5rem;
-    font-weight: bold;
+    font-weight: 600;
     text-transform: uppercase;
     box-sizing: border-box;
+    background-color: $input-background;
+    color: $text-primary;
+    transition: all 0.2s ease;
 
     &:focus {
         outline: none;
         border-color: $looks-secondary;
+        box-shadow: 0 0 0 3px $looks-transparent;
     }
 }
 
@@ -293,10 +317,11 @@
 
 .membersList {
     border: 1px solid $ui-tertiary;
-    border-radius: 0.5rem;
+    border-radius: 8px;
     background-color: $ui-secondary;
     max-height: 250px;
     overflow-y: auto;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .memberItem {
@@ -305,13 +330,14 @@
     justify-content: space-between;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid $ui-tertiary;
+    transition: background-color 0.2s ease;
 
     &:last-child {
         border-bottom: none;
     }
 
     &:hover {
-        background-color: $ui-primary;
+        background-color: $ui-tertiary;
     }
 }
 
@@ -368,6 +394,117 @@
 
     &:hover {
         background-color: $error-light;
+    }
+}
+
+.memberActions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.permissionButton {
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+    background-color: $ui-secondary;
+    color: $text-primary;
+    border: 1px solid $ui-tertiary;
+    cursor: pointer;
+    font-size: 0.85rem;
+
+    &:hover {
+        background-color: $ui-tertiary;
+    }
+}
+
+/* 私密房间选项 */
+.privateRoomOption {
+    margin-bottom: 1rem;
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: $text-primary;
+    
+    input[type="checkbox"] {
+        cursor: pointer;
+    }
+}
+
+/* 加入申请列表 */
+.pendingRequestsSection {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: $ui-secondary;
+    border-radius: 0.5rem;
+    border: 1px solid $ui-tertiary;
+}
+
+.approveButton {
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: #4caf50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+
+    &:hover {
+        background-color: #43a047;
+    }
+}
+
+.rejectButton {
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+
+    &:hover {
+        background-color: #e53935;
+    }
+}
+
+/* 等待批准 */
+.waitingApproval {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.waitingIcon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.secondaryButton {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    background-color: $ui-secondary;
+    color: $text-primary;
+    border: 1px solid $ui-tertiary;
+    cursor: pointer;
+    font-size: 0.85rem;
+
+    &:hover {
+        background-color: $ui-tertiary;
     }
 }
 
