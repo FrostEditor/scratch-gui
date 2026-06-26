@@ -137,9 +137,6 @@ const CollaborationModal = props => {
     const [username, setUsername] = useState('用户');
     const [isLoading, setIsLoading] = useState(false);
     const [roomNotFound, setRoomNotFound] = useState(false);
-    const [isPrivateRoom, setIsPrivateRoom] = useState(false);
-    const [pendingRequests, setPendingRequests] = useState([]);
-    const [waitingForApproval, setWaitingForApproval] = useState(false);
     
     const isMounted = useRef(true);
 
@@ -198,30 +195,6 @@ const CollaborationModal = props => {
             setIsHost(collaborationManager.isHost);
         };
         
-        const handleJoinRequestPending = () => {
-            if (!isMounted.current) return;
-            setWaitingForApproval(true);
-            setIsLoading(false);
-        };
-        
-        const handleJoinRequest = (data) => {
-            if (!isMounted.current) return;
-            setPendingRequests(collaborationManager.pendingJoinRequests || []);
-        };
-        
-        const handleJoinRequestsUpdated = (requests) => {
-            if (!isMounted.current) return;
-            setPendingRequests(requests);
-        };
-        
-        const handleJoinRejected = (data) => {
-            if (!isMounted.current) return;
-            setError(data.reason || '加入申请被拒绝');
-            setWaitingForApproval(false);
-            setIsLoading(false);
-            setView('join');
-        };
-
         collaborationManager.on('connected', handleConnected);
         collaborationManager.on('disconnected', handleDisconnected);
         collaborationManager.on('error', handleError);
@@ -229,10 +202,6 @@ const CollaborationModal = props => {
         collaborationManager.on('kicked', handleKicked);
         collaborationManager.on('room-not-found', handleRoomNotFound);
         collaborationManager.on('host-changed', handleHostChanged);
-        collaborationManager.on('join-request-pending', handleJoinRequestPending);
-        collaborationManager.on('join-request', handleJoinRequest);
-        collaborationManager.on('join-requests-updated', handleJoinRequestsUpdated);
-        collaborationManager.on('join-rejected', handleJoinRejected);
 
         // 检查当前状态
         if (collaborationManager.isConnected) {
@@ -267,10 +236,6 @@ const CollaborationModal = props => {
             collaborationManager.off('kicked', handleKicked);
             collaborationManager.off('room-not-found', handleRoomNotFound);
             collaborationManager.off('host-changed', handleHostChanged);
-            collaborationManager.off('join-request-pending', handleJoinRequestPending);
-            collaborationManager.off('join-request', handleJoinRequest);
-            collaborationManager.off('join-requests-updated', handleJoinRequestsUpdated);
-            collaborationManager.off('join-rejected', handleJoinRejected);
         };
     }, []);
 
@@ -295,7 +260,7 @@ const CollaborationModal = props => {
             saveServerUrl(serverUrl);
             saveUsername(username);
             
-            const result = await collaborationManager.createRoom(serverUrl, isPrivateRoom);
+            const result = await collaborationManager.createRoom(serverUrl);
             setRoomKey(result.roomKey);
             setIsHost(result.isHost);
             setMembers(result.members);
@@ -362,20 +327,6 @@ const CollaborationModal = props => {
         }
     };
     
-    // 切换成员编辑权限
-    
-    // 批准加入申请
-    const handleApproveJoin = (memberId) => {
-        collaborationManager.approveJoinRequest(memberId);
-    };
-    
-    // 拒绝加入申请
-    const handleRejectJoin = (memberId) => {
-        if (window.confirm('确定要拒绝这个加入申请吗？')) {
-            collaborationManager.rejectJoinRequest(memberId);
-        }
-    };
-
     // 渲染主界面
     const renderMainView = () => (
         <div className={styles.mainView}>
@@ -423,18 +374,6 @@ const CollaborationModal = props => {
                 />
             </div>
             
-            {/* 私密房间选项 */}
-            <div className={styles.privateRoomOption}>
-                <label className={styles.checkboxLabel}>
-                    <input
-                        type="checkbox"
-                        checked={isPrivateRoom}
-                        onChange={e => setIsPrivateRoom(e.target.checked)}
-                    />
-                    <span>创建私密房间（需要房主批准才能加入）</span>
-                </label>
-            </div>
-
             {error && (
                 <div className={styles.errorMessage}>
                     {error}
@@ -485,26 +424,7 @@ const CollaborationModal = props => {
                 </div>
             )}
             
-            {waitingForApproval && (
-                <div className={styles.waitingApproval}>
-                    <div className={styles.waitingIcon}>⏳</div>
-                    <p>等待房主批准你的加入申请...</p>
-                    <button
-                        className={styles.secondaryButton}
-                        onClick={() => {
-                            collaborationManager.leaveRoom();
-                            setWaitingForApproval(false);
-                            setView('main');
-                        }}
-                    >
-                        取消申请
-                    </button>
-                </div>
-            )}
-
-            {!waitingForApproval && (
-                <>
-                    <div className={styles.inputGroup}>
+            <div className={styles.inputGroup}>
                         <label className={styles.inputLabel}>
                             {props.intl.formatMessage(messages.roomKey)}
                         </label>
@@ -525,8 +445,7 @@ const CollaborationModal = props => {
                     >
                         {isLoading ? '加入中...' : props.intl.formatMessage(messages.join)}
                     </button>
-                </>
-            )}
+            </div>
         </div>
     );
 
@@ -554,44 +473,6 @@ const CollaborationModal = props => {
                     <span className={styles.statusText}>实时同步中</span>
                 </div>
             </div>
-
-            {/* 加入申请列表（房主可见） */}
-            {isHost && pendingRequests.length > 0 && (
-                <div className={styles.pendingRequestsSection}>
-                    <h4 className={styles.membersTitle}>
-                        加入申请 ({pendingRequests.length})
-                    </h4>
-                    <div className={styles.membersList}>
-                        {pendingRequests.map(request => (
-                            <div key={request.memberId} className={styles.memberItem}>
-                                <div className={styles.memberInfo}>
-                                    <div className={styles.memberAvatar}>
-                                        {request.username.charAt(0)}
-                                    </div>
-                                    <div className={styles.memberName}>
-                                        {request.username}
-                                        <span className={styles.hostBadge}>申请加入</span>
-                                    </div>
-                                </div>
-                                <div className={styles.memberActions}>
-                                    <button 
-                                        className={styles.approveButton}
-                                        onClick={() => handleApproveJoin(request.memberId)}
-                                    >
-                                        批准
-                                    </button>
-                                    <button 
-                                        className={styles.rejectButton}
-                                        onClick={() => handleRejectJoin(request.memberId)}
-                                    >
-                                        拒绝
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             <div className={styles.membersSection}>
                 <h4 className={styles.membersTitle}>

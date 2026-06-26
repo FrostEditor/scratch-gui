@@ -86,10 +86,6 @@ class CollaborationManager {
         this.canEdit = true; // 自己是否有编辑权限
         this.memberPermissions = {}; // 成员权限映射 memberId -> { canEdit }
         
-        // 私密房间
-        this.isPrivateRoom = false; // 房间是否私密
-        this.pendingJoinRequests = []; // 待处理的加入申请
-        
         // 聊天
         this.chatMessages = [];
         
@@ -313,7 +309,7 @@ class CollaborationManager {
     }
     
     // 创建房间
-    async createRoom(serverUrl = null, isPrivate = false) {
+    async createRoom(serverUrl = null) {
         if (serverUrl) {
             this.setServer(serverUrl, 'workers');
         }
@@ -335,16 +331,15 @@ class CollaborationManager {
             
             this.roomKey = data.roomKey;
             this.memberId = this.generateMemberId();
-            this.isPrivateRoom = isPrivate;
             
-            console.log('[协作] 房间密钥:', this.roomKey, '私密:', isPrivate);
+            console.log('[协作] 房间密钥:', this.roomKey);
             
             // 2. 连接 WebSocket
             const wsUrl = this.serverUrl
                 .replace('https://', 'wss://')
                 .replace('http://', 'ws://');
             
-            const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}&isPrivate=${isPrivate}`;
+            const url = `${wsUrl}/room/${this.roomKey}?memberId=${this.memberId}&username=${encodeURIComponent(this.username)}`;
             
             return this.connectWebSocket(url, true);
         } catch (e) {
@@ -962,46 +957,6 @@ class CollaborationManager {
                 this.emit('members-updated', this.members);
                 break;
                 
-            case 'join-request-pending':
-                // 加入申请已提交，等待房主批准
-                console.log('[协作] 加入申请已提交，等待房主批准...');
-                this.emit('join-request-pending', data);
-                break;
-                
-            case 'join-request':
-                // 收到新的加入申请（房主）
-                console.log('[协作] 收到新的加入申请:', data.username);
-                this.pendingJoinRequests.push({
-                    memberId: data.memberId,
-                    username: data.username
-                });
-                this.emit('join-request', data);
-                this.emit('join-requests-updated', this.pendingJoinRequests);
-                break;
-                
-            case 'join-request-cancelled':
-                // 加入申请被取消
-                console.log('[协作] 加入申请被取消:', data.memberId);
-                this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== data.memberId);
-                this.emit('join-requests-updated', this.pendingJoinRequests);
-                break;
-                
-            case 'join-request-approved':
-                // 加入申请被批准（通知房主）
-                console.log('[协作] 加入申请已批准:', data.memberId);
-                break;
-                
-            case 'join-request-rejected':
-                // 加入申请被拒绝（通知房主）
-                console.log('[协作] 加入申请已拒绝:', data.memberId);
-                break;
-                
-            case 'join-rejected':
-                // 加入申请被拒绝（申请者收到）
-                console.log('[协作] 加入被拒绝:', data.reason);
-                this.emit('join-rejected', data);
-                break;
-                
             case 'kicked':
                 this.handleKicked(data);
                 break;
@@ -1357,41 +1312,6 @@ class CollaborationManager {
                 memberId: memberId,
                 canEdit: canEdit
             }));
-        }
-    }
-    
-    // 批准加入申请（房主功能）
-    approveJoinRequest(memberId) {
-        if (!this.isHost) return;
-        
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-                type: 'approve-join',
-                roomKey: this.roomKey,
-                memberId: memberId
-            }));
-            
-            // 从待处理列表移除
-            this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== memberId);
-            this.emit('join-requests-updated', this.pendingJoinRequests);
-        }
-    }
-    
-    // 拒绝加入申请（房主功能）
-    rejectJoinRequest(memberId, reason = '') {
-        if (!this.isHost) return;
-        
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-                type: 'reject-join',
-                roomKey: this.roomKey,
-                memberId: memberId,
-                reason: reason
-            }));
-            
-            // 从待处理列表移除
-            this.pendingJoinRequests = this.pendingJoinRequests.filter(r => r.memberId !== memberId);
-            this.emit('join-requests-updated', this.pendingJoinRequests);
         }
     }
     
