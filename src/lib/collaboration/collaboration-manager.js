@@ -34,6 +34,16 @@ class CollaborationManager {
             ]
         };
         this.pendingCandidates = {}; // memberId -> [candidates] 等待连接建立后再添加
+        this._rtcRetryCount = {}; // memberId -> 重试次数
+        this._maxRtcRetries = 3; // 最大重试次数
+        this._rtcRetryInterval = 3000; // 重试间隔（毫秒）
+        this._rtcRetryTimeouts = {}; // memberId -> timeout
+        
+        // 大数据分片传输
+        this.MAX_CHUNK_SIZE = 200 * 1024; // 200KB，低于 WebRTC 数据通道限制
+        this._pendingChunks = {}; // chunkId -> { totalChunks, chunks: [], timestamp }
+        this._chunkTimeouts = {}; // chunkId -> timeoutId
+        this.CHUNK_TIMEOUT = 30000; // 分片超时时间 30 秒
         
         // 项目同步
         this.projectUpdateTimeout = null;
@@ -447,11 +457,26 @@ class CollaborationManager {
                             }
                             
                             // 和所有已有的成员建立 WebRTC 连接
-                            // 只有 memberId 字典序较小的一方主动发起，避免重复连接
+                            // 策略：字典序小的一方立即发起，字典序大的一方延迟 1 秒后作为备份发起
                             if (data.members) {
                                 data.members.forEach(member => {
-                                    if (member.id !== this.memberId && this.memberId < member.id) {
-                                        this.initiateRTCConnection(member.id);
+                                    if (member.id !== this.memberId) {
+                                        if (this.memberId < member.id) {
+                                            // 字典序小的一方立即发起
+                                            this.initiateRTCConnection(member.id);
+                                        } else {
+                                            // 字典序大的一方延迟发起作为备份
+                                            const peerMemberId = member.id;
+                                            setTimeout(() => {
+                                                if (this.isConnected && this.members && this.members.some(m => m.id === peerMemberId)) {
+                                                    const conn = this.rtcConnections[peerMemberId];
+                                                    if (!conn || !conn.isOpen) {
+                                                        console.log('[协作] 备份发起 WebRTC 连接:', peerMemberId);
+                                                        this.initiateRTCConnection(peerMemberId);
+                                                    }
+                                                }
+                                            }, 1000);
+                                        }
                                     }
                                 });
                             }
@@ -596,6 +621,9 @@ class CollaborationManager {
         this._cancelRoomExistenceCheck();
         this._roomExistenceChecked = false;
         
+        // 清理分片缓冲区
+        this._cleanupPendingChunks();
+        
         this.emit('left');
     }
     
@@ -659,8 +687,15 @@ class CollaborationManager {
         console.log('[协作] 收到 offer 来自:', fromMemberId);
         
         if (this.rtcConnections[fromMemberId]) {
-            console.warn('[协作] 连接已存在，忽略 offer');
-            return;
+            const existingConn = this.rtcConnections[fromMemberId];
+            // 如果已有连接并且是打开的，忽略重复 offer
+            if (existingConn.isOpen) {
+                console.warn('[协作] 连接已存在且打开，忽略 offer');
+                return;
+            }
+            // 如果连接已存在但未打开，关闭旧连接，重新建立
+            console.warn('[协作] 旧连接未打开，关闭后重新建立:', fromMemberId);
+            this.removeRTCConnection(fromMemberId, true);
         }
         
         const pc = new RTCPeerConnection(this.rtcConfig);
@@ -774,6 +809,8 @@ class CollaborationManager {
             if (this.rtcConnections[peerMemberId]) {
                 this.rtcConnections[peerMemberId].isOpen = true;
             }
+            // 连接成功，重置重试计数
+            this._resetRTCRetryCount(peerMemberId);
             this.emit('peer-connected', peerMemberId);
             
             // 如果是房主，发送当前项目数据给新成员（强制完整 sb3 格式）
@@ -807,7 +844,12 @@ class CollaborationManager {
         channel.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                this.handleDataMessage(data, peerMemberId);
+                // 检查是否是分片数据
+                if (data.type === 'data-chunk') {
+                    this._handleChunkMessage(data);
+                } else {
+                    this.handleDataMessage(data, peerMemberId);
+                }
             } catch (e) {
                 console.error('[协作] 解析 WebRTC 消息失败:', e);
             }
@@ -827,7 +869,7 @@ class CollaborationManager {
     }
     
     // 移除 WebRTC 连接
-    removeRTCConnection(peerMemberId) {
+    removeRTCConnection(peerMemberId, isUserInitiated = false) {
         const conn = this.rtcConnections[peerMemberId];
         if (conn) {
             if (conn.channel) {
@@ -839,12 +881,85 @@ class CollaborationManager {
             delete this.rtcConnections[peerMemberId];
         }
         delete this.pendingCandidates[peerMemberId];
+        
+        // 如果不是用户主动断开，并且还在房间里，尝试重连
+        if (!isUserInitiated && this.isConnected && this.roomKey) {
+            this._attemptRTCReconnect(peerMemberId);
+        }
+    }
+    
+    // 尝试重新建立 WebRTC 连接
+    _attemptRTCReconnect(peerMemberId) {
+        // 清除之前的重试定时器
+        if (this._rtcRetryTimeouts[peerMemberId]) {
+            clearTimeout(this._rtcRetryTimeouts[peerMemberId]);
+            delete this._rtcRetryTimeouts[peerMemberId];
+        }
+        
+        // 初始化重试次数
+        if (this._rtcRetryCount[peerMemberId] === undefined) {
+            this._rtcRetryCount[peerMemberId] = 0;
+        }
+        
+        if (this._rtcRetryCount[peerMemberId] >= this._maxRtcRetries) {
+            console.log(`[协作] WebRTC 连接重试已达最大次数 (${this._maxRtcRetries})，停止重试: ${peerMemberId}`);
+            console.log('[协作] 将继续通过 WebSocket 中继发送消息');
+            return;
+        }
+        
+        this._rtcRetryCount[peerMemberId]++;
+        const retryNum = this._rtcRetryCount[peerMemberId];
+        
+        console.log(`[协作] 尝试第 ${retryNum} 次重新建立 WebRTC 连接: ${peerMemberId}`);
+        
+        this._rtcRetryTimeouts[peerMemberId] = setTimeout(() => {
+            if (!this.isConnected || !this.roomKey) return;
+            
+            // 检查成员是否还在房间里
+            const memberExists = this.members && this.members.some(m => m.id === peerMemberId);
+            if (!memberExists) {
+                console.log('[协作] 成员已离开房间，取消 WebRTC 重连:', peerMemberId);
+                return;
+            }
+            
+            // 字典序小的一方主动发起
+            if (this.memberId < peerMemberId) {
+                console.log(`[协作] 主动发起重连 (第${retryNum}次): ${peerMemberId}`);
+                this.initiateRTCConnection(peerMemberId);
+            } else {
+                console.log(`[协作] 等待对方发起重连 (第${retryNum}次): ${peerMemberId}`);
+                // 如果我们是字典序大的一方，也尝试发起一次作为补偿
+                // 避免因对方状态异常导致永远连不上
+                if (retryNum >= 2) {
+                    console.log(`[协作] 补偿发起重连 (第${retryNum}次): ${peerMemberId}`);
+                    this.initiateRTCConnection(peerMemberId);
+                }
+            }
+        }, this._rtcRetryInterval * retryNum); // 指数退避
+    }
+    
+    // WebRTC 连接成功后重置重试计数
+    _resetRTCRetryCount(peerMemberId) {
+        if (this._rtcRetryCount[peerMemberId] !== undefined) {
+            delete this._rtcRetryCount[peerMemberId];
+        }
+        if (this._rtcRetryTimeouts[peerMemberId]) {
+            clearTimeout(this._rtcRetryTimeouts[peerMemberId]);
+            delete this._rtcRetryTimeouts[peerMemberId];
+        }
     }
     
     // 关闭所有 WebRTC 连接
     closeAllRTCConnections() {
+        // 清除所有重试定时器
+        Object.keys(this._rtcRetryTimeouts).forEach(peerMemberId => {
+            clearTimeout(this._rtcRetryTimeouts[peerMemberId]);
+        });
+        this._rtcRetryTimeouts = {};
+        this._rtcRetryCount = {};
+        
         Object.keys(this.rtcConnections).forEach(peerMemberId => {
-            this.removeRTCConnection(peerMemberId);
+            this.removeRTCConnection(peerMemberId, true);
         });
     }
     
@@ -863,12 +978,29 @@ class CollaborationManager {
         }));
     }
     
-    // 发送数据消息（优先通过 WebRTC 广播给所有人）
+    // 发送数据消息（优先通过 WebRTC 广播给所有人，没连上的用 WebSocket 中继）
     sendData(data) {
         const messageStr = JSON.stringify(data);
         let sentCount = 0;
 
+        // 遍历所有成员，而不只是有 WebRTC 连接的
+        // 确保即使 WebRTC 连接失败，消息也能通过 WebSocket 中继送达
+        const memberIds = [];
+        if (this.members && Array.isArray(this.members)) {
+            this.members.forEach(member => {
+                if (member.id !== this.memberId) {
+                    memberIds.push(member.id);
+                }
+            });
+        }
+        // 同时也遍历 rtcConnections，防止 members 列表还没更新的情况
         Object.keys(this.rtcConnections).forEach(peerMemberId => {
+            if (peerMemberId !== this.memberId && !memberIds.includes(peerMemberId)) {
+                memberIds.push(peerMemberId);
+            }
+        });
+
+        memberIds.forEach(peerMemberId => {
             const conn = this.rtcConnections[peerMemberId];
             if (conn && conn.isOpen && conn.channel) {
                 try {
@@ -898,6 +1030,176 @@ class CollaborationManager {
             to: toMemberId,
             payload: data
         }));
+    }
+    
+    // 分片发送大数据（用于 sb3 项目等大文件）
+    // 避免单条消息超过 WebSocket/WebRTC 限制导致数据截断
+    _sendLargeData(data, peerMemberId = null) {
+        const messageStr = JSON.stringify(data);
+        const totalSize = messageStr.length;
+        
+        // 小于分片阈值，直接发送
+        if (totalSize <= this.MAX_CHUNK_SIZE) {
+            if (peerMemberId) {
+                this.sendDataViaWebSocket(data, peerMemberId);
+            } else {
+                this.sendData(data);
+            }
+            return true;
+        }
+        
+        console.log(`[协作] 大数据分片发送: ${totalSize} 字节 => ${Math.ceil(totalSize / this.MAX_CHUNK_SIZE)} 个分片`);
+        
+        const chunkId = 'chunk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const totalChunks = Math.ceil(totalSize / this.MAX_CHUNK_SIZE);
+        
+        const targetMemberIds = peerMemberId 
+            ? [peerMemberId]
+            : this._getAllPeerMemberIds();
+        
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * this.MAX_CHUNK_SIZE;
+            const end = Math.min(start + this.MAX_CHUNK_SIZE, totalSize);
+            const chunkData = messageStr.substring(start, end);
+            
+            const chunkMessage = {
+                type: 'data-chunk',
+                chunkId: chunkId,
+                totalChunks: totalChunks,
+                chunkIndex: i,
+                data: chunkData,
+                payloadType: data.type, // 保留原始消息类型，用于重组后路由
+                memberId: this.memberId
+            };
+            
+            targetMemberIds.forEach(targetId => {
+                if (peerMemberId) {
+                    // 指定了目标成员，使用 WebSocket 中继
+                    this._sendChunk(chunkMessage, targetId);
+                } else {
+                    // 广播模式，优先 WebRTC，回退 WebSocket
+                    const conn = this.rtcConnections[targetId];
+                    if (conn && conn.isOpen && conn.channel) {
+                        try {
+                            conn.channel.send(JSON.stringify(chunkMessage));
+                        } catch (e) {
+                            this._sendChunk(chunkMessage, targetId);
+                        }
+                    } else {
+                        this._sendChunk(chunkMessage, targetId);
+                    }
+                }
+            });
+        }
+        
+        return true;
+    }
+    
+    // 发送单个分片
+    _sendChunk(chunkMessage, toMemberId) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify({
+            type: 'data-relay',
+            roomKey: this.roomKey,
+            from: this.memberId,
+            to: toMemberId,
+            payload: chunkMessage
+        }));
+    }
+    
+    // 获取所有其他成员的 ID 列表
+    _getAllPeerMemberIds() {
+        const memberIds = [];
+        if (this.members && Array.isArray(this.members)) {
+            this.members.forEach(member => {
+                if (member.id !== this.memberId) {
+                    memberIds.push(member.id);
+                }
+            });
+        }
+        Object.keys(this.rtcConnections).forEach(peerMemberId => {
+            if (peerMemberId !== this.memberId && !memberIds.includes(peerMemberId)) {
+                memberIds.push(peerMemberId);
+            }
+        });
+        return memberIds;
+    }
+    
+    // 处理收到的分片数据
+    _handleChunkMessage(data) {
+        const { chunkId, totalChunks, chunkIndex, data: chunkData, payloadType } = data;
+        
+        // 初始化分片缓冲区
+        if (!this._pendingChunks[chunkId]) {
+            this._pendingChunks[chunkId] = {
+                totalChunks: totalChunks,
+                chunks: new Array(totalChunks),
+                receivedCount: 0,
+                timestamp: Date.now(),
+                payloadType: payloadType
+            };
+            
+            // 设置超时清理
+            this._chunkTimeouts[chunkId] = setTimeout(() => {
+                console.warn('[协作] 分片接收超时，清理:', chunkId);
+                this._cleanupChunk(chunkId);
+            }, this.CHUNK_TIMEOUT);
+        }
+        
+        const buffer = this._pendingChunks[chunkId];
+        
+        // 存储分片
+        if (!buffer.chunks[chunkIndex]) {
+            buffer.chunks[chunkIndex] = chunkData;
+            buffer.receivedCount++;
+        }
+        
+        console.log(`[协作] 收到分片 ${chunkIndex + 1}/${totalChunks} (${chunkId}), 已收集: ${buffer.receivedCount}/${totalChunks}`);
+        
+        // 检查是否收集完所有分片
+        if (buffer.receivedCount === totalChunks) {
+            console.log('[协作] 分片接收完成，重组数据:', chunkId);
+            
+            // 清除超时
+            if (this._chunkTimeouts[chunkId]) {
+                clearTimeout(this._chunkTimeouts[chunkId]);
+                delete this._chunkTimeouts[chunkId];
+            }
+            
+            // 重组数据
+            const fullData = buffer.chunks.join('');
+            delete this._pendingChunks[chunkId];
+            
+            // 解析并处理完整数据
+            try {
+                const parsedData = JSON.parse(fullData);
+                parsedData._fromChunked = true; // 标记来自分片重组
+                // 路由到原有的消息处理器
+                this.handleDataMessage(parsedData, data.memberId);
+            } catch (e) {
+                console.error('[协作] 分片数据重组后解析失败:', e);
+            }
+        }
+    }
+    
+    // 清理单个分片缓冲区
+    _cleanupChunk(chunkId) {
+        if (this._chunkTimeouts[chunkId]) {
+            clearTimeout(this._chunkTimeouts[chunkId]);
+            delete this._chunkTimeouts[chunkId];
+        }
+        if (this._pendingChunks[chunkId]) {
+            delete this._pendingChunks[chunkId];
+        }
+    }
+    
+    // 清理所有分片缓冲区（离开房间时调用）
+    _cleanupPendingChunks() {
+        Object.keys(this._chunkTimeouts).forEach(chunkId => {
+            clearTimeout(this._chunkTimeouts[chunkId]);
+        });
+        this._chunkTimeouts = {};
+        this._pendingChunks = {};
     }
     
     // ========== 消息处理 ==========
@@ -976,8 +1278,18 @@ class CollaborationManager {
             case 'data-relay':
                 // WebSocket 中继的数据消息（后备）
                 if (data.to === this.memberId) {
-                    this.handleDataMessage(data.payload, data.from);
+                    // 检查是否是分片数据
+                    if (data.payload && data.payload.type === 'data-chunk') {
+                        this._handleChunkMessage(data.payload);
+                    } else {
+                        this.handleDataMessage(data.payload, data.from);
+                    }
                 }
+                break;
+                
+            case 'data-chunk':
+                // 直接收到的分片数据
+                this._handleChunkMessage(data);
                 break;
                 
             // 旧的直接消息（兼容老版本服务器，或者作为后备）
@@ -1146,15 +1458,25 @@ class CollaborationManager {
             this.sendTabChange(this.currentTab);
         }, 300);
         
-        // 如果是已有的成员（比我先加入的），我已经在加入房间时发起连接了
-        // 如果是新加入的成员（比我晚加入的），我需要主动发起连接
-        // 但为了避免重复，我们约定：memberId 较小的一方主动发起
-        // 不过简单起见，房主主动发起，或者所有人都主动发起，重复的会被忽略
+        // 发起 WebRTC 连接
+        // 策略：字典序小的一方立即发起，字典序大的一方延迟 1 秒后作为备份发起
+        // 这样即使一方发起失败，另一方也能补上，提高连接成功率
         if (member.id !== this.memberId) {
-            // 简单起见，每个人都主动发起，重复的 offer 会被忽略
-            // 但为了避免冲突，我们让 memberId 字典序小的一方主动发起
             if (this.memberId < member.id) {
+                // 字典序小的一方立即发起
                 this.initiateRTCConnection(member.id);
+            } else {
+                // 字典序大的一方延迟 1 秒后发起作为备份
+                // 如果对方已经成功建立连接，重复的 offer 会被检测到并跳过
+                setTimeout(() => {
+                    if (this.isConnected && this.members && this.members.some(m => m.id === member.id)) {
+                        const conn = this.rtcConnections[member.id];
+                        if (!conn || !conn.isOpen) {
+                            console.log('[协作] 备份发起 WebRTC 连接:', member.username || member.id);
+                            this.initiateRTCConnection(member.id);
+                        }
+                    }
+                }, 1000);
             }
         }
     }
@@ -1204,14 +1526,9 @@ class CollaborationManager {
                 isInitial: true // 标记为初始项目
             };
             
-            // 通过 WebSocket 中继发送
-            this.ws.send(JSON.stringify({
-                type: 'data-relay',
-                roomKey: this.roomKey,
-                from: this.memberId,
-                to: toMemberId,
-                payload: projectData
-            }));
+            // 使用分片发送初始项目，避免大数据超过 WebSocket 限制
+            // 指定 toMemberId 确保只发送给目标成员
+            this._sendLargeData(projectData, toMemberId);
             
             console.log('[协作] 初始项目已通过 WebSocket 发送给:', toMemberId);
             
@@ -1227,7 +1544,16 @@ class CollaborationManager {
         delete this.mousePositions[memberId];
         delete this.memberColors[memberId];
         delete this.memberTabs[memberId]; // 清除标签页记录
-        this.removeRTCConnection(memberId);
+        // 成员已离开房间，标记为用户主动断开，避免重连
+        this.removeRTCConnection(memberId, true);
+        // 清除重试状态
+        if (this._rtcRetryTimeouts[memberId]) {
+            clearTimeout(this._rtcRetryTimeouts[memberId]);
+            delete this._rtcRetryTimeouts[memberId];
+        }
+        if (this._rtcRetryCount[memberId] !== undefined) {
+            delete this._rtcRetryCount[memberId];
+        }
         this.emit('member-left', memberId);
         this.emit('members-updated', this.members);
     }
@@ -1811,7 +2137,9 @@ class CollaborationManager {
             }
             
             this.lastProjectData = projectData;
-            this.sendData(projectData);
+            // 使用分片发送，避免大数据超过 WebSocket/WebRTC 限制
+            // sb3 项目可能包含角色图片等大文件，单条消息可能被截断
+            this._sendLargeData(projectData);
         } catch (e) {
             console.error('[协作] 发送项目更新失败:', e);
         }
@@ -1897,6 +2225,11 @@ class CollaborationManager {
             setTimeout(() => {
                 this.hasReceivedProject = true;
                 console.log('[协作] 项目加载完成，Blockly 工作区已就绪');
+                // 重新绑定 Blockly 监听器到新的工作区
+                // 因为 loadProject 会销毁旧工作区并创建新的，旧监听器已失效
+                if (this.isBlocksSyncActive) {
+                    this._reattachBlocklyListener();
+                }
             }, 3000);
         } catch (e) {
             console.error('[协作] 加载项目失败:', e);
@@ -1935,8 +2268,11 @@ class CollaborationManager {
     // 启动积木同步
     startBlocksSync() {
         if (this.isBlocksSyncActive) return;
-        
         this.isBlocksSyncActive = true;
+        
+        // 重置监听器引用，确保每次调用都能重新绑定到当前工作区
+        // 因为 loadProject 会销毁旧工作区并创建新的，需要重新绑定
+        this._detachBlocklyListener();
         
         // 添加积木移动动画样式（让远程同步更流畅）
         this._addBlocksAnimationStyle();
@@ -2031,6 +2367,51 @@ class CollaborationManager {
         return workspace;
     }
     
+    // 移除旧的 Blockly 监听器（用于工作区切换时重新绑定）
+    _detachBlocklyListener() {
+        if (this._blocksChangeListener) {
+            try {
+                const workspace = this._getBlocklyWorkspace();
+                if (workspace && workspace.removeChangeListener) {
+                    workspace.removeChangeListener(this._blocksChangeListener);
+                }
+            } catch (e) {
+                // 忽略移除失败（旧工作区可能已被销毁）
+            }
+            this._blocksChangeListener = null;
+        }
+    }
+    
+    // 重新绑定 Blockly 监听器到当前工作区
+    // 在加载远程项目后调用，因为 loadProject 会销毁旧工作区并创建新的
+    _reattachBlocklyListener() {
+        this._detachBlocklyListener();
+        
+        const tryAdd = () => {
+            const workspace = this._getBlocklyWorkspace();
+            if (workspace && workspace.addChangeListener) {
+                this._blocksChangeListener = (event) => {
+                    this.handleBlocklyEvent(event);
+                };
+                workspace.addChangeListener(this._blocksChangeListener);
+                console.log('[协作] 已重新绑定 Blockly 事件监听器');
+                return true;
+            }
+            return false;
+        };
+        
+        if (!tryAdd()) {
+            // 重试最多 20 次（10 秒）
+            let retryCount = 0;
+            const retryInterval = setInterval(() => {
+                retryCount++;
+                if (tryAdd() || retryCount >= 20) {
+                    clearInterval(retryInterval);
+                }
+            }, 500);
+        }
+    }
+    
     // 添加积木动画样式
     _addBlocksAnimationStyle() {
         if (this._blocksAnimationStyle) return;
@@ -2058,15 +2439,7 @@ class CollaborationManager {
             this._resourceCheckInterval = null;
         }
         
-        try {
-            const workspace = this._getBlocklyWorkspace();
-            if (workspace && this._blocksChangeListener) {
-                workspace.removeChangeListener(this._blocksChangeListener);
-                this._blocksChangeListener = null;
-            }
-        } catch (e) {
-            // 忽略
-        }
+        this._detachBlocklyListener();
     }
     
     // 工作区变化处理
@@ -2418,8 +2791,23 @@ class CollaborationManager {
             const spriteNameMatch = data.spriteName && this.vm.editingTarget.sprite?.name === data.spriteName;
             
             if (!targetIdMatch && !spriteNameMatch) {
-                // 不是当前编辑的角色，忽略事件（等切换到该角色时会全量同步）
-                return;
+                // targetId 和 spriteName 都不匹配，但积木可能存在于当前工作区
+                // 例如：加载远程项目后 VM 重新生成了 target ID，导致 ID 不匹配
+                // 回退：检查积木 ID 是否在当前工作区中存在
+                const blockId = data.event?.blockId;
+                if (blockId) {
+                    const workspace = this._getBlocklyWorkspace();
+                    const blockExists = workspace && workspace.getBlockById(blockId);
+                    if (!blockExists) {
+                        // 积木不在当前工作区，忽略事件
+                        return;
+                    }
+                    // 积木存在于当前工作区，允许应用事件
+                    console.log('[协作] targetId 不匹配但积木存在，允许应用:', data.event.type, blockId);
+                } else {
+                    // 没有 blockId（如 var_create 等），忽略
+                    return;
+                }
             }
         }
         
@@ -2568,7 +2956,12 @@ class CollaborationManager {
             const spriteNameMatch = data.spriteName && this.vm.editingTarget.sprite?.name === data.spriteName;
             
             if (!targetIdMatch && !spriteNameMatch) {
-                return;
+                // 回退：检查积木是否在当前工作区中存在
+                const workspace = this._getBlocklyWorkspace();
+                const blockExists = workspace && workspace.getBlockById(data.blockId);
+                if (!blockExists) {
+                    return;
+                }
             }
         }
         
