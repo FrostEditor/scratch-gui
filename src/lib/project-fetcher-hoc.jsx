@@ -25,6 +25,7 @@ import storage from './storage';
 
 import VM from 'scratch-vm';
 import {fetchProjectMeta} from './tw-project-meta-fetcher-hoc.jsx';
+import {setCodeLocked} from '../reducers/tw';
 
 // TW: Temporary hack for project tokens
 const fetchProjectToken = async projectId => {
@@ -55,6 +56,21 @@ const fetchProjectToken = async projectId => {
  * @param {React.Component} WrappedComponent component to receive projectData prop
  * @returns {React.Component} component with project loading behavior
  */
+
+// tw: 判断一个 URL 是否为跨域（data: 视为同源，不代理）
+const isCrossOrigin = (urlString) => {
+    try {
+        const parsed = new URL(urlString, window.location.href);
+        if (parsed.protocol === 'data:') return false;
+        return parsed.origin !== window.location.origin;
+    } catch (e) {
+        return true; // 解析不出就按跨域处理，交给代理兜底
+    }
+};
+
+// tw: 将跨域地址改写为同源代理地址
+const toProxyUrl = (urlString) => `/proxy?url=${encodeURIComponent(urlString)}`;
+
 const ProjectFetcherHOC = function (WrappedComponent) {
     class ProjectFetcherComponent extends React.Component {
         constructor (props) {
@@ -107,9 +123,20 @@ const ProjectFetcherHOC = function (WrappedComponent) {
 
             let assetPromise;
             // In case running in node...
-            let projectUrl = typeof URLSearchParams === 'undefined' ?
-                null :
-                new URLSearchParams(location.search).get('project_url');
+            let projectUrl = null;
+            // tw: 代码锁定模式 —— 远程作品 URL 携带 ?lock 参数时，隐藏“在编辑器中打开”按钮
+            let codeLocked = false;
+            if (typeof URLSearchParams !== 'undefined') {
+                const searchParams = new URLSearchParams(location.search);
+                // tw: 支持两种跨域作品来源：
+                //   ?project_url=https://...   （标准 TurboWarp 形式）
+                //   ?=https://...              （无参数名的简写形式）
+                projectUrl = searchParams.get('project_url') || searchParams.get('');
+                // tw: 代码锁定模式也允许直接写在嵌入页 URL 上（如 &lock），与远程 URL 上的 ?lock 等效
+                if (searchParams.has('lock')) {
+                    codeLocked = true;
+                }
+            }
             if (projectUrl) {
                 if (
                     !projectUrl.startsWith('http:') &&
@@ -118,6 +145,24 @@ const ProjectFetcherHOC = function (WrappedComponent) {
                 ) {
                     projectUrl = `https://${projectUrl}`;
                 }
+                // tw: 解析远程作品 URL 上的 ?lock 参数，开启代码锁定模式。
+                // 命中后从实际请求的 URL 中剔除该参数，避免远程服务器因未知参数报错。
+                try {
+                    const parsed = new URL(projectUrl, window.location.href);
+                    if (parsed.searchParams.has('lock')) {
+                        codeLocked = true;
+                        parsed.searchParams.delete('lock');
+                        projectUrl = parsed.href;
+                    }
+                } catch (e) {
+                    // 解析失败则忽略，按未锁定处理
+                }
+                // tw: 跨域地址走同源 /proxy 代理，规避浏览器 CORS 限制。
+                // 代理由 dev server（webpack.config.js）与生产代理（proxy-server.js）提供。
+                // 同源 / data: 地址不代理，避免无谓转发与死循环。
+                if (isCrossOrigin(projectUrl)) {
+                    projectUrl = toProxyUrl(projectUrl);
+                }
                 assetPromise = fetch(projectUrl)
                     .then(r => {
                         if (!r.ok) {
@@ -125,7 +170,19 @@ const ProjectFetcherHOC = function (WrappedComponent) {
                         }
                         return r.arrayBuffer();
                     })
-                    .then(buffer => ({data: buffer}));
+                    .then(buffer => {
+                        // tw: 校验返回内容是否为 HTML（而非 .sb3 压缩包）。
+                        // 代理未生效 / 远程返回错误页时，浏览器会收到一整页 HTML，
+                        // 直接丢给 VM 会抛出难懂的 "is not valid JSON"，这里提前拦截。
+                        const head = new Uint8Array(buffer.slice(0, 512));
+                        const text = String.fromCharCode.apply(null, head).replace(/^\s+/, '');
+                        if (text.startsWith('<')) {
+                            throw new Error('远程地址返回的不是有效的 .sb3 作品文件（收到的是 HTML 页面）。' +
+                                '请确认该 URL 直接在浏览器打开会下载 .sb3；' +
+                                '若刚改过 webpack 配置，请重启 npm start 使 /proxy 代理生效。');
+                        }
+                        return {data: buffer};
+                    });
             } else {
                 // TW: Temporary hack for project tokens
                 assetPromise = fetchProjectToken(projectId)
@@ -134,6 +191,9 @@ const ProjectFetcherHOC = function (WrappedComponent) {
                         return storage.load(storage.AssetType.Project, projectId, storage.DataFormat.JSON);
                     });
             }
+
+            // tw: 立即同步更新代码锁定状态，使“在编辑器中打开”按钮在加载时就被移除
+            this.props.setCodeLocked(codeLocked);
 
             return assetPromise
                 .then(projectAsset => {
@@ -191,6 +251,7 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         onFetchedProjectData: PropTypes.func,
         onProjectUnchanged: PropTypes.func,
         projectHost: PropTypes.string,
+        setCodeLocked: PropTypes.func,
         projectToken: PropTypes.string,
         projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
         reduxProjectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -217,7 +278,8 @@ const ProjectFetcherHOC = function (WrappedComponent) {
         onFetchedProjectData: (projectData, loadingState) =>
             dispatch(onFetchedProjectData(projectData, loadingState)),
         setProjectId: projectId => dispatch(setProjectId(projectId)),
-        onProjectUnchanged: () => dispatch(setProjectUnchanged())
+        onProjectUnchanged: () => dispatch(setProjectUnchanged()),
+        setCodeLocked: codeLocked => dispatch(setCodeLocked(codeLocked))
     });
     // Allow incoming props to override redux-provided props. Used to mock in tests.
     const mergeProps = (stateProps, dispatchProps, ownProps) => Object.assign(

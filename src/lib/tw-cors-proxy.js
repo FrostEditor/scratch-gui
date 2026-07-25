@@ -1,0 +1,184 @@
+// tw: 同源 CORS 代理中间件
+//
+// 浏览器无法绕过跨域限制：远程服务器如果不返回 Access-Control-Allow-Origin，
+// 直接 fetch 会被拦截。本中间件把「跨域请求」改成「同源请求」：
+//   浏览器 -> 我们的服务器 /proxy?url=<目标URL> -> 服务器去拉远程文件 -> 原样回传
+// 浏览器请求的是同源地址，因此不再受 CORS 限制。
+//
+// 三种用法：
+//   1) webpack-dev-server (v3)：在 devServer.before(app) 里 app.use('/proxy', corsProxyMiddleware())
+//   2) 自建 Express 服务器：app.use('/proxy', corsProxyMiddleware())
+//   3) 纯 Node 服务器：把 /proxy* 请求交给 corsProxyMiddleware()(req, res)
+//
+// 支持两种 URL 写法：
+//   /proxy?url=https%3A%2F%2Fexample.com%2Fx.sb3
+//   /proxy/https%3A%2F%2Fexample.com%2Fx.sb3   （路径形式）
+//
+// 安全：作为开放代理存在 SSRF 风险，这里仅做基础防护（拦截回环/内网地址、
+// 限制重定向次数与体积），正式上线请配合速率限制/鉴权/白名单使用。
+
+const http = require('http');
+const https = require('https');
+const url = require('url');
+
+const MAX_REDIRECTS = 5;
+const MAX_SIZE = 200 * 1024 * 1024; // 200MB 上限，避免被当作放大攻击跳板
+
+// 基础 SSRF 防护：拦截明显的回环 / 内网地址
+const isBlockedHost = (hostname) => {
+    const h = String(hostname || '').toLowerCase();
+    if (!h) return true;
+    if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) {
+        return true;
+    }
+    const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (m) {
+        const a = +m[1];
+        const b = +m[2];
+        const c = +m[3];
+        const d = +m[4];
+        if (a > 255 || b > 255 || c > 255 || d > 255) return true;
+        if (a === 0 || a === 127 || a === 10) return true;
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        if (a === 192 && b === 168) return true;
+        if (a === 169 && b === 254) return true;
+    }
+    return false;
+};
+
+// 服务端去拉远程资源，返回的 res 可直接 pipe 给客户端
+const fetchRemote = (targetUrl, redirectCount) => new Promise((resolve, reject) => {
+    let parsed;
+    try {
+        parsed = new URL(targetUrl);
+    } catch (e) {
+        return reject(new Error('Invalid url'));
+    }
+    const lib = parsed.protocol === 'https:' ? https : http;
+    const options = {
+        method: 'GET',
+        headers: {
+            'User-Agent': 'TW-CorsProxy/1.0',
+            'Accept': '*/*'
+        },
+        timeout: 30000
+    };
+    const req = lib.get(targetUrl, options, (res) => {
+        // 跟随重定向
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+            if (redirectCount >= MAX_REDIRECTS) {
+                res.resume();
+                return reject(new Error('Too many redirects'));
+            }
+            const next = new URL(res.headers.location, targetUrl).toString();
+            res.resume();
+            return resolve(fetchRemote(next, redirectCount + 1));
+        }
+        if (res.statusCode >= 400) {
+            res.resume();
+            return reject(new Error(`Remote returned status ${res.statusCode}`));
+        }
+        // 体积保护
+        let size = 0;
+        res.on('data', (chunk) => {
+            size += chunk.length;
+            if (size > MAX_SIZE) {
+                res.destroy();
+                reject(new Error('Response too large'));
+            }
+        });
+        resolve(res);
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+    });
+});
+
+const extractTarget = (reqUrl) => {
+    const parsed = url.parse(reqUrl, true);
+    let target = parsed.query && parsed.query.url;
+    if (!target) {
+        // 路径形式：/proxy/<encoded> 或 /proxy/https://...
+        const after = parsed.pathname.replace(/^\/proxy\/?/, '');
+        target = decodeURIComponent(after);
+    }
+    return target;
+};
+
+const corsProxyMiddleware = () => (req, res) => {
+    // 处理 CORS 预检（同源下通常不需要，但保留以兼容将来代理真正的跨域 XHR）
+    if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.statusCode = 204;
+        res.end();
+        return;
+    }
+    if (req.method !== 'GET') {
+        res.statusCode = 405;
+        res.end('Method not allowed');
+        return;
+    }
+
+    const target = extractTarget(req.url);
+    if (!target || !/^https?:\/\//i.test(target)) {
+        res.statusCode = 400;
+        res.end('Missing or invalid url');
+        return;
+    }
+
+    let parsedTarget;
+    try {
+        parsedTarget = new URL(target);
+    } catch (e) {
+        res.statusCode = 400;
+        res.end('Invalid url');
+        return;
+    }
+    if (isBlockedHost(parsedTarget.hostname)) {
+        res.statusCode = 403;
+        res.end('Blocked host');
+        return;
+    }
+
+    fetchRemote(parsedTarget.toString(), 0)
+        .then((remoteRes) => {
+            // 远程返回 HTML（错误页 / 登录页 / 防盗链页）时，不要把它当作品
+            // 传回浏览器——否则前端 VM 解析会抛出难懂的 "is not valid JSON"。
+            const ct = (remoteRes.headers['content-type'] || '').toLowerCase();
+            if (ct.includes('text/html')) {
+                res.statusCode = 502;
+                res.end('Remote returned an HTML page instead of a project file. ' +
+                    'The URL may require authentication, block hotlinking, ' +
+                    'or the file does not exist.');
+                return;
+            }
+            res.statusCode = remoteRes.statusCode;
+            const passHeaders = [
+                'content-type', 'content-length', 'content-encoding',
+                'cache-control', 'last-modified', 'etag', 'accept-ranges'
+            ];
+            passHeaders.forEach((h) => {
+                const v = remoteRes.headers[h];
+                if (v) res.setHeader(h, v);
+            });
+            // 关键：让任何来源的页面都能用这个同源代理
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            remoteRes.pipe(res);
+        })
+        .catch((err) => {
+            if (!res.headersSent) {
+                res.statusCode = 502;
+                res.end(`Proxy error: ${err.message}`);
+            }
+        });
+};
+
+module.exports = {
+    corsProxyMiddleware,
+    fetchRemote,
+    isBlockedHost
+};

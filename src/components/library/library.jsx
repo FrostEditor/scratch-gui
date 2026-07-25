@@ -6,7 +6,6 @@ import {defineMessages, injectIntl, intlShape} from 'react-intl';
 
 import LibraryItem from '../../containers/library-item.jsx';
 import Modal from '../../containers/modal.jsx';
-import Divider from '../divider/divider.jsx';
 import Filter from '../filter/filter.jsx';
 import TagButton from '../../containers/tag-button.jsx';
 import Spinner from '../spinner/spinner.jsx';
@@ -373,46 +372,25 @@ class LibraryComponent extends React.Component {
                 ) : (
                     // 原来的布局
                     <React.Fragment>
-                        {(this.props.filterable || this.props.tags) && (
+                        {this.props.filterable && (
                             <div className={styles.filterBar}>
-                                {this.props.filterable && (
-                                    <Filter
-                                        className={classNames(
-                                            styles.filterBarItem,
-                                            styles.filter
-                                        )}
-                                        filterQuery={this.state.filterQuery}
-                                        inputClassName={styles.filterInput}
-                                        placeholderText={this.props.intl.formatMessage(messages.filterPlaceholder)}
-                                        onChange={this.handleFilterChange}
-                                        onClear={this.handleFilterClear}
-                                    />
-                                )}
-                                {this.props.filterable && this.props.tags && (
-                                    <Divider className={classNames(styles.filterBarItem, styles.divider)} />
-                                )}
-                                {this.props.tags &&
-                                    <div className={styles.tagWrapper}>
-                                        {tagListPrefix.concat(this.props.tags).map((tagProps, id) => (
-                                            <TagButton
-                                                active={this.state.selectedTag === tagProps.tag.toLowerCase()}
-                                                className={classNames(
-                                                    styles.filterBarItem,
-                                                    styles.tagButton,
-                                                    tagProps.className
-                                                )}
-                                                key={`tag-button-${id}`}
-                                                onClick={this.handleTagClick}
-                                                {...tagProps}
-                                            />
-                                        ))}
-                                    </div>
-                                }
+                                <Filter
+                                    className={classNames(
+                                        styles.filterBarItem,
+                                        styles.filter
+                                    )}
+                                    filterQuery={this.state.filterQuery}
+                                    inputClassName={styles.filterInput}
+                                    placeholderText={this.props.intl.formatMessage(messages.filterPlaceholder)}
+                                    onChange={this.handleFilterChange}
+                                    onClear={this.handleFilterClear}
+                                />
                             </div>
                         )}
                         <div
                             className={classNames(styles.libraryScrollGrid, {
-                                [styles.withFilterBar]: this.props.filterable || this.props.tags
+                                [styles.withFilterBar]: this.props.filterable,
+                                [styles.withTagBar]: this.props.tags
                             })}
                             ref={this.setFilteredDataRef}
                         >
@@ -472,6 +450,25 @@ class LibraryComponent extends React.Component {
                                 </div>
                             )}
                         </div>
+                        {this.props.tags && (
+                            <div className={styles.tagBar}>
+                                <div className={styles.tagWrapper}>
+                                    {tagListPrefix.concat(this.props.tags).map((tagProps, id) => (
+                                        <TagButton
+                                            active={this.state.selectedTag === tagProps.tag.toLowerCase()}
+                                            className={classNames(
+                                                styles.filterBarItem,
+                                                styles.tagButton,
+                                                tagProps.className
+                                            )}
+                                            key={`tag-button-${id}`}
+                                            onClick={this.handleTagClick}
+                                            {...tagProps}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </React.Fragment>
                 )}
             </Modal>

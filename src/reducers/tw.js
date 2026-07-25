@@ -17,6 +17,7 @@ const SET_HAS_CLOUD_VARIABLES = 'tw/SET_HAS_CLOUD_VARIABLES';
 const SET_CLOUD_HOST = 'tw/SET_CLOUD_HOST';
 const SET_PLATFORM_MISMATCH_DETAILS = 'tw/SET_PLATFORM_MISMATCH_DETAILS';
 const SET_PROJECT_ERROR = 'tw/SET_PROJECT_ERROR';
+const SET_CODE_LOCKED = 'tw/SET_CODE_LOCKED';
 
 export const initialState = {
     framerate: 30,
@@ -52,7 +53,10 @@ export const initialState = {
         platform: null,
         callback: null
     },
-    projectError: null
+    projectError: null,
+    // tw: 代码锁定模式 —— 为 true 时嵌入页隐藏“在编辑器中打开”按钮。
+    // 默认 false（不锁定，按钮正常显示）。由远程作品 URL 携带 ?lock 参数开启。
+    codeLocked: false
 };
 
 const reducer = function (state, action) {
@@ -139,6 +143,10 @@ const reducer = function (state, action) {
     case SET_PROJECT_ERROR:
         return Object.assign({}, state, {
             projectError: action.projectError
+        });
+    case SET_CODE_LOCKED:
+        return Object.assign({}, state, {
+            codeLocked: action.codeLocked
         });
     default:
         return state;
@@ -278,6 +286,13 @@ const setProjectError = function (projectError) {
     };
 };
 
+const setCodeLocked = function (codeLocked) {
+    return {
+        type: SET_CODE_LOCKED,
+        codeLocked
+    };
+};
+
 export {
     reducer as default,
     initialState as twInitialState,
@@ -299,5 +314,6 @@ export {
     setHasCloudVariables,
     setCloudHost,
     setPlatformMismatchDetails,
-    setProjectError
+    setProjectError,
+    setCodeLocked
 };

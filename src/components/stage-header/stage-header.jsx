@@ -18,6 +18,7 @@ import largeStageIcon from '!../../lib/tw-recolor/build!./icon--large-stage.svg'
 import smallStageIcon from '!../../lib/tw-recolor/build!./icon--small-stage.svg';
 import fullStageIcon from '!../../lib/tw-recolor/build!./icon--full-stage.svg';
 import settingsIcon from './icon--settings.svg';
+import openEditorIcon from './icon--open-editor.svg';
 
 import styles from './stage-header.css';
 
@@ -58,8 +59,27 @@ const messages = defineMessages({
         defaultMessage: 'Open advanced settings',
         description: 'Button to open advanced settings in embeds',
         id: 'tw.openAdvanced'
+    },
+    openEditorMessage: {
+        defaultMessage: '在编辑器中打开',
+        description: '按钮：在嵌入页面中打开完整的编辑器',
+        id: 'tw.stageHeader.openEditor'
     }
 });
+
+// tw: 由当前 embed 页面的 URL 派生出对应的完整编辑器 URL
+// 语义：别的网站用 iframe 嵌入“我们”的编辑器时，点此按钮直接打开“我们”的
+// 完整编辑器。这里只把 embed 页换成 editor 页，并保留查询参数与 hash
+// （包括 project_url 跨域项目 / hash 中指向其它站点的项目链接），
+// 这样完整编辑器能继续使用 project_url 跨域加载作品。
+const getEditorUrl = () => {
+    const url = new URL(window.location.href);
+    // /123/embed -> /123 （路径形式部署）
+    url.pathname = url.pathname.replace(/\/embed\/?$/, '');
+    // /embed.html -> /editor.html （根嵌入页形式部署，保留 ?project_url= 与 #项目ID）
+    url.pathname = url.pathname.replace(/\/embed\.html$/, '/editor.html');
+    return url.href;
+};
 
 const enableSettingsButton = new URLSearchParams(location.search).has('settings-button');
 
@@ -79,7 +99,8 @@ const StageHeaderComponent = function (props) {
         isEmbedded,
         stageSize,
         stageSizeMode,
-        vm
+        vm,
+        codeLocked
     } = props;
 
     let header = null;
@@ -99,6 +120,32 @@ const StageHeaderComponent = function (props) {
                         draggable={false}
                         src={settingsIcon}
                         title={props.intl.formatMessage(messages.openSettingsMessage)}
+                    />
+                </Button>
+            </div>
+        ) : null;
+        // tw: 嵌入页面中提供“前往编辑器打开”入口；代码锁定模式下隐藏
+        const openEditorButton = isEmbedded && !codeLocked ? (
+            <div className={classNames(styles.settingsButton, styles.unselectWrapper)}>
+                <Button
+                    className={styles.stageButton}
+                    onClick={() => {
+                        const url = getEditorUrl();
+                        if (window.parent !== window) {
+                            // 被别的网站用 iframe 嵌入时，新标签打开“我们”的编辑器，
+                            // 跳出 iframe（否则编辑器检测到仍在 iframe 内会显示 InvalidEmbed）。
+                            window.open(url, '_blank', 'noopener');
+                        } else {
+                            window.location.href = url;
+                        }
+                    }}
+                >
+                    <img
+                        alt={props.intl.formatMessage(messages.openEditorMessage)}
+                        className={styles.stageButtonIcon}
+                        draggable={false}
+                        src={openEditorIcon}
+                        title={props.intl.formatMessage(messages.openEditorMessage)}
                     />
                 </Button>
             </div>
@@ -150,6 +197,7 @@ const StageHeaderComponent = function (props) {
                         className={styles.fullscreenButtonsRow}
                         key="fullscreen" // addons require the HTML element to be not be re-used by in-editor buttons
                     >
+                        {openEditorButton}
                         {settingsButton}
                         {fullscreenButton}
                     </div>
@@ -232,7 +280,9 @@ const StageHeaderComponent = function (props) {
 
 const mapStateToProps = state => ({
     // This is the button's mode, as opposed to the actual current state
-    stageSizeMode: state.scratchGui.stageSize.stageSize
+    stageSizeMode: state.scratchGui.stageSize.stageSize,
+    // tw: 代码锁定模式 —— 为 true 时隐藏“在编辑器中打开”按钮
+    codeLocked: state.scratchGui.tw.codeLocked
 });
 
 StageHeaderComponent.propTypes = {
@@ -252,6 +302,7 @@ StageHeaderComponent.propTypes = {
     onSetStageFull: PropTypes.func.isRequired,
     onOpenSettings: PropTypes.func.isRequired,
     isEmbedded: PropTypes.bool.isRequired,
+    codeLocked: PropTypes.bool,
     stageSize: PropTypes.oneOf(Object.keys(STAGE_DISPLAY_SIZES)),
     stageSizeMode: PropTypes.oneOf(Object.keys(STAGE_SIZE_MODES)),
     vm: PropTypes.instanceOf(VM).isRequired

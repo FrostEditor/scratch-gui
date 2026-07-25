@@ -263,7 +263,7 @@ class MenuBar extends React.Component {
     }
     componentDidMount () {
         document.addEventListener('keydown', this.handleKeyPress);
-        
+
         // 监听协作状态
         collaborationManager.on('connected', this.handleCollaborationConnected);
         collaborationManager.on('disconnected', this.handleCollaborationDisconnected);

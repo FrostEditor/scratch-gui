@@ -33,6 +33,7 @@ import collaborationManager from '../../lib/collaboration/collaboration-manager.
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
+import TwCodeLockWarning from '../tw-code-lock-warning.jsx';
 import TWSecurityManager from '../../containers/tw-security-manager.jsx';
 import TWCustomExtensionModal from '../../containers/tw-custom-extension-modal.jsx';
 import TWRestorePointManager from '../../containers/tw-restore-point-manager.jsx';
@@ -41,6 +42,7 @@ import TWUnknownPlatformModal from '../../containers/tw-unknown-platform-modal.j
 import TWInvalidProjectModal from '../../containers/tw-invalid-project-modal.jsx';
 import CollaborationCursor from '../collaboration-cursor/collaboration-cursor.jsx';
 import UpdateModal from '../tw-update-modal/update-modal.jsx';
+import Onboarding from '../onboarding/onboarding.jsx';
 import { checkForUpdates } from '../../lib/update-checker';
 
 import {STAGE_SIZE_MODES, FIXED_WIDTH, UNCONSTRAINED_NON_STAGE_WIDTH} from '../../lib/layout-constants';
@@ -220,6 +222,8 @@ const GUIComponent = props => {
                 {fontsModalVisible && <TWFontsModal />}
                 {unknownPlatformModalVisible && <TWUnknownPlatformModal />}
                 {invalidProjectModalVisible && <TWInvalidProjectModal />}
+                {/* tw: 代码锁定模式——直接顶层打开编辑器且作品锁定时，强制退回 embed 播放页 */}
+                <TwCodeLockWarning />
             </React.Fragment>
         );
 
@@ -253,7 +257,7 @@ const GUIComponent = props => {
             </React.Fragment>
         ) : (
             <Box
-                className={styles.pageWrapper}
+                className={classNames(styles.pageWrapper)}
                 dir={isRtl ? 'rtl' : 'ltr'}
                 style={{
                     minWidth: 1024 + Math.max(0, customStageSize.width - 480),
@@ -262,6 +266,7 @@ const GUIComponent = props => {
                 {...componentProps}
             >
                 {alwaysEnabledModals}
+                <Onboarding />
                 {telemetryModalVisible ? (
                     <TelemetryModal
                         isRtl={isRtl}

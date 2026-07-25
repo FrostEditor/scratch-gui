@@ -37,6 +37,11 @@ const base = {
         disableHostCheck: true,
         compress: true,
         port: process.env.PORT || 8601,
+        // tw: 同源 CORS 代理，使远程 project_url / ?=url 跨域 .sb3 能正常加载
+        before (app) {
+            const {corsProxyMiddleware} = require('./src/lib/tw-cors-proxy.js');
+            app.use('/proxy', corsProxyMiddleware());
+        },
         // allows ROUTING_STYLE=wildcard to work properly
         historyApiFallback: {
             rewrites: [
