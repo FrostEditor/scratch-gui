@@ -1,8 +1,10 @@
 import {defineMessages, injectIntl, intlShape} from 'react-intl';
+import defaultsDeep from 'lodash.defaultsdeep';
 import PropTypes from 'prop-types';
 import React from 'react';
 import Modal from '../../containers/modal.jsx';
 import Box from '../box/box.jsx';
+import LazyScratchBlocks from '../../lib/tw-lazy-scratch-blocks';
 import styles from './extension-blocks-modal.css';
 
 const messages = defineMessages({
@@ -11,10 +13,20 @@ const messages = defineMessages({
         description: 'Title of the extension blocks preview modal',
         id: 'tw.extensionBlocks.title'
     },
+    loading: {
+        defaultMessage: 'Loading blocks…',
+        description: 'Shown while the block preview is rendering',
+        id: 'tw.extensionBlocks.loading'
+    },
     empty: {
         defaultMessage: 'No blocks were found for this extension.',
         description: 'Shown when the extension has no blocks to display',
         id: 'tw.extensionBlocks.empty'
+    },
+    unavailable: {
+        defaultMessage: 'The block renderer is not available right now. Please try again in a moment.',
+        description: 'Shown when the Blockly renderer could not be initialised',
+        id: 'tw.extensionBlocks.unavailable'
     },
     close: {
         defaultMessage: 'Close',
@@ -23,198 +35,170 @@ const messages = defineMessages({
     }
 });
 
-// Scratch blockType values (scratch-vm/src/extension-support/block-type.js)
-const SHAPE = {
-    COMMAND: 'command',
-    REPORTER: 'reporter',
-    BOOLEAN: 'Boolean',
-    HAT: 'hat',
-    EVENT: 'event',
-    CONDITIONAL: 'conditional',
-    LOOP: 'loop'
-};
-
-// Choose readable text colour for the block background.
-function textColorFor (hex) {
-    if (!hex || typeof hex !== 'string' || hex[0] !== '#') return '#ffffff';
-    let h = hex.slice(1);
-    if (h.length === 3) h = h.split('').map(c => c + c).join('');
-    if (h.length !== 6) return '#ffffff';
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    // perceived luminance
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return lum > 0.6 ? '#333333' : '#ffffff';
-}
-
-// Render a single argument descriptor into a React node.
-function renderArg (arg, key) {
-    if (!arg || typeof arg !== 'object') return null;
-    switch (arg.type) {
-    case 'field_dropdown': {
-        const opts = arg.options || [];
-        let value = '';
-        if (opts.length) {
-            const first = opts[0];
-            value = Array.isArray(first) ? (first[1] != null ? first[1] : first[0]) : first;
-        }
-        return (
-            <span
-                key={key}
-                className={`${styles.field} ${styles.fieldDropdown}`}
-            >
-                {String(value)}
-                <span className={styles.caret}>▾</span>
-            </span>
-        );
+// Options for the preview workspace — mirrors scratch-gui's own second-workspace
+// pattern (custom-procedures) so the rendered blocks look exactly like the editor.
+const PREVIEW_OPTIONS = {
+    readOnly: true,
+    comments: false,
+    collapse: false,
+    scrollbars: true,
+    trashcan: false,
+    zoom: {
+        controls: false,
+        wheel: true,
+        startScale: 1,
+        maxScale: 1,
+        minScale: 0.5
     }
-    case 'field_input':
-    case 'field_number':
-    case 'field_angle':
-        return (
-            <span
-                key={key}
-                className={`${styles.field} ${styles.fieldInput}`}
-            >
-                {arg.value !== undefined ? String(arg.value) : (arg.text || (arg.type === 'field_number' ? '0' : ''))}
-            </span>
-        );
-    case 'field_color':
-        return (
-            <span
-                key={key}
-                className={`${styles.field} ${styles.fieldColor}`}
-                style={{background: arg.color || '#ff0000'}}
-            />
-        );
-    case 'field_variable':
-        return (
-            <span
-                key={key}
-                className={`${styles.field} ${styles.fieldVariable}`}
-            >
-                {arg.variable || arg.text || '变量'}
-            </span>
-        );
-    case 'field_label':
-        return (
-            <span
-                key={key}
-                className={styles.fieldLabel}
-            >
-                {arg.text || ''}
-            </span>
-        );
-    case 'field_image':
-        return (
-            <img
-                key={key}
-                className={styles.fieldImage}
-                src={arg.src}
-                width={arg.width || 24}
-                height={arg.height || 24}
-                alt="*"
-            />
-        );
-    case 'input_value':
-        return (
-            <span
-                key={key}
-                className={`${styles.field} ${styles.fieldValue} ${arg.check ? styles.fieldValueBoolean : ''}`}
-            />
-        );
-    case 'input_statement':
-        // Substack placeholder — rendered as a nested indented region.
-        return (
-            <span
-                key={key}
-                className={styles.substackMarker}
-            />
-        );
-    default:
-        return null;
-    }
-}
-
-// Render the message lines of a block into nodes, interleaving arguments.
-function renderMessage (blockJSON) {
-    const nodes = [];
-    let lineIndex = 0;
-    let hasSubstack = false;
-    while (true) {
-        const message = blockJSON[`message${lineIndex}`];
-        const args = blockJSON[`args${lineIndex}`] || [];
-        if (message === undefined) break;
-        const parts = String(message).split(/(%\d+)/g);
-        parts.forEach(part => {
-            if (/^%\d+$/.test(part)) {
-                const idx = parseInt(part.slice(1), 10) - 1;
-                const arg = args[idx];
-                if (arg && arg.type === 'input_statement') {
-                    hasSubstack = true;
-                } else {
-                    nodes.push(renderArg(arg, `a${lineIndex}_${idx}`));
-                }
-            } else if (part) {
-                nodes.push(<span key={`t${lineIndex}_${part}`}>{part}</span>);
-            }
-        });
-        lineIndex++;
-        if (lineIndex > 20) break; // safety
-    }
-    return {nodes, hasSubstack};
-}
-
-function BlockPreview ({block}) {
-    const json = (block && block.json) || {};
-    const info = (block && block.info) || {};
-    const blockType = info.blockType;
-
-    let shapeClass = styles.blockStack;
-    if (blockType === SHAPE.REPORTER) shapeClass = styles.blockReporter;
-    else if (blockType === SHAPE.BOOLEAN) shapeClass = styles.blockBoolean;
-    else if (blockType === SHAPE.HAT || blockType === SHAPE.EVENT) shapeClass = styles.blockHat;
-
-    const colour = json.colour || '#9c9c9c';
-    const txt = textColorFor(colour);
-
-    const {nodes, hasSubstack} = renderMessage(json);
-
-    return (
-        <div
-            className={`${styles.block} ${shapeClass}`}
-            style={{background: colour, color: txt}}
-        >
-            <div className={styles.blockBody}>
-                {nodes}
-            </div>
-            {hasSubstack && (
-                <div className={styles.substack}>
-                    <div className={styles.substackInner} />
-                </div>
-            )}
-        </div>
-    );
-}
-
-BlockPreview.propTypes = {
-    block: PropTypes.object // eslint-disable-line react/forbid-prop-types
 };
 
 class ExtensionBlocksModal extends React.Component {
     constructor (props) {
         super(props);
+        this.containerRef = React.createRef();
+        this.workspace = null;
+        this._realMain = null;
+        this._attempts = 0;
+        this._maxAttempts = 12; // ~1.2s of retries if the renderer is still loading
         this.state = {
-            status: (props.blocks && props.blocks.length) ? 'ok' : 'empty'
+            status: 'loading' // loading | ok | empty | unavailable
         };
+    }
+
+    componentDidMount () {
+        this.renderBlocks();
+    }
+
+    componentWillUnmount () {
+        this.disposeWorkspace();
+    }
+
+    // Pulls the real Blockly (scratch-blocks) singleton that the editor uses.
+    getScratchBlocks () {
+        try {
+            return LazyScratchBlocks.get();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Collects the real <block> XML strings for this extension.
+    getBlockXmls () {
+        if (this.props.blocks) {
+            const xmls = this.props.blocks.filter(b => b && b.xml).map(b => b.xml);
+            if (xmls.length) return xmls;
+        }
+        const runtime = this.props.vm && this.props.vm.runtime;
+        if (runtime && runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
+            let info = runtime._blockInfo.find(i => i.id === this.props.extensionId);
+            if (!info) {
+                info = runtime._blockInfo.find(i =>
+                    i.blocks && i.blocks.some(b =>
+                        b.info && b.info.opcode && b.info.opcode.startsWith(this.props.extensionId + '_')));
+            }
+            if (info && info.blocks) {
+                const xmls = info.blocks.filter(b => b && b.xml).map(b => b.xml);
+                if (xmls.length) return xmls;
+            }
+        }
+        return [];
+    }
+
+    disposeWorkspace () {
+        const ScratchBlocks = this.getScratchBlocks();
+        if (this.workspace && ScratchBlocks) {
+            try {
+                this.workspace.dispose();
+            } catch (e) {
+                // ignore disposal errors
+            }
+            this.workspace = null;
+            // Restore the editor's real main workspace so it keeps working.
+            if (this._realMain) {
+                try {
+                    ScratchBlocks.mainWorkspace = this._realMain;
+                } catch (e) {
+                    // ignore
+                }
+                this._realMain = null;
+            }
+        }
+    }
+
+    renderBlocks () {
+        const ScratchBlocks = this.getScratchBlocks();
+        if (!ScratchBlocks || !ScratchBlocks.inject) {
+            // Renderer not ready yet — retry shortly.
+            if (this._attempts < this._maxAttempts) {
+                this._attempts++;
+                this.retryTimer = setTimeout(() => this.renderBlocks(), 100);
+            } else {
+                this.setState({status: 'unavailable'});
+            }
+            return;
+        }
+
+        const xmls = this.getBlockXmls();
+        if (xmls.length === 0) {
+            this.setState({status: 'empty'});
+            return;
+        }
+
+        // Capture the real editor workspace BEFORE injecting. `inject` overwrites
+        // Blockly.mainWorkspace, so we restore it right after the workspace opens.
+        let realMain = null;
+        try {
+            realMain = (ScratchBlocks.getMainWorkspace && ScratchBlocks.getMainWorkspace()) ||
+                ScratchBlocks.mainWorkspace;
+        } catch (e) {
+            realMain = null;
+        }
+        this._realMain = realMain;
+
+        let media = 'https://scratch.mit.edu/blocks-media/';
+        if (realMain && realMain.options && realMain.options.media) {
+            media = realMain.options.media;
+        }
+
+        try {
+            const oldDefaultToolbox = ScratchBlocks.Blocks.defaultToolbox;
+            ScratchBlocks.Blocks.defaultToolbox = null;
+            const config = defaultsDeep({}, PREVIEW_OPTIONS, {rtl: this.props.isRtl}, {media});
+            this.workspace = ScratchBlocks.inject(this.containerRef.current, config);
+            ScratchBlocks.Blocks.defaultToolbox = oldDefaultToolbox;
+
+            // Restore the editor's main workspace immediately so it stays usable.
+            if (realMain) {
+                try {
+                    ScratchBlocks.mainWorkspace = realMain;
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            const xml = `<xml xmlns="https://developers.google.com/blockly/xml">${xmls.join('')}</xml>`;
+            ScratchBlocks.Xml.domToWorkspace(ScratchBlocks.Xml.textToDom(xml), this.workspace);
+
+            // Stack the top-level blocks vertically so they don't overlap.
+            const topBlocks = this.workspace.getTopBlocks(true);
+            let y = 0;
+            topBlocks.forEach(block => {
+                block.moveBy(0, y);
+                const size = (block.getHeightWidth && block.getHeightWidth()) || {height: 44};
+                y += size.height + 16;
+            });
+            this.workspace.scrollCenter();
+            this.setState({status: 'ok'});
+        } catch (e) {
+            this.disposeWorkspace();
+            this.setState({status: 'unavailable'});
+        }
     }
 
     render () {
         const intl = this.props.intl;
-        // Only render real blocks (skip label / separator / menu entries that
-        // have no block JSON).
-        const blocks = (this.props.blocks || []).filter(b => b && b.json);
+        const status = this.state.status;
+
         return (
             <Modal
                 className={styles.modalContent}
@@ -227,19 +211,19 @@ class ExtensionBlocksModal extends React.Component {
                         {this.props.extensionName || intl.formatMessage(messages.title)}
                     </h2>
                     <div className={styles.workspaceWrapper}>
-                        {blocks.length === 0 ? (
-                            <div className={styles.placeholder}>
-                                {intl.formatMessage(messages.empty)}
-                            </div>
-                        ) : (
-                            <div className={styles.blocksContainer}>
-                                {blocks.map((block, i) => (
-                                    <BlockPreview
-                                        key={block && block.info ? block.info.opcode || i : i}
-                                        block={block}
-                                    />
-                                ))}
-                            </div>
+                        <div
+                            ref={this.containerRef}
+                            className={styles.blocklyContainer}
+                            style={{display: status === 'ok' ? 'block' : 'none'}}
+                        />
+                        {status === 'loading' && (
+                            <div className={styles.placeholder}>{intl.formatMessage(messages.loading)}</div>
+                        )}
+                        {status === 'empty' && (
+                            <div className={styles.placeholder}>{intl.formatMessage(messages.empty)}</div>
+                        )}
+                        {status === 'unavailable' && (
+                            <div className={styles.placeholder}>{intl.formatMessage(messages.unavailable)}</div>
                         )}
                     </div>
                     <div className={styles.buttonRow}>
@@ -259,8 +243,11 @@ class ExtensionBlocksModal extends React.Component {
 ExtensionBlocksModal.propTypes = {
     intl: intlShape,
     blocks: PropTypes.array, // eslint-disable-line react/forbid-prop-types
+    extensionId: PropTypes.string,
     extensionName: PropTypes.string,
-    onClose: PropTypes.func.isRequired
+    isRtl: PropTypes.bool,
+    onClose: PropTypes.func.isRequired,
+    vm: PropTypes.object // eslint-disable-line react/forbid-prop-types
 };
 
 export default injectIntl(ExtensionBlocksModal);

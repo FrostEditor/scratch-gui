@@ -840,6 +840,8 @@ class ExtensionLibrary extends React.PureComponent {
                 )}
                 {this.state.browseExtensionId && (
                     <ExtensionBlocksModal
+                        vm={this.props.vm}
+                        extensionId={this.state.browseExtensionId}
                         blocks={this.state.browseBlocks}
                         extensionName={this.state.browseExtensionName}
                         onClose={this.handleBrowseBlocksClose}
