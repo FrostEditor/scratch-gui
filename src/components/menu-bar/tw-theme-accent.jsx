@@ -17,7 +17,7 @@ import styles from './settings-menu.css';
 const options = defineMessages({
     [ACCENT_RED]: {
         defaultMessage: 'Red',
-        description: 'Name of the red color scheme, used by TurboWarp by default.',
+        description: 'Name of the red color scheme, used by FrostEditor by default.',
         id: 'tw.accent.red'
     },
     [ACCENT_PURPLE]: {
@@ -129,7 +129,7 @@ const AccentThemeMenu = ({
             <span className={styles.submenuLabel}>
                 <FormattedMessage
                     defaultMessage="Accent"
-                    description="Label for menu to choose accent color (eg. TurboWarp's red, Scratch's purple)"
+                    description="Label for menu to choose accent color (eg. FrostEditor's red, Scratch's purple)"
                     id="tw.menuBar.accent"
                 />
             </span>

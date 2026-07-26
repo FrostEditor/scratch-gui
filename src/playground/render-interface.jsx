@@ -130,11 +130,11 @@ const Footer = () => (
                 <div className={styles.footerSection}>
                     <a href="https://desktop.turbowarp.org/">
                         {/* Do not translate */}
-                        {'TurboWarp Desktop'}
+                        {'FrostEditor Desktop'}
                     </a>
                     <a href="https://packager.turbowarp.org/">
                         {/* Do not translate */}
-                        {'TurboWarp Packager'}
+                        {'FrostEditor Packager'}
                     </a>
                     <a href="https://docs.turbowarp.org/embedding">
                         <FormattedMessage
@@ -159,14 +159,14 @@ const Footer = () => (
                     </a>
                 </div>
                 <div className={styles.footerSection}>
-                    <a href="https://scratch.mit.edu/users/GarboMuffin/#comments">
+                    <a href="https://github.com/FrostEditor/scratch-gui/issues">
                         <FormattedMessage
                             defaultMessage="Feedback & Bugs"
                             description="Link to feedback/bugs page"
                             id="tw.feedback"
                         />
                     </a>
-                    <a href="https://github.com/TurboWarp/">
+                    <a href="https://github.com/FrostEditor/scratch-gui">
                         <FormattedMessage
                             defaultMessage="Source Code"
                             description="Link to source code"

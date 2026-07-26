@@ -92,7 +92,7 @@ const InvalidProjectModal = props => (
                         values={{
                             reportIt: (
                                 <a
-                                    href="https://github.com/TurboWarp/sb3fix/issues"
+                                    href="https://github.com/FrostEditor/scratch-gui/issues"
                                     target="_blank"
                                     rel="noreferrer"
                                 >
