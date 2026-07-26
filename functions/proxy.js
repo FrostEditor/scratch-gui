@@ -18,7 +18,7 @@
  * 升级为 https。另外整段逻辑包了 try/catch，任何 fetch 异常都会返回可读的业务
  * 错误（而不是让 Cloudflare 返回笼统的 "error code: 502"）。
  *
- * deployed: 2026-07-26 (v2, try/catch + timeout)
+ * deployed: 2026-07-26 (v3, retry deploy after CF build)
  */
 
 const ALLOWED_SCHEMES = ['http:', 'https:'];
