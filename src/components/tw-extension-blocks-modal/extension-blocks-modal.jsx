@@ -84,8 +84,10 @@ class ExtensionBlocksModal extends React.Component {
 
     // Collects the real <block> XML strings for this extension.
     getBlockXmls () {
+        // Only keep real workspace blocks (<block ...>), not toolbox labels/separators.
+        const keepXml = b => b && b.xml && /^\s*<block\b/i.test(b.xml);
         if (this.props.blocks) {
-            const xmls = this.props.blocks.filter(b => b && b.xml).map(b => b.xml);
+            const xmls = this.props.blocks.filter(keepXml).map(b => b.xml);
             if (xmls.length) return xmls;
         }
         const runtime = this.props.vm && this.props.vm.runtime;
@@ -97,7 +99,7 @@ class ExtensionBlocksModal extends React.Component {
                         b.info && b.info.opcode && b.info.opcode.startsWith(this.props.extensionId + '_')));
             }
             if (info && info.blocks) {
-                const xmls = info.blocks.filter(b => b && b.xml).map(b => b.xml);
+                const xmls = info.blocks.filter(keepXml).map(b => b.xml);
                 if (xmls.length) return xmls;
             }
         }
@@ -189,6 +191,17 @@ class ExtensionBlocksModal extends React.Component {
             });
             this.workspace.scrollCenter();
             this.setState({status: 'ok'});
+            // Make sure Blockly recomputes the workspace size now that the
+            // (previously hidden) container is visible.
+            setTimeout(() => {
+                if (this.workspace && this.workspace.resize) {
+                    try {
+                        this.workspace.resize();
+                    } catch (e) {
+                        // ignore resize errors
+                    }
+                }
+            }, 0);
         } catch (e) {
             this.disposeWorkspace();
             this.setState({status: 'unavailable'});
@@ -214,7 +227,7 @@ class ExtensionBlocksModal extends React.Component {
                         <div
                             ref={this.containerRef}
                             className={styles.blocklyContainer}
-                            style={{display: status === 'ok' ? 'block' : 'none'}}
+                            style={{display: (status === 'loading' || status === 'ok') ? 'block' : 'none'}}
                         />
                         {status === 'loading' && (
                             <div className={styles.placeholder}>{intl.formatMessage(messages.loading)}</div>
