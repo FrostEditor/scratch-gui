@@ -181,6 +181,14 @@ class ExtensionBlocksModal extends React.Component {
             const xml = `<xml xmlns="https://developers.google.com/blockly/xml">${xmls.join('')}</xml>`;
             ScratchBlocks.Xml.domToWorkspace(ScratchBlocks.Xml.textToDom(xml), this.workspace);
 
+            // If nothing actually rendered (bad XML, etc.), show an empty state
+            // instead of a blank workspace that looks broken.
+            if (this.workspace.getAllBlocks().length === 0) {
+                this.disposeWorkspace();
+                this.setState({status: 'empty'});
+                return;
+            }
+
             // Stack the top-level blocks vertically so they don't overlap.
             const topBlocks = this.workspace.getTopBlocks(true);
             let y = 0;

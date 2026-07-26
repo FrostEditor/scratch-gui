@@ -373,6 +373,7 @@ class ExtensionLibrary extends React.PureComponent {
     // 在扩展仓库中点击「浏览积木」：若该扩展未加载则先加载，再打开积木预览弹窗
     handleBrowseBlocks (extensionId) {
         const extensionManager = this.props.vm.extensionManager;
+        const runtime = this.props.vm.runtime;
         const openWithBlocks = (blocks, name) => {
             this.setState({
                 browseExtensionId: extensionId,
@@ -381,24 +382,17 @@ class ExtensionLibrary extends React.PureComponent {
             });
         };
 
-        // Already loaded → grab blocks straight from _blockInfo.
-        const runtime = this.props.vm.runtime;
-        const grabBlocks = () => {
+        // Grab blocks for a given _blockInfo id (used for already-loaded extensions).
+        const grabBlocksById = (id) => {
             if (runtime && runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
-                let info = runtime._blockInfo.find(i => i.id === extensionId);
-                if (!info) {
-                    // fallback: match by block type prefix (e.g. id transformed on load)
-                    info = runtime._blockInfo.find(i =>
-                        i.blocks && i.blocks.some(b =>
-                            b.info && b.info.opcode && b.info.opcode.startsWith(extensionId + '_')));
-                }
+                const info = runtime._blockInfo.find(i => i.id === id);
                 return info ? (info.blocks || []) : [];
             }
             return [];
         };
 
         if (extensionManager.isExtensionLoaded(extensionId)) {
-            openWithBlocks(grabBlocks());
+            openWithBlocks(grabBlocksById(extensionId));
             return;
         }
 
@@ -424,16 +418,37 @@ class ExtensionLibrary extends React.PureComponent {
             url = extensionId; // fall back to built-in extension id
         }
 
+        // Snapshot ids BEFORE loading so we can find the extension that was just added
+        // (its _blockInfo id may differ from the library extensionId for URL extensions).
+        const beforeIds = new Set(
+            (runtime && runtime._blockInfo) ? runtime._blockInfo.map(i => i.id) : []
+        );
+
         extensionManager.loadExtensionURL(url)
             .then(() => {
-                // _blockInfo may need a tick to be populated; grab after a short delay.
-                const blocks = grabBlocks();
-                if (blocks.length === 0) {
-                    // retry once on next frame
-                    setTimeout(() => openWithBlocks(grabBlocks()), 60);
-                } else {
-                    openWithBlocks(blocks);
+                // Find the newly added extension entry.
+                let loadedId = null;
+                if (runtime && runtime._blockInfo) {
+                    const added = runtime._blockInfo.filter(i => !beforeIds.has(i.id));
+                    if (added.length) {
+                        loadedId = added[added.length - 1].id;
+                    }
                 }
+                let blocks = loadedId ? grabBlocksById(loadedId) : [];
+                if (blocks.length === 0) {
+                    // Fallback: lookup by the original library extensionId.
+                    blocks = grabBlocksById(extensionId);
+                }
+                if (blocks.length === 0) {
+                    // Last resort: match by block type prefix (id transformed on load).
+                    if (runtime && runtime._blockInfo) {
+                        const info = runtime._blockInfo.find(i =>
+                            i.blocks && i.blocks.some(b =>
+                                b.info && b.info.opcode && b.info.opcode.startsWith(extensionId + '_')));
+                        blocks = info ? (info.blocks || []) : [];
+                    }
+                }
+                openWithBlocks(blocks);
             })
             .catch(err => {
                 // eslint-disable-next-line no-alert
