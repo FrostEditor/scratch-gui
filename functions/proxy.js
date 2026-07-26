@@ -82,7 +82,9 @@ export async function onRequest (context) {
         headers['Referer'] = referer;
     }
 
-    let current = target;
+    // Cloudflare Workers/Pages 运行时不支持对 http://（非 TLS）地址发起出站请求，
+    // 只能使用 https://。网易云音频 CDN 的 302 常常指向 http:// 链接，这里统一升级为 https。
+    let current = target.replace(/^http:\/\//i, 'https://');
     let res;
     for (let i = 0; i <= MAX_REDIRECTS; i++) {
         // 手动跟随重定向，保留 Referer（避免跨域重定向被浏览器/undici 剥离）
@@ -94,7 +96,7 @@ export async function onRequest (context) {
         if (res.status >= 300 && res.status < 400) {
             const loc = res.headers.get('location');
             if (!loc) break;
-            current = new URL(loc, current).toString();
+            current = new URL(loc, current).toString().replace(/^http:\/\//i, 'https://');
             continue;
         }
         break;

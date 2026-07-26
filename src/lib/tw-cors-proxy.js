@@ -49,6 +49,8 @@ const isBlockedHost = (hostname) => {
 // 服务端去拉远程资源，返回的 res 可直接 pipe 给客户端
 // extraHeaders: 可选，附加到出站请求（如网易云音频 CDN 需要的 Referer）
 const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((resolve, reject) => {
+    // 与 Cloudflare Function 对齐：http:// 统一升级为 https://（网易云 CDN 常给 http 重定向）
+    targetUrl = targetUrl.replace(/^http:\/\//i, 'https://');
     let parsed;
     try {
         parsed = new URL(targetUrl);
