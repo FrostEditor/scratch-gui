@@ -34,6 +34,7 @@ import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
 import TwCodeLockWarning from '../tw-code-lock-warning.jsx';
+import TWNews from '../menu-bar/tw-news.jsx';
 import TWSecurityManager from '../../containers/tw-security-manager.jsx';
 import TWCustomExtensionModal from '../../containers/tw-custom-extension-modal.jsx';
 import TWRestorePointManager from '../../containers/tw-restore-point-manager.jsx';
@@ -224,6 +225,8 @@ const GUIComponent = props => {
                 {invalidProjectModalVisible && <TWInvalidProjectModal />}
                 {/* tw: 代码锁定模式——直接顶层打开编辑器且作品锁定时，强制退回 embed 播放页 */}
                 <TwCodeLockWarning />
+                {/* tw: 更新日志弹窗——从 GitHub 最新 Release 同步，有新版本时自动居中弹出 */}
+                <TWNews />
             </React.Fragment>
         );
 
