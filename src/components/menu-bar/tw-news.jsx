@@ -84,6 +84,7 @@ const TWNews = function () {
     const [version, setVersion] = React.useState('');
     const [body, setBody] = React.useState('');
     const [tag, setTag] = React.useState('');
+    const [hover, setHover] = React.useState(false);
 
     React.useEffect(() => {
         let cancelled = false;
@@ -131,8 +132,6 @@ const TWNews = function () {
             // ignore
         }
     };
-
-    const [hover, setHover] = React.useState(false);
 
     return (
         <div
