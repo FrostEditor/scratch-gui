@@ -47,7 +47,8 @@ const isBlockedHost = (hostname) => {
 };
 
 // 服务端去拉远程资源，返回的 res 可直接 pipe 给客户端
-const fetchRemote = (targetUrl, redirectCount) => new Promise((resolve, reject) => {
+// extraHeaders: 可选，附加到出站请求（如网易云音频 CDN 需要的 Referer）
+const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((resolve, reject) => {
     let parsed;
     try {
         parsed = new URL(targetUrl);
@@ -57,10 +58,10 @@ const fetchRemote = (targetUrl, redirectCount) => new Promise((resolve, reject) 
     const lib = parsed.protocol === 'https:' ? https : http;
     const options = {
         method: 'GET',
-        headers: {
+        headers: Object.assign({
             'User-Agent': 'TW-CorsProxy/1.0',
             'Accept': '*/*'
-        },
+        }, extraHeaders || {}),
         timeout: 30000
     };
     const req = lib.get(targetUrl, options, (res) => {
@@ -72,7 +73,7 @@ const fetchRemote = (targetUrl, redirectCount) => new Promise((resolve, reject) 
             }
             const next = new URL(res.headers.location, targetUrl).toString();
             res.resume();
-            return resolve(fetchRemote(next, redirectCount + 1));
+            return resolve(fetchRemote(next, redirectCount + 1, extraHeaders));
         }
         if (res.statusCode >= 400) {
             res.resume();
@@ -104,7 +105,7 @@ const extractTarget = (reqUrl) => {
         const after = parsed.pathname.replace(/^\/proxy\/?/, '');
         target = decodeURIComponent(after);
     }
-    return target;
+    return {target, referer: parsed.query && parsed.query.referer};
 };
 
 const corsProxyMiddleware = () => (req, res) => {
@@ -122,7 +123,7 @@ const corsProxyMiddleware = () => (req, res) => {
         return;
     }
 
-    const target = extractTarget(req.url);
+    const {target, referer} = extractTarget(req.url);
     if (!target || !/^https?:\/\//i.test(target)) {
         res.statusCode = 400;
         res.end('Missing or invalid url');
@@ -143,7 +144,12 @@ const corsProxyMiddleware = () => (req, res) => {
         return;
     }
 
-    fetchRemote(parsedTarget.toString(), 0)
+    const extraHeaders = {};
+    if (referer && /^https?:\/\//i.test(referer)) {
+        extraHeaders.Referer = referer;
+    }
+
+    fetchRemote(parsedTarget.toString(), 0, extraHeaders)
         .then((remoteRes) => {
             // 远程返回 HTML（错误页 / 登录页 / 防盗链页）时，不要把它当作品
             // 传回浏览器——否则前端 VM 解析会抛出难懂的 "is not valid JSON"。

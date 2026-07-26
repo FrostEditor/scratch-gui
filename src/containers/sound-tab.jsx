@@ -12,11 +12,13 @@ import addSoundFromRecordingIcon from '../components/asset-panel/icon--add-sound
 import fileUploadIcon from '../components/action-menu/icon--file-upload.svg';
 import surpriseIcon from '../components/action-menu/icon--surprise.svg';
 import searchIcon from '../components/action-menu/icon--search.svg';
+import neteaseIcon from '../components/asset-panel/icon--netease.svg';
 
 import RecordModal from './record-modal.jsx';
 import SoundEditor from './sound-editor.jsx';
 import SoundLibrary from './sound-library.jsx';
 import SoundEditorNotSupported from '../components/tw-sound-editor-not-supported/sound-editor-not-supported.jsx';
+import TwNeteaseSoundModal from '../components/tw-netease-sound-modal.jsx';
 
 import {getSoundLibrary} from '../lib/libraries/tw-async-libraries';
 import {handleFileUpload, soundUpload} from '../lib/file-uploader.js';
@@ -41,6 +43,30 @@ import {
 import {setRestore} from '../reducers/restore-deletion';
 import {showStandardAlert, closeAlertWithId} from '../reducers/alerts';
 
+// 从网易云单曲链接解析出歌曲 id。支持：
+//   https://music.163.com/song?id=123456
+//   https://music.163.com/#/song?id=123456
+//   https://music.163.com/song/123456
+const parseNeteaseId = (link) => {
+    try {
+        let l = String(link).trim();
+        const hashIdx = l.indexOf('#');
+        if (hashIdx !== -1) {
+            l = l.slice(hashIdx + 1);
+        }
+        const u = new URL(l, 'https://music.163.com');
+        const id = u.searchParams.get('id');
+        if (id) return id;
+        const m = u.pathname.match(/\/song\/(\d+)/);
+        if (m) return m[1];
+    } catch (e) {
+        // ignore
+    }
+    const m2 = String(link).match(/[?/]id=(\d+)/);
+    if (m2) return m2[1];
+    return null;
+};
+
 class SoundTab extends React.Component {
     constructor (props) {
         super(props);
@@ -53,10 +79,12 @@ class SoundTab extends React.Component {
             'handleSurpriseSound',
             'handleFileUploadClick',
             'handleSoundUpload',
+            'handleNeteaseClick',
+            'handleNeteaseAdd',
             'handleDrop',
             'setFileInput'
         ]);
-        this.state = {selectedSoundIndex: 0};
+        this.state = {selectedSoundIndex: 0, neteaseModalOpen: false};
     }
 
     componentWillReceiveProps (nextProps) {
@@ -174,6 +202,77 @@ class SoundTab extends React.Component {
         this.fileInput = input;
     }
 
+    handleNeteaseClick () {
+        this.setState({neteaseModalOpen: true});
+    }
+
+    // 从网易云单曲链接里解析出歌曲 id（支持标准链接与 #/hash 链接）
+    async handleNeteaseAdd (link) {
+        const songId = parseNeteaseId(link);
+        if (!songId) {
+            throw new Error('无法解析歌曲 ID，请确认是网易云单曲链接（需包含 id=数字）');
+        }
+        const vm = this.props.vm;
+        const storage = vm.runtime.storage;
+        const targetId = vm.editingTarget.id;
+
+        this.props.onShowImporting();
+        let name = `网易云_${songId}`;
+
+        try {
+            // 先尝试获取真实歌名（旧版未加密 detail 接口；失败则用兜底名）
+            try {
+                const dRes = await fetch(
+                    `/proxy?url=${encodeURIComponent(
+                        `https://music.163.com/api/song/detail/?id=${songId}&ids=%5B${songId}%5D`
+                    )}`
+                );
+                if (dRes.ok) {
+                    const d = await dRes.json();
+                    if (d && d.songs && d.songs[0]) {
+                        const s = d.songs[0];
+                        name = s.name + (s.artists && s.artists[0] ? ` - ${s.artists[0].name}` : '');
+                    }
+                }
+            } catch (e) {
+                // 忽略，使用兜底名
+            }
+
+            // 真实下载音频并通过同源代理绕过跨域 + 提供 Referer
+            const res = await fetch(
+                `/proxy?url=${encodeURIComponent(
+                    `https://music.163.com/song/media/outer/url?id=${songId}.mp3`
+                )}&referer=${encodeURIComponent('https://music.163.com/')}`
+            );
+            if (!res.ok) {
+                let msg = `下载歌曲失败（HTTP ${res.status}）`;
+                try {
+                    const t = await res.text();
+                    if (t) msg += `：${t.slice(0, 140)}`;
+                } catch (e) { /* ignore */ }
+                throw new Error(msg);
+            }
+            const buf = await res.arrayBuffer();
+            if (!buf || buf.byteLength < 1024) {
+                throw new Error('下载到的内容不是有效音频，可能该歌曲需要登录或已下架');
+            }
+
+            await new Promise((resolve, reject) => {
+                soundUpload(buf, 'audio/mpeg', storage, newSound => {
+                    newSound.name = name;
+                    vm.addSound(newSound, targetId)
+                        .then(() => {
+                            this.handleNewSound();
+                            resolve();
+                        })
+                        .catch(reject);
+                }, reject);
+            });
+        } finally {
+            this.props.onCloseImporting();
+        }
+    }
+
     render () {
         const {
             dispatchUpdateRestore, // eslint-disable-line no-unused-vars
@@ -221,6 +320,11 @@ class SoundTab extends React.Component {
                 defaultMessage: 'Choose a Sound',
                 description: 'Button to add a sound in the editor tab',
                 id: 'gui.soundTab.addSoundFromLibrary'
+            },
+            neteaseSound: {
+                defaultMessage: '网易云歌曲',
+                description: 'Button to add a sound from NetEase Cloud Music in the editor tab',
+                id: 'gui.soundTab.neteaseSound'
             }
         });
 
@@ -250,6 +354,10 @@ class SoundTab extends React.Component {
                     title: intl.formatMessage(messages.addSound),
                     img: searchIcon,
                     onClick: onNewSoundFromLibraryClick
+                }, {
+                    title: intl.formatMessage(messages.neteaseSound),
+                    img: neteaseIcon,
+                    onClick: this.handleNeteaseClick
                 }] : []}
                 dragType={DragConstants.SOUND}
                 isRtl={isRtl}
@@ -278,6 +386,12 @@ class SoundTab extends React.Component {
                         vm={this.props.vm}
                         onNewSound={this.handleNewSound}
                         onRequestClose={this.props.onRequestCloseSoundLibrary}
+                    />
+                ) : null}
+                {this.state.neteaseModalOpen ? (
+                    <TwNeteaseSoundModal
+                        onClose={() => this.setState({neteaseModalOpen: false})}
+                        onSubmit={this.handleNeteaseAdd}
                     />
                 ) : null}
             </AssetPanel>
