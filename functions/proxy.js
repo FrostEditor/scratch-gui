@@ -17,6 +17,8 @@
  * 请求，只能使用 https://。网易云音频 CDN 的 302 常常指向 http:// 链接，这里统一
  * 升级为 https。另外整段逻辑包了 try/catch，任何 fetch 异常都会返回可读的业务
  * 错误（而不是让 Cloudflare 返回笼统的 "error code: 502"）。
+ *
+ * deployed: 2026-07-26 (v2, try/catch + timeout)
  */
 
 const ALLOWED_SCHEMES = ['http:', 'https:'];
