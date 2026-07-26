@@ -86,7 +86,9 @@ class ExtensionBlocksModal extends React.Component {
     getBlockXmls () {
         // Only keep real workspace blocks (<block ...>), not toolbox labels/separators.
         const keepXml = b => b && b.xml && /^\s*<block\b/i.test(b.xml);
-        if (this.props.blocks) {
+        // Use the caller-supplied blocks ONLY if it actually has items;
+        // otherwise fall through to query _blockInfo directly.
+        if (this.props.blocks && this.props.blocks.length > 0) {
             const xmls = this.props.blocks.filter(keepXml).map(b => b.xml);
             if (xmls.length) return xmls;
         }
