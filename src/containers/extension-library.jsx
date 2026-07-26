@@ -200,7 +200,8 @@ class ExtensionLibrary extends React.PureComponent {
             loadedExtensions: [],
             extensionInfoMap: {}, // 存储扩展 ID 到扩展信息的映射
             browseExtensionId: null, // 浏览积木弹窗当前预览的扩展 ID
-            browseExtensionName: ''
+            browseExtensionName: '',
+            browseBlocks: null // 浏览积木弹窗直接使用传入的积木数组（不依赖 _blockInfo 反查）
         };
     }
     handleOpenAddonSettings () {
@@ -372,15 +373,36 @@ class ExtensionLibrary extends React.PureComponent {
     // 在扩展仓库中点击「浏览积木」：若该扩展未加载则先加载，再打开积木预览弹窗
     handleBrowseBlocks (extensionId) {
         const extensionManager = this.props.vm.extensionManager;
-        if (extensionManager.isExtensionLoaded(extensionId)) {
+        const openWithBlocks = (blocks, name) => {
             this.setState({
                 browseExtensionId: extensionId,
-                browseExtensionName: this._findExtensionName(extensionId)
+                browseExtensionName: name || this._findExtensionName(extensionId),
+                browseBlocks: blocks || []
             });
+        };
+
+        // Already loaded → grab blocks straight from _blockInfo.
+        const runtime = this.props.vm.runtime;
+        const grabBlocks = () => {
+            if (runtime && runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
+                let info = runtime._blockInfo.find(i => i.id === extensionId);
+                if (!info) {
+                    // fallback: match by block type prefix (e.g. id transformed on load)
+                    info = runtime._blockInfo.find(i =>
+                        i.blocks && i.blocks.some(b =>
+                            b.info && b.info.opcode && b.info.opcode.startsWith(extensionId + '_')));
+                }
+                return info ? (info.blocks || []) : [];
+            }
+            return [];
+        };
+
+        if (extensionManager.isExtensionLoaded(extensionId)) {
+            openWithBlocks(grabBlocks());
             return;
         }
 
-        // 尝试找到该扩展的加载地址
+        // Try to find the extension's load URL.
         let url = null;
         const extensionURLs = extensionManager.getExtensionURLs ? extensionManager.getExtensionURLs() : {};
         if (extensionURLs && extensionURLs[extensionId]) {
@@ -399,15 +421,19 @@ class ExtensionLibrary extends React.PureComponent {
             }
         }
         if (!url) {
-            url = extensionId; // 退回为内置扩展 id
+            url = extensionId; // fall back to built-in extension id
         }
 
         extensionManager.loadExtensionURL(url)
             .then(() => {
-                this.setState({
-                    browseExtensionId: extensionId,
-                    browseExtensionName: this._findExtensionName(extensionId)
-                });
+                // _blockInfo may need a tick to be populated; grab after a short delay.
+                const blocks = grabBlocks();
+                if (blocks.length === 0) {
+                    // retry once on next frame
+                    setTimeout(() => openWithBlocks(grabBlocks()), 60);
+                } else {
+                    openWithBlocks(blocks);
+                }
             })
             .catch(err => {
                 // eslint-disable-next-line no-alert
@@ -437,7 +463,8 @@ class ExtensionLibrary extends React.PureComponent {
     handleBrowseBlocksClose () {
         this.setState({
             browseExtensionId: null,
-            browseExtensionName: ''
+            browseExtensionName: '',
+            browseBlocks: null
         });
     }
 
@@ -612,7 +639,8 @@ class ExtensionLibrary extends React.PureComponent {
             }
             
             // 0.2 直接从 Blockly 工作区删除积木（确保 UI 上也消失）
-            if (typeof Blockly !== 'undefined') {
+            const Blockly = window.ScratchBlocks || window.Blockly;
+            if (Blockly) {
                 const workspace = Blockly.getMainWorkspace();
                 if (workspace) {
                     const allBlocks = workspace.getAllBlocks();
@@ -812,8 +840,7 @@ class ExtensionLibrary extends React.PureComponent {
                 )}
                 {this.state.browseExtensionId && (
                     <ExtensionBlocksModal
-                        vm={this.props.vm}
-                        extensionId={this.state.browseExtensionId}
+                        blocks={this.state.browseBlocks}
                         extensionName={this.state.browseExtensionName}
                         onClose={this.handleBrowseBlocksClose}
                     />

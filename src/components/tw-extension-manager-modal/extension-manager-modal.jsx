@@ -88,8 +88,7 @@ const ExtensionItem = ({ extension, onRemove, intl, vm }) => {
 
             {previewOpen && (
                 <ExtensionBlocksModal
-                    vm={vm}
-                    extensionId={extension.id}
+                    blocks={extension.blocks}
                     extensionName={extension.name || extension.id}
                     onClose={() => setPreviewOpen(false)}
                 />
