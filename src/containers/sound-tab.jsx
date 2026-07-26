@@ -239,11 +239,16 @@ class SoundTab extends React.Component {
             }
 
             // 真实下载音频并通过同源代理绕过跨域 + 提供 Referer
-            const res = await fetch(
-                `/proxy?url=${encodeURIComponent(
-                    `https://music.163.com/song/media/outer/url?id=${songId}.mp3`
-                )}&referer=${encodeURIComponent('https://music.163.com/')}`
-            );
+            let res;
+            try {
+                res = await fetch(
+                    `/proxy?url=${encodeURIComponent(
+                        `https://music.163.com/song/media/outer/url?id=${songId}.mp3`
+                    )}&referer=${encodeURIComponent('https://music.163.com/')}`
+                );
+            } catch (e) {
+                throw new Error('下载歌曲失败：无法连接代理 /proxy（本地请重启 npm start；线上需部署 Cloudflare Pages Function）');
+            }
             if (!res.ok) {
                 let msg = `下载歌曲失败（HTTP ${res.status}）`;
                 try {
