@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import React, {useState} from 'react';
 import Box from '../box/box.jsx';
 import Modal from '../../containers/modal.jsx';
+import ExtensionBlocksModal from '../tw-extension-blocks-modal/extension-blocks-modal.jsx';
 import styles from './extension-manager-modal.css';
 
 const messages = defineMessages({
@@ -43,16 +44,16 @@ const messages = defineMessages({
     }
 });
 
-const ExtensionItem = ({ extension, onRemove, intl }) => {
-    const [expanded, setExpanded] = useState(false);
-    
+const ExtensionItem = ({ extension, onRemove, intl, vm }) => {
+    const [previewOpen, setPreviewOpen] = useState(false);
+
     return (
         <div className={styles.extensionItem}>
             <div className={styles.extensionHeader}>
-                <div className={styles.extensionInfo} onClick={() => setExpanded(!expanded)}>
+                <div className={styles.extensionInfo} onClick={() => setPreviewOpen(true)}>
                     {extension.iconURL && (
-                        <img 
-                            src={extension.iconURL} 
+                        <img
+                            src={extension.iconURL}
                             alt={extension.name}
                             className={styles.extensionIcon}
                         />
@@ -69,10 +70,7 @@ const ExtensionItem = ({ extension, onRemove, intl }) => {
                         <div className={styles.extensionMeta}>
                             {intl.formatMessage(messages.blocks)}: {extension.blocks ? extension.blocks.length : 0}
                             <span className={styles.toggleText}>
-                                {expanded 
-                                    ? intl.formatMessage(messages.hideBlocks)
-                                    : intl.formatMessage(messages.showBlocks)
-                                }
+                                {intl.formatMessage(messages.showBlocks)}
                             </span>
                         </div>
                     </div>
@@ -87,18 +85,14 @@ const ExtensionItem = ({ extension, onRemove, intl }) => {
                     {intl.formatMessage(messages.remove)}
                 </button>
             </div>
-            
-            {expanded && extension.blocks && extension.blocks.length > 0 && (
-                <div className={styles.blockList}>
-                    {extension.blocks.map((block, index) => (
-                        <div key={index} className={styles.blockItem}>
-                            <span className={styles.blockOpcode}>{block.opcode}</span>
-                            {block.text && (
-                                <span className={styles.blockText}>{block.text}</span>
-                            )}
-                        </div>
-                    ))}
-                </div>
+
+            {previewOpen && (
+                <ExtensionBlocksModal
+                    vm={vm}
+                    extensionId={extension.id}
+                    extensionName={extension.name || extension.id}
+                    onClose={() => setPreviewOpen(false)}
+                />
             )}
         </div>
     );
@@ -113,7 +107,8 @@ ExtensionItem.propTypes = {
         blocks: PropTypes.array
     }).isRequired,
     onRemove: PropTypes.func.isRequired,
-    intl: intlShape.isRequired
+    intl: intlShape.isRequired,
+    vm: PropTypes.object // eslint-disable-line react/forbid-prop-types
 };
 
 const ExtensionManagerModal = props => (
@@ -140,6 +135,7 @@ const ExtensionManagerModal = props => (
                             extension={extension}
                             onRemove={props.onRemoveExtension}
                             intl={props.intl}
+                            vm={props.vm}
                         />
                     ))
                 )}
@@ -167,7 +163,8 @@ ExtensionManagerModal.propTypes = {
         blocks: PropTypes.array
     })).isRequired,
     onRemoveExtension: PropTypes.func.isRequired,
-    onClose: PropTypes.func.isRequired
+    onClose: PropTypes.func.isRequired,
+    vm: PropTypes.object // eslint-disable-line react/forbid-prop-types
 };
 
 export default injectIntl(ExtensionManagerModal);

@@ -22,6 +22,11 @@ const messages = defineMessages({
         defaultMessage: 'Unfavorite',
         description: 'Alt text of icon in costume, sound, and extension libraries to unmark an item as favorite.',
         id: 'tw.unfavorite'
+    },
+    browseBlocks: {
+        defaultMessage: 'Browse blocks',
+        description: 'Button in the extension library to preview the blocks of an extension',
+        id: 'tw.extensionLibrary.browseBlocks'
     }
 });
 
@@ -94,6 +99,21 @@ class LibraryItemComponent extends React.PureComponent {
                     <br />
                     <span className={styles.featuredDescription}>{this.props.description}</span>
                 </div>
+
+                {this.props.extensionId && typeof this.props.extensionId === 'string' && this.props.onBrowseBlocks && (
+                    <div className={styles.extensionLinks}>
+                        <button
+                            type="button"
+                            className={styles.browseBlocksButton}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                this.props.onBrowseBlocks(this.props.extensionId);
+                            }}
+                        >
+                            <FormattedMessage {...messages.browseBlocks} />
+                        </button>
+                    </div>
+                )}
 
                 {(this.props.docsURI || this.props.samples) && (
                     <div className={styles.extensionLinks}>
@@ -283,6 +303,7 @@ LibraryItemComponent.propTypes = {
     })),
     favorite: PropTypes.bool,
     onFavorite: PropTypes.func,
+    onBrowseBlocks: PropTypes.func,
     onBlur: PropTypes.func.isRequired,
     onClick: PropTypes.func.isRequired,
     onFocus: PropTypes.func.isRequired,

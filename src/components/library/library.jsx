@@ -347,6 +347,7 @@ class LibraryComponent extends React.Component {
                                             onMouseEnter={this.handleMouseEnter}
                                             onMouseLeave={this.handleMouseLeave}
                                             onSelect={this.handleSelect}
+                                            onBrowseBlocks={this.props.onBrowseBlocks}
                                         />
                                     )
                                 ))}
@@ -430,6 +431,7 @@ class LibraryComponent extends React.Component {
                                         onMouseEnter={this.handleMouseEnter}
                                         onMouseLeave={this.handleMouseLeave}
                                         onSelect={this.handleSelect}
+                                        onBrowseBlocks={this.props.onBrowseBlocks}
                                     />
                                 )
                             ))}
@@ -508,7 +510,8 @@ LibraryComponent.propTypes = {
     tags: PropTypes.arrayOf(PropTypes.shape(TagButton.propTypes)),
     title: PropTypes.string.isRequired,
     removedTrademarks: PropTypes.bool,
-    onExtensionManagerClick: PropTypes.func
+    onExtensionManagerClick: PropTypes.func,
+    onBrowseBlocks: PropTypes.func
 };
 
 LibraryComponent.defaultProps = {

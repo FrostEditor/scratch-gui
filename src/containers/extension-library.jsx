@@ -16,6 +16,7 @@ import LibraryComponent from '../components/library/library.jsx';
 import libraryStyles from '../components/library/library.css';
 import extensionIcon from '../components/action-menu/icon--sprite.svg';
 import ExtensionManagerModal from '../components/tw-extension-manager-modal/extension-manager-modal.jsx';
+import ExtensionBlocksModal from '../components/tw-extension-blocks-modal/extension-blocks-modal.jsx';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 
 const messages = defineMessages({
@@ -183,6 +184,8 @@ class ExtensionLibrary extends React.PureComponent {
             ,'handleExtensionManagerClick'
             ,'handleExtensionManagerClose'
             ,'handleRemoveExtension'
+            ,'handleBrowseBlocks'
+            ,'handleBrowseBlocksClose'
             ,'getLoadedExtensions'
         ]);
         this.state = {
@@ -195,7 +198,9 @@ class ExtensionLibrary extends React.PureComponent {
             udbbsError: null,
             extensionManagerOpen: false,
             loadedExtensions: [],
-            extensionInfoMap: {} // 存储扩展 ID 到扩展信息的映射
+            extensionInfoMap: {}, // 存储扩展 ID 到扩展信息的映射
+            browseExtensionId: null, // 浏览积木弹窗当前预览的扩展 ID
+            browseExtensionName: ''
         };
     }
     handleOpenAddonSettings () {
@@ -361,6 +366,78 @@ class ExtensionLibrary extends React.PureComponent {
     handleExtensionManagerClose () {
         this.setState({
             extensionManagerOpen: false
+        });
+    }
+
+    // 在扩展仓库中点击「浏览积木」：若该扩展未加载则先加载，再打开积木预览弹窗
+    handleBrowseBlocks (extensionId) {
+        const extensionManager = this.props.vm.extensionManager;
+        if (extensionManager.isExtensionLoaded(extensionId)) {
+            this.setState({
+                browseExtensionId: extensionId,
+                browseExtensionName: this._findExtensionName(extensionId)
+            });
+            return;
+        }
+
+        // 尝试找到该扩展的加载地址
+        let url = null;
+        const extensionURLs = extensionManager.getExtensionURLs ? extensionManager.getExtensionURLs() : {};
+        if (extensionURLs && extensionURLs[extensionId]) {
+            url = extensionURLs[extensionId];
+        }
+        if (!url) {
+            const allLibraryExtensions = [
+                ...(extensionLibraryContent || []),
+                ...(this.state.gallery || []),
+                ...(this.state.astraExtensions || []),
+                ...(this.state.udbbsExtensions || [])
+            ];
+            const matched = allLibraryExtensions.find(ext => ext && ext.extensionId === extensionId);
+            if (matched) {
+                url = matched.extensionURL || extensionId;
+            }
+        }
+        if (!url) {
+            url = extensionId; // 退回为内置扩展 id
+        }
+
+        extensionManager.loadExtensionURL(url)
+            .then(() => {
+                this.setState({
+                    browseExtensionId: extensionId,
+                    browseExtensionName: this._findExtensionName(extensionId)
+                });
+            })
+            .catch(err => {
+                // eslint-disable-next-line no-alert
+                alert(err);
+            });
+    }
+
+    _findExtensionName (extensionId) {
+        // 优先从已加载信息里取
+        if (this.state.extensionInfoMap && this.state.extensionInfoMap[extensionId]) {
+            return this.state.extensionInfoMap[extensionId].name || extensionId;
+        }
+        // 再在各扩展库中匹配
+        const allLibraryExtensions = [
+            ...(extensionLibraryContent || []),
+            ...(this.state.gallery || []),
+            ...(this.state.astraExtensions || []),
+            ...(this.state.udbbsExtensions || [])
+        ];
+        const matched = allLibraryExtensions.find(ext => ext && ext.extensionId === extensionId);
+        if (matched) {
+            return matched.name || extensionId;
+        }
+        return extensionId;
+    }
+
+    handleBrowseBlocksClose () {
+        this.setState({
+            browseExtensionId: null,
+            browseExtensionName: ''
         });
     }
 
@@ -723,12 +800,22 @@ class ExtensionLibrary extends React.PureComponent {
                     onItemSelected={this.handleItemSelect}
                     onRequestClose={this.props.onRequestClose}
                     onExtensionManagerClick={this.handleExtensionManagerClick}
+                    onBrowseBlocks={this.handleBrowseBlocks}
                 />
                 {this.state.extensionManagerOpen && (
                     <ExtensionManagerModal
                         extensions={this.state.loadedExtensions}
                         onRemoveExtension={this.handleRemoveExtension}
                         onClose={this.handleExtensionManagerClose}
+                        vm={this.props.vm}
+                    />
+                )}
+                {this.state.browseExtensionId && (
+                    <ExtensionBlocksModal
+                        vm={this.props.vm}
+                        extensionId={this.state.browseExtensionId}
+                        extensionName={this.state.browseExtensionName}
+                        onClose={this.handleBrowseBlocksClose}
                     />
                 )}
             </React.Fragment>
