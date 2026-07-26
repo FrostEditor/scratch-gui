@@ -46,7 +46,9 @@ const isBlockedHost = (hostname) => {
     return false;
 };
 
-// 服务端去拉远程资源，返回的 res 可直接 pipe 给客户端
+// 服务端去拉远程资源，整块缓冲后返回 {buffer, statusCode, headers}
+// 用「缓冲后一次性写出」而非 pipe，避免小响应（单 chunk）在 pipe 监听挂上前被
+// 提前的 data 监听消费导致开头字节丢失（网易云 detail 这类小 JSON 会因此残缺）。
 // extraHeaders: 可选，附加到出站请求（如网易云音频 CDN 需要的 Referer）
 const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((resolve, reject) => {
     // 与 Cloudflare Function 对齐：http:// 统一升级为 https://（网易云 CDN 常给 http 重定向）
@@ -73,7 +75,7 @@ const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((res
                 res.resume();
                 return reject(new Error('Too many redirects'));
             }
-            const next = new URL(res.headers.location, targetUrl).toString();
+            const next = new URL(res.headers.location, targetUrl).toString().replace(/^http:\/\//i, 'https://');
             res.resume();
             return resolve(fetchRemote(next, redirectCount + 1, extraHeaders));
         }
@@ -81,16 +83,23 @@ const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((res
             res.resume();
             return reject(new Error(`Remote returned status ${res.statusCode}`));
         }
-        // 体积保护
+        // 整块缓冲 + 体积保护
+        const chunks = [];
         let size = 0;
         res.on('data', (chunk) => {
             size += chunk.length;
             if (size > MAX_SIZE) {
                 res.destroy();
-                reject(new Error('Response too large'));
+                return reject(new Error('Response too large'));
             }
+            chunks.push(chunk);
         });
-        resolve(res);
+        res.on('end', () => resolve({
+            buffer: Buffer.concat(chunks),
+            statusCode: res.statusCode,
+            headers: res.headers
+        }));
+        res.on('error', reject);
     });
     req.on('error', reject);
     req.setTimeout(30000, () => {
@@ -106,6 +115,12 @@ const extractTarget = (reqUrl) => {
         // 路径形式：/proxy/<encoded> 或 /proxy/https://...
         const after = parsed.pathname.replace(/^\/proxy\/?/, '');
         target = decodeURIComponent(after);
+    }
+    // 重要：url.parse(..., true) 会把 %5B/%5D 解码成 [ ]。若原样转发，
+    // 网易云 detail 接口（ids=[...]）等方法会因原始方括号返回空响应。
+    // 转发前把 [ ] 重新编码回 %5B/%5D，保证上游收到与客户端一致的链接。
+    if (target) {
+        target = target.replace(/\[/g, '%5B').replace(/\]/g, '%5D');
     }
     return {target, referer: parsed.query && parsed.query.referer};
 };
@@ -152,10 +167,10 @@ const corsProxyMiddleware = () => (req, res) => {
     }
 
     fetchRemote(parsedTarget.toString(), 0, extraHeaders)
-        .then((remoteRes) => {
+        .then((remote) => {
             // 远程返回 HTML（错误页 / 登录页 / 防盗链页）时，不要把它当作品
             // 传回浏览器——否则前端 VM 解析会抛出难懂的 "is not valid JSON"。
-            const ct = (remoteRes.headers['content-type'] || '').toLowerCase();
+            const ct = (remote.headers['content-type'] || '').toLowerCase();
             if (ct.includes('text/html')) {
                 res.statusCode = 502;
                 res.end('Remote returned an HTML page instead of a project file. ' +
@@ -163,19 +178,20 @@ const corsProxyMiddleware = () => (req, res) => {
                     'or the file does not exist.');
                 return;
             }
-            res.statusCode = remoteRes.statusCode;
+            res.statusCode = remote.statusCode;
             const passHeaders = [
                 'content-type', 'content-length', 'content-encoding',
                 'cache-control', 'last-modified', 'etag', 'accept-ranges'
             ];
             passHeaders.forEach((h) => {
-                const v = remoteRes.headers[h];
+                const v = remote.headers[h];
                 if (v) res.setHeader(h, v);
             });
             // 关键：让任何来源的页面都能用这个同源代理
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-            remoteRes.pipe(res);
+            // 整块写出（已在 fetchRemote 中缓冲），避免 stream pipe 竞态丢字节
+            res.end(remote.buffer);
         })
         .catch((err) => {
             if (!res.headersSent) {

@@ -225,7 +225,7 @@ class SoundTab extends React.Component {
                 const dRes = await fetch(
                     `/proxy?url=${encodeURIComponent(
                         `https://music.163.com/api/song/detail/?id=${songId}&ids=%5B${songId}%5D`
-                    )}`
+                    )}&referer=${encodeURIComponent('https://music.163.com/')}`
                 );
                 if (dRes.ok) {
                     const d = await dRes.json();
