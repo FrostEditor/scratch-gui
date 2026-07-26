@@ -1,0 +1,9 @@
+name = "frosteditor-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# 部署到主站同域的 /proxy* 路由，与 GUI 的 fetch('/proxy?...') 同源，
+# 无需改动 GUI 代码即可无缝替换旧的 Cloudflare Pages Function。
+# （Worker 路由优先级高于 Pages Functions，仅 /proxy 这一路径被本 Worker 接管）
+routes = ["editor.froste.top/proxy*"]
+zone_name = "froste.top"
