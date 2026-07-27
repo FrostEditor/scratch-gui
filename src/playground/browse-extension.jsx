@@ -55,6 +55,24 @@ const messages = defineMessages({
 const URL_HINT = '?url=扩展JS地址';
 const EXAMPLE_URL = 'browse-extension.html?url=https://extensions.turbowarp.org/pen.js';
 
+// 手机端适配：锁定页面级缩放（双击 / 捏合只作用于积木画布，而不是整页），
+// 并适配刘海屏安全区。simple.ejs 模板的 viewport 较宽松，这里直接覆盖。
+const setupMobileViewport = () => {
+    if (typeof document === 'undefined') return;
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'viewport';
+        document.head.appendChild(meta);
+    }
+    meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    // iOS Safari 的捏合手势事件不受 viewport 限制，需要显式拦截。
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+        document.addEventListener(type, e => e.preventDefault(), {passive: false});
+    });
+};
+setupMobileViewport();
+
 // 编辑器 GUI 挂载后会通过 onVmInit 把 vm 交给我们，
 // 扩展要加载进这个 vm，才能复用它和 scratch-blocks 之间的桥接。
 let vm = null;

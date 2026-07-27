@@ -10,14 +10,22 @@
     pointer-events: none;
 }
 
-/* 前台全屏覆盖层，只展示扩展积木。 */
+/* 前台全屏覆盖层，只展示扩展积木。
+   手机端：用 dvh 兼容移动端地址栏收起/展开，禁止页面级滚动回弹，
+   并适配刘海屏安全区。 */
 .overlay {
     position: fixed;
     inset: 0;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     background: #fff;
     z-index: 1000;
+    overscroll-behavior: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 /* 沉浸式：无头部、无内边距，积木画布铺满整个视口。 */
@@ -48,4 +56,16 @@
     color: #333;
     font-family: ui-monospace, Menlo, Consolas, monospace;
     word-break: break-all;
+}
+
+/* 手机小屏：提示文字缩小、留边收窄，长 URL 换行显示。 */
+@media (max-width: 767px) {
+    .message {
+        font-size: 0.85rem;
+        padding: 0.75rem;
+    }
+
+    .message code {
+        font-size: 0.75rem;
+    }
 }

@@ -2,6 +2,8 @@
    作为弹窗使用时，外层会限定尺寸。这里只负责画布区域本身。 */
 .workspaceWrapper {
     position: relative;
+    display: flex;
+    flex-direction: column;
     background: #f7f7f7;
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -17,12 +19,34 @@
     background: #fff;
 }
 
-/* 始终可见，让 Blockly inject 时能测到真实尺寸。 */
+/* 始终可见，让 Blockly inject 时能测到真实尺寸。
+   touch-action: none 把平移/捏合手势全部交给积木引擎处理，
+   避免手机浏览器把手势当成页面滚动/缩放。 */
 .blocklyContainer {
     width: 100%;
-    height: 100%;
+    /* 不能依赖 height:100%（父级弹窗无确定高度时会塌陷成 0），
+       用 flex:1 + 固定 min-height 兜底：弹窗里由 62vh 撑起，
+       独立页面里由外层 flex 撑满全屏。 */
+    flex: 1 1 auto;
+    height: 62vh;
     min-height: 320px;
     position: relative;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 沉浸式全屏时高度完全交给 flex，去掉 62vh 限制。 */
+.workspaceWrapper.frameless .blocklyContainer {
+    height: auto;
+}
+
+/* 小屏（手机）下弹窗等场景的最小高度放宽，避免溢出。 */
+@media (max-width: 767px) {
+    .workspaceWrapper,
+    .blocklyContainer,
+    .placeholder {
+        min-height: 200px;
+    }
 }
 
 /* loading / empty / unavailable 状态的覆盖层。 */

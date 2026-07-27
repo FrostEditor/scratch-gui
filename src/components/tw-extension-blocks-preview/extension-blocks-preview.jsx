@@ -22,6 +22,15 @@ const PREVIEW_OPTIONS = {
     }
 };
 
+// 触摸设备检测：手机/平板上启用缩放按钮并缩小初始比例。
+const isTouchDevice = () => typeof window !== 'undefined' && (
+    ('ontouchstart' in window) ||
+    (window.navigator && window.navigator.maxTouchPoints > 0)
+);
+
+// 小屏检测（手机竖屏等）。
+const isSmallScreen = () => typeof window !== 'undefined' && window.innerWidth < 768;
+
 /**
  * 全屏（或任意容器）积木预览画布。
  *
@@ -58,17 +67,30 @@ class ExtensionBlocksPreview extends React.Component {
         this._attempts = 0;
         this._maxAttempts = 30; // 最多约 3s 重试，等待引擎 / 容器挂载
         this._retryReason = null;
+        this._pinchContainer = null;
         this.resizeTimers = [];
         this.state = {
             status: 'loading' // loading | ok | empty | unavailable
+        };
+        // 手机端旋转屏幕 / 地址栏收起时重算画布尺寸。
+        this._onWindowResize = () => {
+            if (this.workspace && this.workspace.resize) {
+                try {
+                    this.workspace.resize();
+                } catch (e) { /* ignore */ }
+            }
         };
     }
 
     componentDidMount () {
         this.renderBlocks();
+        window.addEventListener('resize', this._onWindowResize);
+        window.addEventListener('orientationchange', this._onWindowResize);
     }
 
     componentWillUnmount () {
+        window.removeEventListener('resize', this._onWindowResize);
+        window.removeEventListener('orientationchange', this._onWindowResize);
         this.disposeWorkspace();
     }
 
@@ -113,7 +135,60 @@ class ExtensionBlocksPreview extends React.Component {
         return [];
     }
 
+    // 手机端双指捏合缩放。本 fork 的 scratch-blocks 只支持单指触摸拖动，
+    // 没有内置 pinch，这里在捕获阶段拦截双指手势自行缩放，
+    // 单指平移仍然交给积木引擎处理。
+    bindPinchZoom (container) {
+        if (this._pinchContainer || !container) return;
+        this._pinchContainer = container;
+        this._pinchDist = 0;
+        this._pinchScale = 1;
+        const getDist = touches => Math.hypot(
+            touches[0].clientX - touches[1].clientX,
+            touches[0].clientY - touches[1].clientY
+        );
+        this._onPinchStart = e => {
+            if (e.touches.length === 2 && this.workspace) {
+                e.preventDefault();
+                e.stopPropagation();
+                this._pinchDist = getDist(e.touches);
+                this._pinchScale = this.workspace.scale || 1;
+            }
+        };
+        this._onPinchMove = e => {
+            if (e.touches.length === 2 && this.workspace && this._pinchDist > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                const ratio = getDist(e.touches) / this._pinchDist;
+                const scale = Math.min(1.5, Math.max(0.35, this._pinchScale * ratio));
+                try {
+                    this.workspace.setScale(scale);
+                } catch (err) { /* ignore */ }
+            }
+        };
+        this._onPinchEnd = e => {
+            if (!e.touches || e.touches.length < 2) {
+                this._pinchDist = 0;
+            }
+        };
+        container.addEventListener('touchstart', this._onPinchStart, {capture: true, passive: false});
+        container.addEventListener('touchmove', this._onPinchMove, {capture: true, passive: false});
+        container.addEventListener('touchend', this._onPinchEnd, true);
+        container.addEventListener('touchcancel', this._onPinchEnd, true);
+    }
+
+    unbindPinchZoom () {
+        const container = this._pinchContainer;
+        if (!container) return;
+        container.removeEventListener('touchstart', this._onPinchStart, {capture: true});
+        container.removeEventListener('touchmove', this._onPinchMove, {capture: true});
+        container.removeEventListener('touchend', this._onPinchEnd, true);
+        container.removeEventListener('touchcancel', this._onPinchEnd, true);
+        this._pinchContainer = null;
+    }
+
     disposeWorkspace () {
+        this.unbindPinchZoom();
         if (this.retryTimer) {
             clearTimeout(this.retryTimer);
             this.retryTimer = null;
@@ -189,7 +264,21 @@ class ExtensionBlocksPreview extends React.Component {
         try {
             const oldDefaultToolbox = ScratchBlocks.Blocks.defaultToolbox;
             ScratchBlocks.Blocks.defaultToolbox = null;
-            const config = Object.assign({}, PREVIEW_OPTIONS, {rtl: this.props.isRtl}, {media});
+            // 手机端适配：小屏 / 触摸设备上显示缩放按钮、允许捏合缩放、
+            // 并用更小的初始比例让积木一屏内可见。
+            const touch = isTouchDevice();
+            const small = isSmallScreen();
+            const zoom = Object.assign({}, PREVIEW_OPTIONS.zoom, {
+                controls: touch || small,
+                startScale: small ? 0.65 : 1,
+                minScale: 0.35,
+                maxScale: small ? 1.25 : 1
+            });
+            const config = Object.assign({}, PREVIEW_OPTIONS, {
+                rtl: this.props.isRtl,
+                media,
+                zoom
+            });
             this.workspace = ScratchBlocks.inject(this.containerRef.current, config);
             ScratchBlocks.Blocks.defaultToolbox = oldDefaultToolbox;
 
@@ -236,6 +325,11 @@ class ExtensionBlocksPreview extends React.Component {
                 try {
                     this.workspace.resize();
                 } catch (e) { /* ignore */ }
+            }
+
+            // 触摸设备：绑定双指捏合缩放。
+            if (touch) {
+                this.bindPinchZoom(this.containerRef.current);
             }
 
             this.setState({status: 'ok'});
