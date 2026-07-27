@@ -60,6 +60,7 @@ class ExtensionBlocksModal extends React.Component {
         this._realMain = null;
         this._attempts = 0;
         this._maxAttempts = 12; // ~1.2s of retries if the renderer is still loading
+        this.resizeTimers = [];
         this.state = {
             status: 'loading' // loading | ok | empty | unavailable
         };
@@ -109,6 +110,14 @@ class ExtensionBlocksModal extends React.Component {
     }
 
     disposeWorkspace () {
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+        this.resizeTimers.forEach(id => {
+            try { clearTimeout(id); } catch (e) { /* ignore */ }
+        });
+        this.resizeTimers = [];
         const ScratchBlocks = this.getScratchBlocks();
         if (this.workspace && ScratchBlocks) {
             try {
@@ -180,6 +189,13 @@ class ExtensionBlocksModal extends React.Component {
                 }
             }
 
+            // Ensure the workspace is sized to the visible container before
+            // loading blocks. This is important because the modal may still be
+            // animating in when this runs.
+            if (this.workspace.resize) {
+                try { this.workspace.resize(); } catch (e) { /* ignore */ }
+            }
+
             const xml = `<xml xmlns="https://developers.google.com/blockly/xml">${xmls.join('')}</xml>`;
             ScratchBlocks.Xml.domToWorkspace(ScratchBlocks.Xml.textToDom(xml), this.workspace);
 
@@ -193,25 +209,36 @@ class ExtensionBlocksModal extends React.Component {
 
             // Stack the top-level blocks vertically so they don't overlap.
             const topBlocks = this.workspace.getTopBlocks(true);
-            let y = 0;
+            let y = 24;
             topBlocks.forEach(block => {
                 block.moveBy(0, y);
-                const size = (block.getHeightWidth && block.getHeightWidth()) || {height: 44};
-                y += size.height + 16;
+                const size = (block.getHeightWidth && block.getHeightWidth()) || {height: 48};
+                y += size.height + 24;
             });
-            this.workspace.scrollCenter();
+
+            // Re-render the SVG now that blocks have been moved, otherwise the
+            // workspace will still think everything is at (0, 0) and may centre
+            // the view on a blank spot.
+            if (this.workspace.render) {
+                try { this.workspace.render(); } catch (e) { /* ignore */ }
+            }
+            if (this.workspace.resize) {
+                try { this.workspace.resize(); } catch (e) { /* ignore */ }
+            }
+
             this.setState({status: 'ok'});
-            // Make sure Blockly recomputes the workspace size now that the
-            // (previously hidden) container is visible.
-            setTimeout(() => {
-                if (this.workspace && this.workspace.resize) {
-                    try {
-                        this.workspace.resize();
-                    } catch (e) {
-                        // ignore resize errors
+
+            // The modal (or its parent modal) might still be settling into its
+            // final size; recompute the workspace a couple more times so blocks
+            // don't end up off-screen or at 0-size.
+            [0, 150, 350].forEach(delay => {
+                const id = setTimeout(() => {
+                    if (this.workspace && this.workspace.resize) {
+                        try { this.workspace.resize(); } catch (e) { /* ignore */ }
                     }
-                }
-            }, 0);
+                }, delay);
+                this.resizeTimers.push(id);
+            });
         } catch (e) {
             this.disposeWorkspace();
             this.setState({status: 'unavailable'});
