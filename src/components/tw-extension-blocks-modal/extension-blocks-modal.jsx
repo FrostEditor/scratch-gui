@@ -59,7 +59,8 @@ class ExtensionBlocksModal extends React.Component {
         this.workspace = null;
         this._realMain = null;
         this._attempts = 0;
-        this._maxAttempts = 12; // ~1.2s of retries if the renderer is still loading
+        this._maxAttempts = 30; // up to ~3s of retries for engine / container mount
+        this._retryReason = null;
         this.resizeTimers = [];
         this.state = {
             status: 'loading' // loading | ok | empty | unavailable
@@ -76,11 +77,24 @@ class ExtensionBlocksModal extends React.Component {
 
     // Pulls the real Blockly (scratch-blocks) singleton that the editor uses.
     getScratchBlocks () {
+        // Prefer the lazy singleton the editor uses. If it isn't loaded yet
+        // (or a stray duplicate module instance reports null), fall back to
+        // window.ScratchBlocks — blocks.jsx always assigns the real, already
+        // loaded instance there, so it is guaranteed to be the same engine.
         try {
-            return LazyScratchBlocks.get();
+            const sb = LazyScratchBlocks.get();
+            if (sb && sb.inject) {
+                return sb;
+            }
         } catch (e) {
-            return null;
+            // ignore and fall through to the global fallback
         }
+        if (typeof window !== 'undefined' && window.ScratchBlocks && window.ScratchBlocks.inject) {
+            // eslint-disable-next-line no-console
+            console.warn('EXTBLOCKS_USING_WINDOW_FALLBACK');
+            return window.ScratchBlocks;
+        }
+        return null;
     }
 
     // Collects the real <block> XML strings for this extension.
@@ -149,6 +163,15 @@ class ExtensionBlocksModal extends React.Component {
                 this.setState({status: 'unavailable'});
             }
             return;
+        }
+
+        // The container must actually be attached to the document before we
+        // inject. Inside a nested ReactModal the parent modal's portal may not
+        // be attached to the DOM yet when this component mounts, which makes
+        // Blockly.inject() throw "container is not in current document".
+        const container = this.containerRef.current;
+        if (!container || !container.parentNode || container.ownerDocument !== document) {
+            return this.scheduleRetry('container');
         }
 
         const xmls = this.getBlockXmls();
@@ -240,7 +263,25 @@ class ExtensionBlocksModal extends React.Component {
                 this.resizeTimers.push(id);
             });
         } catch (e) {
+            // A "container is not in current document" error is a timing issue
+            // with nested modals — retry. Otherwise give up with a clear message.
+            if (this._attempts < this._maxAttempts &&
+                /not in current document|container/i.test((e && e.message) || '')) {
+                return this.scheduleRetry('inject-error');
+            }
+            // eslint-disable-next-line no-console
+            console.error('EXTBLOCKS_RENDER_ERROR', e && (e.stack || e.message || e));
             this.disposeWorkspace();
+            this.setState({status: 'unavailable'});
+        }
+    }
+
+    scheduleRetry (reason) {
+        if (this._attempts < this._maxAttempts) {
+            this._attempts++;
+            this._retryReason = reason;
+            this.retryTimer = setTimeout(() => this.renderBlocks(), 100);
+        } else {
             this.setState({status: 'unavailable'});
         }
     }
