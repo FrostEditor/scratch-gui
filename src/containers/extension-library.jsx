@@ -376,6 +376,19 @@ class ExtensionLibrary extends React.PureComponent {
 
     // 在扩展仓库中点击「浏览积木」：若该扩展未加载则先加载，再打开积木预览弹窗
     handleBrowseBlocks (extensionId) {
+        // Special-case ids that are NOT real extension URLs (mirrors
+        // handleExtensionClicked). Trying to loadExtensionURL on these throws
+        // "Invalid extension URL: <id>", so handle them here first.
+        if (extensionId === 'custom_extension') {
+            this.props.onOpenCustomExtensionModal();
+            return;
+        }
+        if (extensionId === 'procedures_enable_return') {
+            this.props.onEnableProcedureReturns();
+            this.props.onCategorySelected('myBlocks');
+            return;
+        }
+
         const extensionManager = this.props.vm.extensionManager;
         const runtime = this.props.vm.runtime;
         const openWithBlocks = (blocks, name) => {
