@@ -316,27 +316,36 @@ class TargetPane extends React.Component {
         } = this.props;
         /* eslint-enable no-unused-vars */
         return (
-            <TargetPaneComponent
-                {...componentProps}
-                fileInputRef={this.setFileInput}
-                onActivateBlocksTab={this.handleActivateBlocksTab}
-                onChangeSpriteDirection={this.handleChangeSpriteDirection}
-                onChangeSpriteName={this.handleChangeSpriteName}
-                onChangeSpriteRotationStyle={this.handleChangeSpriteRotationStyle}
-                onChangeSpriteSize={this.handleChangeSpriteSize}
-                onChangeSpriteVisibility={this.handleChangeSpriteVisibility}
-                onChangeSpriteX={this.handleChangeSpriteX}
-                onChangeSpriteY={this.handleChangeSpriteY}
-                onDeleteSprite={this.handleDeleteSprite}
-                onDrop={this.handleDrop}
-                onDuplicateSprite={this.handleDuplicateSprite}
-                onExportSprite={this.handleExportSprite}
-                onFileUploadClick={this.handleFileUploadClick}
-                onPaintSpriteClick={this.handlePaintSpriteClick}
-                onSelectSprite={this.handleSelectSprite}
-                onSpriteUpload={this.handleSpriteUpload}
-                onSurpriseSpriteClick={this.handleSurpriseSpriteClick}
-            />
+            <React.Fragment>
+                <TargetPaneComponent
+                    {...componentProps}
+                    fileInputRef={this.setFileInput}
+                    onActivateBlocksTab={this.handleActivateBlocksTab}
+                    onBilibiliSpriteClick={this.handleBilibiliClick}
+                    onChangeSpriteDirection={this.handleChangeSpriteDirection}
+                    onChangeSpriteName={this.handleChangeSpriteName}
+                    onChangeSpriteRotationStyle={this.handleChangeSpriteRotationStyle}
+                    onChangeSpriteSize={this.handleChangeSpriteSize}
+                    onChangeSpriteVisibility={this.handleChangeSpriteVisibility}
+                    onChangeSpriteX={this.handleChangeSpriteX}
+                    onChangeSpriteY={this.handleChangeSpriteY}
+                    onDeleteSprite={this.handleDeleteSprite}
+                    onDrop={this.handleDrop}
+                    onDuplicateSprite={this.handleDuplicateSprite}
+                    onExportSprite={this.handleExportSprite}
+                    onFileUploadClick={this.handleFileUploadClick}
+                    onPaintSpriteClick={this.handlePaintSpriteClick}
+                    onSelectSprite={this.handleSelectSprite}
+                    onSpriteUpload={this.handleSpriteUpload}
+                    onSurpriseSpriteClick={this.handleSurpriseSpriteClick}
+                />
+                {this.state.bilibiliModalOpen ? (
+                    <TwBilibiliSpriteModal
+                        onClose={() => this.setState({bilibiliModalOpen: false})}
+                        onSubmit={this.handleBilibiliAdd}
+                    />
+                ) : null}
+            </React.Fragment>
         );
     }
 }

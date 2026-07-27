@@ -16,6 +16,7 @@ import paintIcon from '../action-menu/icon--paint.svg';
 import spriteIcon from '../action-menu/icon--sprite.svg';
 import surpriseIcon from '../action-menu/icon--surprise.svg';
 import searchIcon from '../action-menu/icon--search.svg';
+import bilibiliIcon from '../action-menu/icon--bilibili.svg';
 
 const messages = defineMessages({
     addSpriteFromLibrary: {
@@ -37,6 +38,11 @@ const messages = defineMessages({
         id: 'gui.spriteSelector.addSpriteFromFile',
         description: 'Button to add a sprite in the target pane from file',
         defaultMessage: 'Upload Sprite'
+    },
+    addSpriteFromBilibili: {
+        id: 'gui.spriteSelector.addSpriteFromBilibili',
+        description: 'Button to add a sprite from a Bilibili video cover in the target pane',
+        defaultMessage: 'B站视频封面'
     }
 });
 
@@ -52,6 +58,7 @@ const SpriteSelectorComponent = function (props) {
         onChangeSpriteVisibility,
         onChangeSpriteX,
         onChangeSpriteY,
+        onBilibiliSpriteClick,
         onDrop,
         onDeleteSprite,
         onDuplicateSprite,
@@ -136,6 +143,10 @@ const SpriteSelectorComponent = function (props) {
                         title: intl.formatMessage(messages.addSpriteFromLibrary),
                         img: searchIcon,
                         onClick: onNewSpriteClick
+                    }, {
+                        title: intl.formatMessage(messages.addSpriteFromBilibili),
+                        img: bilibiliIcon,
+                        onClick: onBilibiliSpriteClick
                     }
                 ]}
                 title={intl.formatMessage(messages.addSpriteFromLibrary)}
@@ -153,6 +164,7 @@ SpriteSelectorComponent.propTypes = {
         receivedBlocks: PropTypes.bool
     }),
     intl: intlShape.isRequired,
+    onBilibiliSpriteClick: PropTypes.func,
     onChangeSpriteDirection: PropTypes.func,
     onChangeSpriteName: PropTypes.func,
     onChangeSpriteRotationStyle: PropTypes.func,

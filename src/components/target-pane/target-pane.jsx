@@ -22,6 +22,7 @@ const TargetPane = ({
     hoveredTarget,
     spriteLibraryVisible,
     onActivateBlocksTab,
+    onBilibiliSpriteClick,
     onChangeSpriteDirection,
     onChangeSpriteName,
     onChangeSpriteRotationStyle,
@@ -60,6 +61,7 @@ const TargetPane = ({
             spriteFileInput={fileInputRef}
             sprites={sprites}
             stageSize={stageSize}
+            onBilibiliSpriteClick={onBilibiliSpriteClick}
             onChangeSpriteDirection={onChangeSpriteDirection}
             onChangeSpriteName={onChangeSpriteName}
             onChangeSpriteRotationStyle={onChangeSpriteRotationStyle}
@@ -149,6 +151,7 @@ TargetPane.propTypes = {
     onNewSpriteClick: PropTypes.func,
     onPaintSpriteClick: PropTypes.func,
     onRequestCloseExtensionLibrary: PropTypes.func,
+    onBilibiliSpriteClick: PropTypes.func,
     onRequestCloseSpriteLibrary: PropTypes.func,
     onSelectSprite: PropTypes.func,
     onSpriteUpload: PropTypes.func,
