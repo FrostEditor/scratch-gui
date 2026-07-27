@@ -172,6 +172,7 @@ class LibraryItem extends React.PureComponent {
                 onMouseLeave={this.handleMouseLeave}
                 onPlay={this.handlePlay}
                 onStop={this.handleStop}
+                onBrowseBlocks={this.props.onBrowseBlocks}
             />
         );
     }
@@ -221,6 +222,7 @@ LibraryItem.propTypes = {
     onMouseEnter: PropTypes.func.isRequired,
     onMouseLeave: PropTypes.func.isRequired,
     onSelect: PropTypes.func.isRequired,
+    onBrowseBlocks: PropTypes.func,
     showPlayButton: PropTypes.bool
 };
 

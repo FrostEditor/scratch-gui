@@ -30,6 +30,10 @@ const messages = defineMessages({
 const toLibraryItem = extension => {
     if (typeof extension === 'object') {
         return ({
+            // Default extension cards to the "featured" (large) layout so the
+            // "Browse blocks" button shows up. Built-in extensions from
+            // extensionLibraryContent don't set `featured` themselves.
+            featured: extension.featured !== undefined ? extension.featured : true,
             rawURL: extension.iconURL || extensionIcon,
             ...extension
         });
@@ -739,9 +743,11 @@ class ExtensionLibrary extends React.PureComponent {
     }
 
     render () {
-        let library = null;
+        // Always render the built-in extensions so their cards (and the
+        // "Browse blocks" button) are visible even before the online gallery
+        // finishes loading or fails.
+        let library = extensionLibraryContent.map(toLibraryItem);
         if (this.state.gallery || this.state.galleryError || this.state.galleryTimedOut) {
-            library = extensionLibraryContent.map(toLibraryItem);
             library.push('---');
             if (this.state.gallery) {
                 library.push(toLibraryItem(galleryMore));
