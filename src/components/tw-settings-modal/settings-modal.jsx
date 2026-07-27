@@ -512,7 +512,7 @@ CustomBackground.propTypes = {
 const BlockPaletteIcons = () => {
     const [enabled, setEnabled] = React.useState(() => {
         const saved = localStorage.getItem('tw-blockPaletteIcons');
-        return saved !== 'false'; // 默认开启
+        return saved === 'true'; // 默认关闭
     });
 
     React.useEffect(() => {

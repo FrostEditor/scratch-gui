@@ -46,6 +46,29 @@
     flex-grow: 1;
     gap: 0.5rem;
 }
+
+/* 手机端（窄屏）：菜单栏内容横向滚动，避免把页面撑破。 */
+@media (max-width: 767px) {
+    .menu-bar {
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 0.25rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .menu-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .main-menu {
+        gap: 0.25rem;
+    }
+
+    .menu-bar-item.growable {
+        min-width: 4rem;
+    }
+}
 .inactive {
     opacity: 0;
 }

@@ -338,6 +338,68 @@ $fade-out-distance: 15px;
     background-color: white;
 }
 
+/* ==================== 手机端（窄屏 ≤767px）竖向布局 ==================== */
+/* phone-mode 由 gui.jsx 在窗口宽 ≤767px 时加到 page-wrapper 上，
+   同时 JS 强制舞台为 small 模式并去掉 1024px 最小宽度。 */
+
+.phone-mode {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+}
+
+.phone-mode .body-wrapper {
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* 竖向堆叠：舞台区在上，编辑区（标签页 + 积木）在下。 */
+.phone-mode .flex-wrapper {
+    flex-direction: column;
+}
+
+.phone-mode .stage-and-target-wrapper {
+    order: 1;
+    flex: 0 0 auto;
+    flex-basis: auto;
+    width: 100%;
+    align-items: center;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+
+.phone-mode .editor-wrapper {
+    order: 2;
+    flex: 1 1 auto;
+    flex-basis: auto;
+    flex-shrink: 1;
+    min-height: 0;
+    width: 100%;
+}
+
+/* 精灵/舞台选择面板：全宽、限高，内部自行滚动。 */
+.phone-mode .target-wrapper {
+    width: 100%;
+    max-height: 8.5rem;
+    padding-top: 0.25rem;
+    overflow: hidden;
+}
+
+/* 标签栏铺满宽度，方便手指点按。 */
+.phone-mode .tab-list {
+    width: 100%;
+}
+
+.phone-mode .tab {
+    padding: 0.125rem 0.25rem 0;
+}
+
+/* 扩展按钮稍微缩小，避免挡住底部积木。 */
+.phone-mode .extension-button-container {
+    width: 3rem;
+    height: 2.75rem;
+}
+
 /* ==================== Entrance Animations ==================== */
 
 .menu-bar-position {

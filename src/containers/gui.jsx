@@ -68,12 +68,12 @@ class GUI extends React.Component {
         // 初始化协作管理器
         collaborationManager.setVM(this.props.vm);
         
-        // 初始化积木分类图标设置
+        // 初始化积木分类图标设置（默认关闭，只有用户显式开启过才启用）
         const blockPaletteIcons = localStorage.getItem('tw-blockPaletteIcons');
-        if (blockPaletteIcons === 'false') {
-            document.body.classList.add('block-palette-icons-disabled');
-        } else {
+        if (blockPaletteIcons === 'true') {
             document.body.classList.add('block-palette-icons-enabled');
+        } else {
+            document.body.classList.add('block-palette-icons-disabled');
         }
         
         // 加载随机默认造型（立即开始，和作品加载并行进行）
