@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 
 import FullscreenAPI from './tw-fullscreen-api';
 import {setFullScreen} from '../reducers/mode.js';
+import TWBlocklyOutlineCleaner from './tw-blockly-outline-cleaner';
 
 /**
  * tw: 编辑器页「原生 F11 式全屏」HOC
@@ -36,6 +37,8 @@ const TWStageFullScreenHOC = function (WrappedComponent) {
                 document.addEventListener('fullscreenchange', this.handleFullScreenChange);
                 document.addEventListener('webkitfullscreenchange', this.handleFullScreenChange);
             }
+            // tw: 启动「物理禁用 blockly / 舞台焦点蓝色矩形」的全局监听
+            TWBlocklyOutlineCleaner.init();
         }
         componentDidUpdate (prevProps) {
             // 退出：redux isFullScreen 由 true 变 false（用户点了退出按钮），
@@ -54,12 +57,25 @@ const TWStageFullScreenHOC = function (WrappedComponent) {
             }
         }
         handleFullScreenChange () {
-            // 浏览器原生全屏状态变化（例如按 ESC 退出）。
-            // 若已退出原生全屏但 redux 仍以为是全屏，则同步回 false。
-            const isNativeFullScreen = FullscreenAPI.enabled();
-            if (!isNativeFullScreen && this.props.isFullScreen) {
-                this.props.onSetIsFullScreen(false);
+            // tw: 只把「舞台容器」的原生全屏映射到 redux isFullScreen。
+            // 浮动窗口（作品控制页）的原生全屏由 stage.jsx 自己用 windowRef 管理，
+            // 不要让它误触发编辑器主舞台的 .full-screen（fixed 铺满），否则两者互相干扰。
+            // 浏览器在 fullscreenchange 触发时，document.fullscreenElement 已是最终状态
+            // （进入=元素，退出=null），无需 setTimeout 延迟、也不会误判，立即同步即可，
+            // 保证进入/退出都精确对齐，避免 .full-screen 类残留撑破视口。
+            const fsElement = document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullscreenElement;
+            const stageTarget = (typeof document !== 'undefined') ?
+                document.querySelector('[data-stage-fullscreen-target]') : null;
+            const native = !!(fsElement && stageTarget &&
+                (fsElement === stageTarget || stageTarget.contains(fsElement)));
+            if (this.props.isFullScreen !== native) {
+                this.props.onSetIsFullScreen(native);
             }
+            // tw: 无论进入还是退出，都把积木工作区 / 舞台的焦点蓝色矩形立即清掉
+            // （物理方案，直接设 inline style，优先级最高，不依赖脆弱的 CSS :global()）。
+            TWBlocklyOutlineCleaner.clearNow();
         }
         render () {
             return (

@@ -22,6 +22,12 @@
 }
 
 .stage-wrapper.full-screen {
+    /* tw: redux isFullScreen 界面全屏（原生全屏失败时的回退 / 纯界面层铺满）。
+       固定铺满视口、纯黑背景、置于最上层，盖住积木编辑区，实现「只显示舞台 / 运行当前作品」。
+       原生沉浸（地址栏消失）由「全屏舞台容器」负责（见 stage-header.jsx 的 requestStageFullscreen，
+       作用于带 data-stage-fullscreen-target 的 stage-wrapper），这里只管界面层铺满。
+       铺满只在 redux isFullScreen 为真时发生，而 redux 由 document.fullscreenElement
+       在 fullscreenchange 中可靠同步（见 tw-stage-fullscreen-hoc.jsx），退出即复位，不会残留。 */
     position: fixed;
     top: 0;
     left: 0;
@@ -30,9 +36,8 @@
     z-index: $z-index-stage-wrapper-overlay;
     background-color: #000;
     /* spacing between stage and control bar (on the top), or between
-    stage and window edges (on left/right/bottom) */
+       stage and window edges (on left/right/bottom) */
     padding: $stage-full-screen-stage-padding;
-
     /* this centers the stage */
     display: flex;
     flex-direction: column;

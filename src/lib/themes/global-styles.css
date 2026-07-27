@@ -35,3 +35,48 @@
     --editorDarkMode-page: $ui-primary;
     --editorDarkMode-highlightText: $looks-secondary;
 }
+
+/* tw: 退出原生全屏后，积木编辑器（blockly 工作区）常因重新获得焦点而显示蓝色矩形轮廓。
+   blockly 不在 .stage-wrapper 内，其焦点轮廓无法被舞台区的 outline:none 覆盖。
+   这里在退出全屏后的极短时间内，全局（含 blockly 注入的 svg）去除焦点轮廓，
+   600ms 后该 class 被移除，不影响正常使用时的 focus 指示。 */
+:global(body.tw-just-exited-fullscreen) {
+    outline: none !important;
+    box-shadow: none !important;
+}
+:global(body.tw-just-exited-fullscreen *) {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* tw: 积木编辑器（scratch-blocks 工作区）在获得焦点时，浏览器会对其 SVG 显示默认的
+   蓝色矩形轮廓。scratch-blocks 自身没有写 outline:none（已核实其样式中无此规则），
+   且工作区不在 .stage-wrapper 内，故这里常态去除其焦点轮廓。scratch 官方版也无此蓝框。
+   注意：CSS Modules 只对「类选择器/ID」做 hash、不 hash 伪类，但为稳妥，整个选择器
+   （含伪类）都放进 :global()，避免任何嵌套导致伪类被当成局部而失效。 */
+:global(.blocklyWorkspace),
+:global(.blocklySvg),
+:global(.blocklyMainBackground),
+:global(.blocklyWorkspace *),
+:global(.blocklySvg *) {
+    outline: none !important;
+}
+:global(.blocklyWorkspace:focus),
+:global(.blocklyWorkspace:focus-visible),
+:global(.blocklyWorkspace:focus-within),
+:global(.blocklySvg:focus),
+:global(.blocklySvg:focus-visible),
+:global(.blocklySvg:focus-within),
+:global(.blocklyWorkspace *:focus),
+:global(.blocklyWorkspace *:focus-visible),
+:global(.blocklySvg *:focus),
+:global(.blocklySvg *:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* tw: 退出原生全屏时，JS 会把焦点强制移到 <body>（见 tw-stage-fullscreen-hoc.jsx）。
+   这里确保 body 获得焦点时不显示任何轮廓，避免「蓝色矩形」从积木区转移到 body。 */
+body:focus {
+    outline: none !important;
+}

@@ -177,7 +177,9 @@ const StageComponent = props => {
     // 监听原生全屏变化
     useEffect(() => {
         const onFullscreenChange = () => {
-            setIsNativeFullscreen(!!document.fullscreenElement);
+            // tw: 仅当「浮动窗口本身」被原生全屏时才视为原生全屏，
+            // 避免编辑器页整页全屏（F11 式）误触发此处导致舞台尺寸错乱。
+            setIsNativeFullscreen(!!(windowRef.current && document.fullscreenElement === windowRef.current));
         };
         document.addEventListener('fullscreenchange', onFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', onFullscreenChange);

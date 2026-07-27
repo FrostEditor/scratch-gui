@@ -24,10 +24,12 @@ import styles from './stage-header.css';
 
 import FullscreenAPI from '../../lib/tw-fullscreen-api';
 
-// tw: 在「用户手势内」对带 data-stage-fullscreen-target 的舞台元素请求原生全屏（F11 式）。
+// tw: 在「用户手势内」对【舞台容器】请求原生全屏（F11 式，地址栏消失）。
 // 必须在按钮 onClick 的同步任务里调用，否则会脱离手势上下文被浏览器以 NotAllowedError 拒绝。
-// 这样全屏的是当前正在编辑/运行的「当前作品」，而非重新加载的空白项目；且不离开编辑器页面，
-// 退出后所有未保存修改都保留。
+// 全屏目标是带 data-stage-fullscreen-target 的 stage-wrapper（它只包住舞台 + 控制条，
+// 积木编辑区在它外面），所以原生全屏时浏览器只让「舞台」铺满屏、积木天然不显示，
+// 运行的是当前内存里的作品，不跳转、不重新加载，退出后所有未保存修改都保留。
+// —— 注意：不要对 document 全屏，否则会变成「整编辑器全屏」，违背「只全屏舞台」。
 const requestStageFullscreen = () => {
     if (typeof document === 'undefined') return;
     const target = document.querySelector('[data-stage-fullscreen-target]');
@@ -38,7 +40,7 @@ const requestStageFullscreen = () => {
     } else if (target.webkitRequestFullscreen) {
         p = target.webkitRequestFullscreen();
     }
-    // 用户拒绝/环境不支持时静默失败：保留 redux isFullScreen，由 CSS .full-screen 作为回退铺满，
+    // 用户拒绝/环境不支持时静默失败：redux isFullScreen 仍为真，由 CSS .full-screen 作为回退铺满，
     // 不要复位成「假全屏」导致全屏彻底消失。
     if (p && typeof p.catch === 'function') {
         p.catch(() => {});
