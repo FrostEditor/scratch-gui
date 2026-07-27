@@ -1,0 +1,51 @@
+/* 后台编辑器：移出屏幕外并隐藏，仅用于在内存中维持 VM ↔ scratch-blocks 桥接。 */
+.hiddenGui {
+    position: fixed;
+    left: -99999px;
+    top: -99999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 前台全屏覆盖层，只展示扩展积木。 */
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    z-index: 1000;
+}
+
+/* 沉浸式：无头部、无内边距，积木画布铺满整个视口。 */
+.body {
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.message {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: #888;
+    text-align: center;
+    padding: 1rem;
+}
+
+.message code {
+    background: #f0f0f0;
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    color: #333;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    word-break: break-all;
+}

@@ -1,0 +1,44 @@
+/* 积木预览画布外层。作为独立页面使用时，外层会把它撑满全屏；
+   作为弹窗使用时，外层会限定尺寸。这里只负责画布区域本身。 */
+.workspaceWrapper {
+    position: relative;
+    background: #f7f7f7;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 320px;
+    flex: 1;
+}
+
+/* 沉浸式（独立页面全屏）：去掉边框、圆角与灰底，铺满容器。 */
+.workspaceWrapper.frameless {
+    border: none;
+    border-radius: 0;
+    background: #fff;
+}
+
+/* 始终可见，让 Blockly inject 时能测到真实尺寸。 */
+.blocklyContainer {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    position: relative;
+}
+
+/* loading / empty / unavailable 状态的覆盖层。 */
+.placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    background: #f7f7f7;
+    color: #888;
+    font-size: 0.95rem;
+    padding: 1rem;
+    text-align: center;
+}
