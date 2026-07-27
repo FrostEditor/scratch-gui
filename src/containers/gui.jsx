@@ -39,6 +39,7 @@ import cloudManagerHOC from '../lib/cloud-manager-hoc.jsx';
 import GUIComponent from '../components/gui/gui.jsx';
 import {setIsScratchDesktop} from '../lib/isScratchDesktop.js';
 import TWFullScreenResizerHOC from '../lib/tw-fullscreen-resizer-hoc.jsx';
+import TWStageFullScreenHOC from '../lib/tw-stage-fullscreen-hoc.jsx'; // tw: 编辑器页原生 F11 式全屏（运行当前作品、退出不丢）
 import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
 import {initBackgroundObserver} from '../lib/custom-background.js';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
@@ -279,6 +280,7 @@ const WrappedGui = compose(
     ErrorBoundaryHOC('Top Level App'),
     TWThemeManagerHOC, // componentDidUpdate() needs to run very early for icons to update immediately
     TWFullScreenResizerHOC,
+    TWStageFullScreenHOC, // tw: 编辑器页原生 F11 式全屏（不跳转、运行当前作品、退出不丢）
     FontLoaderHOC,
     // QueryParserHOC, // tw: HOC is unused
     ProjectFetcherHOC,

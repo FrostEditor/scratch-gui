@@ -40,6 +40,9 @@ const StageComponent = props => {
         return localStorage.getItem('stageWindowMode') === 'true';
     });
 
+    // tw: 浮动窗口（作品控制页）的原生全屏状态
+    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+
     // ===== 监听设置变化 =====
     useEffect(() => {
         const handler = (e) => {
@@ -50,9 +53,28 @@ const StageComponent = props => {
     }, []);
 
     // ===== 计算舞台尺寸（放在最前面，因为后续都会用到） =====
-    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen);
+    // tw: 浮动窗口（作品控制页）原生全屏时，让舞台也跟着放大占满窗口
+    const effectiveIsFullScreen = isFullScreen || isNativeFullscreen;
+    let stageDimensions = getStageDimensions(stageSize, customStageSize, effectiveIsFullScreen);
+    // tw: 当舞台元素处于原生全屏（F11 式）时，让舞台真正铺满整个屏幕，
+    // 而不是沿用 CSS 全屏尺寸（会留出控制条边距）。
+    if (isNativeFullscreen) {
+        const aspect = customStageSize.width / customStageSize.height;
+        let h = window.innerHeight;
+        let w = h * aspect;
+        if (w > window.innerWidth) {
+            w = window.innerWidth;
+            h = w / aspect;
+        }
+        stageDimensions = {
+            ...stageDimensions,
+            height: Math.round(h),
+            width: Math.round(w),
+            scale: w / stageDimensions.widthDefault
+        };
+    }
     const minWidth = getMinWidth(stageSize);
-    const transformStyle = stageDimensions.width < minWidth && !isFullScreen
+    const transformStyle = stageDimensions.width < minWidth && !effectiveIsFullScreen
         ? { transform: `translateX(${(minWidth - stageDimensions.width) / (isRtl ? -2 : 2)}px)` }
         : {};
 
@@ -61,13 +83,13 @@ const StageComponent = props => {
         <Box
             className={classNames(
                 styles.stageWrapper,
-                {[styles.withColorPicker]: !isFullScreen && isColorPicking}
+                {[styles.withColorPicker]: !effectiveIsFullScreen && isColorPicking}
             )}
             onDoubleClick={onDoubleClick}
             style={isPlayerOnly ? null : { minWidth: `${minWidth + 2}px` }}
         >
             <Box
-                className={classNames(styles.stage, { [styles.fullScreen]: isFullScreen })}
+                className={classNames(styles.stage, { [styles.fullScreen]: effectiveIsFullScreen })}
                 style={{
                     height: stageDimensions.height,
                     width: stageDimensions.width,
@@ -88,7 +110,7 @@ const StageComponent = props => {
             </Box>
 
             <Box
-                className={classNames(styles.stageOverlays, { [styles.fullScreen]: isFullScreen })}
+                className={classNames(styles.stageOverlays, { [styles.fullScreen]: effectiveIsFullScreen })}
                 style={transformStyle}
             >
                 <div
@@ -120,7 +142,6 @@ const StageComponent = props => {
     // ============================================================
     const [isMinimized, setIsMinimized] = useState(false);
     const [windowPos, setWindowPos] = useState({ x: 100, y: 100 });
-    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
     const windowRef = useRef(null);
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
     const positionRef = useRef({ x: windowPos.x, y: windowPos.y });

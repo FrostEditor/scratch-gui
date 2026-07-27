@@ -111,6 +111,10 @@ class StageWrapperComponent extends React.Component {
         return (
             <Box
                 ref={ref => this.setStageWrapperRef(ref)}
+                /* tw: 标记原生全屏的目标元素，stage-header 的全屏按钮会对它 requestFullscreen() */
+                data-stage-fullscreen-target
+                /* 防止全屏元素被聚焦而画蓝色轮廓 */
+                tabIndex={-1}
                 className={classNames(
                     styles.stageWrapper,
                     {
@@ -128,6 +132,7 @@ class StageWrapperComponent extends React.Component {
                     <StageHeader
                         stageSize={stageSize}
                         vm={vm}
+                        isFullScreen={isFullScreen}
                     />
                 </Box>
                 <Box 

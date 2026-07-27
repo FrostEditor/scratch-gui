@@ -129,11 +129,14 @@ class FileHashRouter extends HashRouter {
             newHash += `?${hashQuery}`;
         }
 
-        if (isFullScreen) {
+        if (isFullScreen && isPlayerOnly) {
+            // tw: 仅在 player/embed 模式下全屏才跳到 fullscreen.html。
             newPathname = this.fullscreenPath;
         } else if (isPlayerOnly) {
             newPathname = this.playerPath;
         } else {
+            // tw: 编辑器页全屏（isPlayerOnly=false）停留在 editor.html，
+            // 不切到 fullscreen.html（否则会整页重载、丢失未保存作品、且全屏页是空白项目）。
             newPathname = this.editorPath;
         }
 
@@ -394,6 +397,11 @@ const TWStateManager = function (WrappedComponent) {
                 };
                 const newPath = this.router.generateURL(routerState);
                 if (newPath && newPath !== oldPath) {
+                    // tw: 恢复 TurboWarp 原本的 pushState（不整页跳转、不重新加载）。
+                    // 之前改成 window.location.href 整页跳转会销毁编辑器内存里未保存的作品，
+                    // 且 fullscreen.html 会从服务器重新加载成空白项目 —— 这正是「作品丢失 / 全屏空白」的根因。
+                    // 编辑器页全屏现在走原生 requestFullscreen()，不需要切到 fullscreen.html，
+                    // generateURL 已保证 editor 全屏停留在 editor.html，所以这里只改写地址栏即可。
                     history.pushState(null, null, newPath);
                 }
             }

@@ -21,6 +21,9 @@ import React from 'react';
 import Interface from './render-interface.jsx';
 import render from './app-target';
 
+// tw: 标记当前为全屏页面，让 CSS 把背景设为纯黑并让舞台铺满视口（F11 式外观）
+document.body.classList.add('sa-fullscreen-page');
+
 render(<Interface
     isPlayerOnly
     isFullScreen

@@ -82,12 +82,14 @@ StageHeader.propTypes = {
     vm: PropTypes.instanceOf(VM).isRequired
 };
 
-const mapStateToProps = state => ({
+const mapStateToProps = (state, ownProps) => ({
     customStageSize: state.scratchGui.customStageSize,
     stageSizeMode: state.scratchGui.stageSize.stageSize,
     // tw: replace showBranding
     isEmbedded: state.scratchGui.mode.isEmbedded,
-    isFullScreen: state.scratchGui.mode.isFullScreen,
+    // tw: 优先用显式传入的 isFullScreen（如 fullscreen.html 页面 StageWrapper 传 true），
+    // 否则回退到 redux 状态。这样全屏页能正确显示“退出全屏”按钮。
+    isFullScreen: ownProps.isFullScreen !== undefined ? ownProps.isFullScreen : state.scratchGui.mode.isFullScreen,
     // tw: update when dimensions or isWindowFullScreen changes
     isWindowFullScreen: state.scratchGui.tw.isWindowFullScreen,
     dimensions: state.scratchGui.tw.dimensions,
