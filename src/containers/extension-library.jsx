@@ -620,13 +620,24 @@ class ExtensionLibrary extends React.PureComponent {
         
         try {
             // 0. 获取该扩展的所有积木 opcode
+            //    注意：runtime._blockInfo 里每个 block 的结构是
+            //    { info: { opcode: <裸 opcode> }, json: { type: '<extensionId>_<opcode>' }, xml }
+            //    因此积木在运行期/工作区里的实际 type/opcode 都是 '<extensionId>_<opcode>'
+            //    （见 scratch-vm runtime._convertBlockForScratchBlocks）。
+            //    这里同时收集裸 opcode 与扩展后 opcode，确保工作区与运行期的积木都能被正确匹配删除。
             const extensionOpcodes = new Set();
             if (runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
                 const extInfo = runtime._blockInfo.find(info => info.id === extensionId);
                 if (extInfo && extInfo.blocks) {
                     for (const block of extInfo.blocks) {
-                        if (block.opcode) {
-                            extensionOpcodes.add(block.opcode);
+                        const bare = (block.info && block.info.opcode) || block.opcode;
+                        if (bare) {
+                            extensionOpcodes.add(bare);
+                            extensionOpcodes.add(`${extensionId}_${bare}`);
+                        }
+                        const jsonType = block.json && block.json.type;
+                        if (jsonType) {
+                            extensionOpcodes.add(jsonType);
                         }
                     }
                 }
@@ -670,6 +681,11 @@ class ExtensionLibrary extends React.PureComponent {
                         block.dispose(true);
                     }
                 }
+            }
+
+            // 0.3 重新序列化工作区，使项目中不再包含已删除的积木
+            if (this.props.vm.emitWorkspaceUpdate) {
+                this.props.vm.emitWorkspaceUpdate();
             }
             
             // 1. 检查扩展是否存在并获取 serviceName
