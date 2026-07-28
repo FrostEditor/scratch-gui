@@ -29,7 +29,10 @@ export async function validateSb3Blob (blob) {
     if (!blob || blob.size < 4) {
         return {ok: false, error: '生成的文件为空，无法发布'};
     }
-    const buf = await blob.arrayBuffer();
+    const ab = await blob.arrayBuffer();
+    // 注意：arrayBuffer() 返回的是 ArrayBuffer，不能用 ab[0] 直接索引字节，
+    // 必须先包成 Uint8Array 视图才能按下标读字节（否则永远是 undefined，导致误判非 ZIP）。
+    const buf = new Uint8Array(ab);
     // 1) ZIP 魔数 PK\x03\x04
     if (buf[0] !== 0x50 || buf[1] !== 0x4b || buf[2] !== 0x03 || buf[3] !== 0x04) {
         return {ok: false, error: '生成的文件不是有效的 SB3 压缩包（缺少 ZIP 头部），请重试或保存后重新打开再发布'};
