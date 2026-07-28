@@ -1212,13 +1212,15 @@ class MenuBar extends React.Component {
                 </div>
 
                 <div className={styles.accountInfoGroup}>
+                    <span style={{marginLeft: 8}}>
+                        <ForumUserCard
+                            forumUser={this.props.forumUser}
+                            onSetForumUser={this.props.onSetForumUser}
+                            onLogoutForumUser={this.props.onLogoutForumUser}
+                        />
+                    </span>
                     <TWSaveStatus
                         showSaveFilePicker={this.props.showSaveFilePicker}
-                    />
-                    <ForumUserCard
-                        forumUser={this.props.forumUser}
-                        onSetForumUser={this.props.onSetForumUser}
-                        onLogoutForumUser={this.props.onLogoutForumUser}
                     />
                 </div>
 
@@ -1231,6 +1233,9 @@ class MenuBar extends React.Component {
                 {menuBar}
                 {this.state.collaborationModalOpen && (
                     <CollaborationModal
+                        forumUser={this.props.forumUser}
+                        onSetForumUser={this.props.onSetForumUser}
+                        onLogoutForumUser={this.props.onLogoutForumUser}
                         onClose={this.handleCloseCollaboration}
                     />
                 )}

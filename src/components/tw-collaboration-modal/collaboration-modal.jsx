@@ -5,6 +5,7 @@ import Box from '../box/box.jsx';
 import Modal from '../../containers/modal.jsx';
 import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 import multiCollaborationManager from '../../lib/multi-collaboration/multi-collaboration-manager.js';
+import ForumAuthModal from '../menu-bar/forum-auth-modal.jsx'; // tw: 登录门槛复用论坛登录弹窗
 import styles from './collaboration-modal.css';
 
 const messages = defineMessages({
@@ -227,6 +228,21 @@ const messages = defineMessages({
         defaultMessage: '您的加入请求被拒绝',
         description: 'Join request denied',
         id: 'tw.collaboration.requestDenied'
+    },
+    loginRequired: {
+        defaultMessage: '请先登录后再使用多人协作',
+        description: 'Message when collaboration requires login',
+        id: 'tw.collaboration.loginRequired'
+    },
+    loginHint: {
+        defaultMessage: '登录创客次元社区账号后即可创建或加入协作房间',
+        description: 'Hint under login required for collaboration',
+        id: 'tw.collaboration.loginHint'
+    },
+    loginButton: {
+        defaultMessage: '登录 / 注册',
+        description: 'Button to login for collaboration',
+        id: 'tw.collaboration.loginButton'
     }
 });
 
@@ -264,6 +280,20 @@ const CollaborationModal = props => {
     const [multiApprovalState, setMultiApprovalState] = useState(null); // null, 'pending', 'approved', 'denied'
 
     const isMounted = useRef(true);
+
+    // 登录门槛：未登录论坛账号时，弹出登录 / 注册，成功后即可使用多人协作。
+    const loggedIn = !!(props.forumUser && props.forumUser.user);
+    const [authOpen, setAuthOpen] = useState(false);
+    const [authMode, setAuthMode] = useState('login');
+    const openAuth = () => {
+        setAuthMode('login');
+        setAuthOpen(true);
+    };
+    const closeAuth = () => setAuthOpen(false);
+    const handleAuthSuccess = user => {
+        setAuthOpen(false);
+        if (user && props.onSetForumUser) props.onSetForumUser(user);
+    };
 
     // 组件挂载时监听事件
     useEffect(() => {
@@ -1207,7 +1237,38 @@ const CollaborationModal = props => {
                     {props.intl.formatMessage(messages.title)}
                 </h2>
 
-                {/* 协作模式选择按钮 */}
+                {/* 未登录论坛账号：先要求登录，登录成功后才能使用多人协作 */}
+                {!loggedIn && (
+                    <div style={{textAlign: 'center', padding: '12px 0'}}>
+                        <p className={styles.description}>
+                            {props.intl.formatMessage(messages.loginRequired)}
+                        </p>
+                        <p style={{fontSize: 13, color: '#888', margin: '0 0 16px'}}>
+                            {props.intl.formatMessage(messages.loginHint)}
+                        </p>
+                        <div className={styles.buttonGroup}>
+                            <button
+                                className={styles.primaryButton}
+                                onClick={openAuth}
+                            >
+                                {props.intl.formatMessage(messages.loginButton)}
+                            </button>
+                        </div>
+                        <div className={styles.buttonRow}>
+                            <button
+                                className={styles.closeButton}
+                                onClick={props.onClose}
+                            >
+                                {props.intl.formatMessage(messages.close)}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 已登录：正常显示协作内容 */}
+                {loggedIn && (
+                    <>
+                        {/* 协作模式选择按钮 */}
                 <div className={styles.modeSelector}>
                     <button
                         className={`${styles.modeButton} ${collabMode === 'fe' ? styles.modeButtonActive : ''}`}
@@ -1263,14 +1324,32 @@ const CollaborationModal = props => {
                         )}
                     </>
                 )}
+                </>
+                )}
             </Box>
+            {authOpen && (
+                <ForumAuthModal
+                    open
+                    mode={authMode}
+                    onModeChange={setAuthMode}
+                    onClose={closeAuth}
+                    onSuccess={handleAuthSuccess}
+                />
+            )}
         </Modal>
     );
 };
 
 CollaborationModal.propTypes = {
     intl: intlShape,
-    onClose: PropTypes.func.isRequired
+    onClose: PropTypes.func.isRequired,
+    forumUser: PropTypes.shape({
+        user: PropTypes.object,
+        loggedIn: PropTypes.bool,
+        status: PropTypes.string
+    }),
+    onSetForumUser: PropTypes.func,
+    onLogoutForumUser: PropTypes.func
 };
 
 export default injectIntl(CollaborationModal);
