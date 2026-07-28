@@ -7,7 +7,7 @@ import {connect} from 'react-redux';
 import check from './check.svg';
 import dropdownCaret from './dropdown-caret.svg';
 import {MenuItem, Submenu} from '../menu/menu.jsx';
-import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, ACCENT_FE, ACCENT_COSTOM, ACCENT_CE, ACCENT_TY, ACCENT_MIKU, ACCENT_TEAL, Theme} from '../../lib/themes/index.js';
+import {ACCENT_BLUE, ACCENT_MAP, ACCENT_PURPLE, ACCENT_RED, ACCENT_RAINBOW, ACCENT_FE, ACCENT_COSTOM, ACCENT_CE, ACCENT_TY, ACCENT_MIKU, Theme} from '../../lib/themes/index.js';
 import {openAccentMenu, accentMenuOpen, closeSettingsMenu} from '../../reducers/menus.js';
 import {setTheme} from '../../reducers/theme.js';
 import {persistTheme} from '../../lib/themes/themePersistance.js';
@@ -59,11 +59,6 @@ const options = defineMessages({
         defaultMessage: 'Miku',
         description: 'Name of the Miku color scheme.',
         id: 'tw.accent.miku'
-    },
-    [ACCENT_TEAL]: {
-        defaultMessage: '深青',
-        description: 'Name of the deep teal color scheme, used by FrostEditor by default.',
-        id: 'tw.accent.teal'
     }
 });
 
@@ -150,11 +145,6 @@ const AccentThemeMenu = ({
                 id={ACCENT_FE}
                 isSelected={theme.accent === ACCENT_FE}
                 onClick={() => onChangeTheme(theme.set('accent', ACCENT_FE))}
-            />
-            <AccentMenuItem
-                id={ACCENT_TEAL}
-                isSelected={theme.accent === ACCENT_TEAL}
-                onClick={() => onChangeTheme(theme.set('accent', ACCENT_TEAL))}
             />
             <AccentMenuItem
                 id={ACCENT_RED}
