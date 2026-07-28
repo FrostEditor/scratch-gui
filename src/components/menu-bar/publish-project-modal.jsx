@@ -101,16 +101,24 @@ class PublishProjectModal extends React.Component {
                 .then(r => console.log('[发布] setResourcePublic 返回 =', r))
                 .catch(e => console.warn('[发布] setResourcePublic 失败（不影响发布）', e));
 
+            const isUpdate = Boolean(this.props.project && this.props.project.id);
             const body = {
                 title: title.trim(),
                 summary: summary.trim(),
-                category,
-                fileResourceId: uploaded.id
+                category
             };
+            // 创建用 fileResourceId；更新【必须】用 newFileResourceId（对照论坛前端 JS 逆向确认：
+            // 服务端对 PATCH 里的 fileResourceId 会直接忽略，只有 newFileResourceId 才真正换文件，
+            // 且需配合 changelog 才会新增一个版本；coverResourceId 创建/更新通用）。
+            if (isUpdate) {
+                body.newFileResourceId = uploaded.id;
+                body.changelog = '更新作品内容';
+            } else {
+                body.fileResourceId = uploaded.id;
+            }
             // 封面：仅使用用户手动选择的封面（不再自动截取舞台画面当封面，避免随机/自动图片）。
             // 更新作品模式下未重新选封面则不发送 coverResourceId，保留作品原有封面。
             const coverToUpload = coverFile;
-            const isUpdate = Boolean(this.props.project && this.props.project.id);
             if (coverToUpload) {
                 this.setState({progress: '正在上传封面…'});
                 const cover = await uploadFile(coverToUpload);
@@ -118,7 +126,7 @@ class PublishProjectModal extends React.Component {
                 setResourcePublic(cover.id).catch(() => {});
             }
 
-            this.setState({progress: this.props.project ? '正在更新作品…' : '正在发布到作品广场…'});
+            this.setState({progress: isUpdate ? '正在更新作品…' : '正在发布到作品广场…'});
             console.log('[发布] 调用', isUpdate ? 'updateProject' : 'createProject', body);
             const project = isUpdate
                 ? await updateProject(this.props.project.id, body)
@@ -216,7 +224,7 @@ class PublishProjectModal extends React.Component {
                                 onClick={this.publish}
                                 disabled={loading}
                             >
-                                {loading ? '发布中…' : '发布作品'}
+                                {loading ? (this.props.project ? '更新中…' : '发布中…') : (this.props.project ? '更新作品' : '发布作品')}
                             </button>
                         </div>
                     )}

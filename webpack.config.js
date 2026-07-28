@@ -36,6 +36,13 @@ const base = {
         host: '0.0.0.0',
         disableHostCheck: true,
         compress: true,
+        // tw: 开发环境禁止浏览器缓存 JS bundle。开发 bundle 文件名无 contenthash
+        // （js/[name].js），浏览器会强缓存旧包，导致改代码后页面仍跑旧逻辑
+        // （此前反复出现的"改了没效果/sb3没更新"均由此引起）。加 no-store 后每次
+        // 都拉最新 bundle，彻底根治开发期缓存问题。生产构建不受影响（有 contenthash）。
+        headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate'
+        },
         port: process.env.PORT || 8601,
         // tw: 论坛 API 同源代理改用 before 中间件挂载（见下方 before 块）。
         // 注意：webpack-dev-server@3.x 的 `proxy` 字符串字段【只转发 GET】，

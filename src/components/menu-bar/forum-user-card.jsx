@@ -35,8 +35,10 @@ function MenuRow ({children, onClick}) {
 }
 
 // 从作品对象构造「当前关联作品」记录（含所有者 id，便于菜单判断是否可更新）。
+// 论坛 API 实际返回的所有者字段为 authorId（见 /projects/my 与 /projects/:id），
+// 兼容 ownerId / owner.id 两种历史写法；都缺失时兜底为当前登录用户 id。
 function buildCurrentProject (p, forumUser) {
-    const ownerId = (p && (p.ownerId || (p.owner && p.owner.id))) ||
+    const ownerId = (p && (p.authorId || p.ownerId || (p.owner && p.owner.id))) ||
         (forumUser && forumUser.user && forumUser.user.id) || null;
     return {
         id: p.id,
