@@ -37,18 +37,21 @@ const base = {
         disableHostCheck: true,
         compress: true,
         port: process.env.PORT || 8601,
-        // tw: 论坛 API 同源代理，绕开浏览器 CORS（论坛未对 localhost 开放跨域，直连会 Network Error）
-        // 前端请求 /forum-api/* 由 devServer 转发到 https://forum.ctspace.xyz/api/*（见 src/lib/forum/config.js）
-        proxy: {
-            '/forum-api': {
+        // tw: 论坛 API 同源代理改用 before 中间件挂载（见下方 before 块）。
+        // 注意：webpack-dev-server@3.x 的 `proxy` 字符串字段【只转发 GET】，
+        // 对 POST/PATCH 会返回「Cannot POST /forum-api/...」404，导致登录/注册/发布全部失败。
+        // 故改用 before 里手动挂载 http-proxy-middleware，对所有方法正确转发。
+        // tw: 同源 CORS 代理，使远程 project_url / ?=url 跨域 .sb3 能正常加载
+        before (app) {
+            // tw: 论坛 API 同源代理，对所有方法（GET/POST/PATCH）转发，绕开浏览器 CORS。
+            // 前端请求 /forum-api/* → https://forum.ctspace.xyz/api/*（见 src/lib/forum/config.js）
+            const proxy = require('http-proxy-middleware');
+            app.use('/forum-api', proxy({
                 target: 'https://forum.ctspace.xyz',
                 changeOrigin: true,
                 secure: true,
                 pathRewrite: {'^/forum-api': '/api'}
-            }
-        },
-        // tw: 同源 CORS 代理，使远程 project_url / ?=url 跨域 .sb3 能正常加载
-        before (app) {
+            }));
             const {corsProxyMiddleware} = require('./src/lib/tw-cors-proxy.js');
             app.use('/proxy', corsProxyMiddleware());
         },
