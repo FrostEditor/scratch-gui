@@ -374,7 +374,18 @@ class ExtensionLibrary extends React.PureComponent {
         });
     }
 
-    // 在扩展仓库中点击「浏览积木」：若该扩展未加载则先加载，再打开积木预览弹窗
+    // 懒创建用于「浏览积木」的独立 VM。预览扩展时只在这个 VM 上加载扩展、
+    // 取积木用于展示，绝不把扩展注册进用户正在编辑的项目 VM（避免污染项目
+    // 或触发扩展的副作用代码）。默认 securityManager 为 worker 沙盒，可静默加载。
+    _getBrowseVM () {
+        if (!this._browseVM) {
+            this._browseVM = new VM();
+        }
+        return this._browseVM;
+    }
+
+    // 在扩展仓库中点击「浏览积木」：用独立的浏览 VM 加载扩展取积木预览，
+    // 不把扩展注册进用户正在编辑的项目 VM。
     handleBrowseBlocks (extensionId) {
         // Special-case ids that are NOT real extension URLs (mirrors
         // handleExtensionClicked). Trying to loadExtensionURL on these throws
@@ -389,8 +400,9 @@ class ExtensionLibrary extends React.PureComponent {
             return;
         }
 
-        const extensionManager = this.props.vm.extensionManager;
-        const runtime = this.props.vm.runtime;
+        const browseVM = this._getBrowseVM();
+        const extensionManager = browseVM.extensionManager;
+        const runtime = browseVM.runtime;
         const openWithBlocks = (blocks, name) => {
             this.setState({
                 browseExtensionId: extensionId,
@@ -890,7 +902,7 @@ class ExtensionLibrary extends React.PureComponent {
                 )}
                 {this.state.browseExtensionId && (
                     <ExtensionBlocksModal
-                        vm={this.props.vm}
+                        vm={this._browseVM || this.props.vm}
                         extensionId={this.state.browseExtensionId}
                         blocks={this.state.browseBlocks}
                         extensionName={this.state.browseExtensionName}

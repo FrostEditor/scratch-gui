@@ -6,7 +6,6 @@ import PropTypes from 'prop-types';
 import bindAll from 'lodash.bindall';
 import styles from './loader.css';
 import {getIsLoadingWithId} from '../../reducers/project-state';
-import loadImage from '../../../load.png'; // tw: 自定义加载图
 
 const mainMessages = {
     'gui.loader.headline': (
@@ -166,20 +165,28 @@ class LoaderComponent extends React.Component {
                     [styles.fullscreen]: this.props.isFullScreen
                 })}
             >
-                {/* tw: 全屏加载背景图——铺满整个屏幕当作加载界面 */}
-                <img
-                    src={loadImage}
-                    className={styles.loadImageBg}
-                    alt=""
-                    aria-hidden="true"
-                />
-                <div className={styles.container}>
-                    {this.props.messageId !== 'gui.loader.creating' && (
-                        <div className={classNames(styles.title, {[styles.hidden]: this.state.finishing})}>
-                            {mainMessages[this.props.messageId]}
+                {/* tw: 纯 CSS 还原 load.png 加载画面（高清、不模糊） */}
+                <div className={styles.loadLogo} aria-hidden="true">
+                    <div className={styles.loadLogoIcon}>
+                        <div className={styles.loadSnowflake}>
+                            {[0, 1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className={styles.loadSnowflakeArm} />
+                            ))}
                         </div>
-                    )}
+                    </div>
+                    <div className={styles.loadLogoText}>FrosteEditor</div>
+                </div>
 
+                <div className={styles.loadScene} aria-hidden="true">
+                    <div className={styles.loadShapes}>
+                        <div className={styles.loadShapeTriangle} />
+                        <div className={styles.loadShapeSquare} />
+                        <div className={styles.loadShapeCircle} />
+                    </div>
+                    <div className={styles.loadHeading}>Load Project....</div>
+                </div>
+
+                <div className={styles.container}>
                     {/* tw: 加载作品时，在图片下方显示积木进度（X / 共 Y，百分比） */}
                     <div
                         className={styles.blockText}

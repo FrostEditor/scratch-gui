@@ -30,7 +30,7 @@ import FullscreenAPI from '../../lib/tw-fullscreen-api';
 // 积木编辑区在它外面），所以原生全屏时浏览器只让「舞台」铺满屏、积木天然不显示，
 // 运行的是当前内存里的作品，不跳转、不重新加载，退出后所有未保存修改都保留。
 // —— 注意：不要对 document 全屏，否则会变成「整编辑器全屏」，违背「只全屏舞台」。
-const requestStageFullscreen = () => {
+const requestStageFullscreen = onFallback => {
     if (typeof document === 'undefined') return;
     const target = document.querySelector('[data-stage-fullscreen-target]');
     if (!target) return;
@@ -39,11 +39,16 @@ const requestStageFullscreen = () => {
         p = target.requestFullscreen();
     } else if (target.webkitRequestFullscreen) {
         p = target.webkitRequestFullscreen();
+    } else {
+        return;
     }
-    // 用户拒绝/环境不支持时静默失败：redux isFullScreen 仍为真，由 CSS .full-screen 作为回退铺满，
-    // 不要复位成「假全屏」导致全屏彻底消失。
+    // 原生全屏被浏览器拒绝（最常见：作品被 iframe 嵌入且父页未授权 allowfullscreen）时，
+    // 回调 onFallback 触发界面层 CSS 回退铺满。仅编辑器页有意义；embed 页在 iframe 内无法铺满整窗，
+    // 那属于浏览器安全限制，必须父页 iframe 加 allow="fullscreen" 才能原生全屏。
     if (p && typeof p.catch === 'function') {
-        p.catch(() => {});
+        p.catch(() => {
+            if (typeof onFallback === 'function') onFallback();
+        });
     }
 };
 
@@ -193,9 +198,8 @@ const StageHeaderComponent = function (props) {
             <div className={styles.unselectWrapper}>
                 <Button
                     className={styles.stageButton}
-                    onClick={e => {
-                        requestStageFullscreen();
-                        onSetStageFullScreen();
+                    onClick={() => {
+                        requestStageFullscreen(onSetStageFullScreen);
                     }}
                 >
                     <img
@@ -284,9 +288,8 @@ const StageHeaderComponent = function (props) {
                         <div>
                             <Button
                                 className={styles.stageButton}
-                                onClick={e => {
-                                    requestStageFullscreen();
-                                    onSetStageFullScreen();
+                                onClick={() => {
+                                    requestStageFullscreen(onSetStageFullScreen);
                                 }}
                             >
                                 <img

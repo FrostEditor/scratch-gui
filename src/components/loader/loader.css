@@ -10,9 +10,10 @@
     height: 100%;
     z-index: $z-index-loader;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    background-color: $menu-bar-background;
+    background-color: #0f2916; /* tw: 与 load.png 一致的深绿色背景 */
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     text-align: center;
     color: white;
@@ -25,15 +26,137 @@
     z-index: $z-index-stage-wrapper-overlay;
 }
 
+/* tw: 纯 CSS 还原 load.png 画面（高清不模糊） */
+.loadLogo {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 2;
+}
+
+.loadLogoIcon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background-color: #3a5a4a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.loadLogoText {
+    color: #a8b8a8;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    user-select: none;
+}
+
+.loadSnowflake {
+    width: 34px;
+    height: 34px;
+    position: relative;
+}
+
+.loadSnowflakeArm {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 32px;
+    margin-top: -16px;
+    margin-left: -1.5px;
+    background-color: #40e0d0;
+    border-radius: 2px;
+    transform-origin: center;
+}
+
+.loadSnowflakeArm::before,
+.loadSnowflakeArm::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 9px;
+    height: 3px;
+    margin-left: -4.5px;
+    background-color: #40e0d0;
+    border-radius: 2px;
+}
+
+.loadSnowflakeArm::before {
+    top: 6px;
+    transform: rotate(40deg);
+}
+
+.loadSnowflakeArm::after {
+    bottom: 6px;
+    transform: rotate(-40deg);
+}
+
+.loadSnowflakeArm:nth-child(1) { transform: rotate(0deg); }
+.loadSnowflakeArm:nth-child(2) { transform: rotate(60deg); }
+.loadSnowflakeArm:nth-child(3) { transform: rotate(120deg); }
+.loadSnowflakeArm:nth-child(4) { transform: rotate(180deg); }
+.loadSnowflakeArm:nth-child(5) { transform: rotate(240deg); }
+.loadSnowflakeArm:nth-child(6) { transform: rotate(300deg); }
+
+.loadScene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 36px;
+    z-index: 1;
+}
+
+.loadShapes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+}
+
+.loadShapeTriangle {
+    width: 90px;
+    height: 90px;
+    background-color: #2f9a3f;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.loadShapeSquare {
+    width: 90px;
+    height: 90px;
+    background-color: #2f9a3f;
+}
+
+.loadShapeCircle {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background-color: #2f9a3f;
+}
+
+.loadHeading {
+    color: #dde8dd;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    user-select: none;
+}
+
 .container {
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
-  z-index: 1; /* tw: 内容层浮在全屏加载图之上 */
+  z-index: 1; /* tw: 内容层浮在 CSS 背景画面之上 */
+  margin-top: 16px;
 }
 
 
@@ -255,27 +378,6 @@
     width: 0;
     height: 100%;
     background-color: $ui-white-default;
-}
-
-/* tw: 全屏加载背景图——铺满整个屏幕当作加载界面 */
-.loadImageBg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;       /* 铺满整屏（超出部分裁剪） */
-    object-position: center;
-    z-index: 0;
-    display: block;
-    user-select: none;
-    -webkit-user-drag: none;
-    pointer-events: none;
-    animation: load-fade-in 0.4s ease-out;
-}
-
-@keyframes load-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 /* tw: 图片下方积木进度文本（X / 共 Y，百分比），叠在背景图之上 */
