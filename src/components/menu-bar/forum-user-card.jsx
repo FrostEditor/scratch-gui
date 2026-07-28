@@ -6,6 +6,8 @@ import ForumAuthModal from './forum-auth-modal.jsx';
 import PublishProjectModal from './publish-project-modal.jsx';
 import ForumMyWorksModal from './forum-my-works-modal.jsx';
 import {setCurrentProject} from '../../reducers/forum-current-project'; // tw: 记录当前关联的论坛作品
+import {downloadProjectSb3} from '../../lib/forum/index.js';
+import {setProjectTitle} from '../../reducers/project-title';
 
 const btn = {
     border: '1px solid #d9d9d9', background: '#fff', color: '#333',
@@ -55,7 +57,7 @@ class ForumUserCard extends React.Component {
         this.state = {
             authOpen: false, authMode: 'login',
             publishOpen: false, menuOpen: false, avatarOk: true,
-            myWorksOpen: false, publishProject: null
+            myWorksOpen: false, publishProject: null, updateSelectMode: false
         };
     }
     openLogin = () => this.setState({authOpen: true, authMode: 'login'});
@@ -69,8 +71,15 @@ class ForumUserCard extends React.Component {
         this.props.onLogoutForumUser();
     };
     openPublish = () => this.setState({publishOpen: true, menuOpen: false});
-    openMyWorks = () => this.setState({myWorksOpen: true, menuOpen: false});
-    openUpdate = () => this.setState({publishOpen: true, publishProject: this.props.currentProject, menuOpen: false});
+    openMyWorks = () => this.setState({myWorksOpen: true, updateSelectMode: false, menuOpen: false});
+    // 菜单栏「更新作品」按钮入口：未登录→弹登录框；已登录→打开作品选择列表（仅"我的作品"）。
+    openUpdateSelector = () => {
+        if (!this.props.forumUser || !this.props.forumUser.loggedIn) {
+            this.setState({authOpen: true, authMode: 'login'});
+            return;
+        }
+        this.setState({myWorksOpen: true, updateSelectMode: true, menuOpen: false});
+    };
     // 发布 / 更新成功后，把当前作品记到 redux，菜单栏据此显示「更新作品」。
     onPublished = (project) => {
         if (project && project.id) {
@@ -82,17 +91,25 @@ class ForumUserCard extends React.Component {
         this.setState({publishOpen: true, publishProject: p, myWorksOpen: false});
         if (p && p.id) this.props.onSetCurrentProject(buildCurrentProject(p, this.props.forumUser));
     };
+    // 载入已发布的作品到编辑器：下载 sb3 → vm.loadProject → 更新标题 → 关联当前作品。
+    onLoadWork = async (p) => {
+        const vm = this.props.vm;
+        if (!vm) throw new Error('编辑器尚未就绪，请稍候');
+        const {arrayBuffer, project: proj} = await downloadProjectSb3(p);
+        await vm.loadProject(arrayBuffer);
+        this.props.onSetProjectTitle(proj.title || p.title || '');
+        if (proj && proj.id) {
+            this.props.onSetCurrentProject(buildCurrentProject(proj, this.props.forumUser));
+        }
+        this.setState({myWorksOpen: false});
+    };
     toggleMenu = () => this.setState(s => ({menuOpen: !s.menuOpen}));
     render () {
-        const {forumUser, currentProject} = this.props;
+        const {forumUser} = this.props;
         const user = forumUser && forumUser.user;
         const loggedIn = !!user;
         const name = user ? (user.displayName || user.username) : '';
         const letter = (name[0] || 'U').toUpperCase();
-        // 仅当已登录、当前作品存在于社区、且当前用户是所有者时，才显示「更新作品」。
-        const myId = user && user.id;
-        const isOwner = !currentProject || !currentProject.ownerId || currentProject.ownerId === myId;
-        const canUpdate = loggedIn && currentProject && currentProject.id && isOwner;
         return (
             <span style={{display: 'inline-flex', alignItems: 'center'}}>
                 {!loggedIn ? (
@@ -130,9 +147,6 @@ class ForumUserCard extends React.Component {
                                 boxShadow: '0 6px 20px rgba(0,0,0,0.15)', minWidth: 140,
                                 zIndex: 2100, overflow: 'hidden'
                             }}>
-                                {canUpdate && (
-                                    <MenuRow onClick={this.openUpdate}>更新作品</MenuRow>
-                                )}
                                 <MenuRow onClick={this.openPublish}>发布作品</MenuRow>
                                 <MenuRow onClick={this.openMyWorks}>我的作品</MenuRow>
                                 <MenuRow onClick={this.onLogout}>退出登录</MenuRow>
@@ -160,8 +174,11 @@ class ForumUserCard extends React.Component {
                 {this.state.myWorksOpen && (
                     <ForumMyWorksModal
                         open
-                        onClose={() => this.setState({myWorksOpen: false})}
+                        onClose={() => this.setState({myWorksOpen: false, updateSelectMode: false})}
                         onEdit={this.onEditWork}
+                        onLoad={this.onLoadWork}
+                        showLoad={!this.state.updateSelectMode}
+                        showExplore={!this.state.updateSelectMode}
                     />
                 )}
             </span>
@@ -178,14 +195,18 @@ ForumUserCard.propTypes = {
     onSetForumUser: PropTypes.func,
     onLogoutForumUser: PropTypes.func,
     currentProject: PropTypes.object,
-    onSetCurrentProject: PropTypes.func
+    onSetCurrentProject: PropTypes.func,
+    vm: PropTypes.object,
+    onSetProjectTitle: PropTypes.func
 };
 
 const mapStateToProps = state => ({
-    currentProject: state.scratchGui.forumCurrentProject
+    currentProject: state.scratchGui.forumCurrentProject,
+    vm: state.scratchGui.vm
 });
 const mapDispatchToProps = dispatch => ({
-    onSetCurrentProject: project => dispatch(setCurrentProject(project))
+    onSetCurrentProject: project => dispatch(setCurrentProject(project)),
+    onSetProjectTitle: title => dispatch(setProjectTitle(title))
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)(ForumUserCard);
+export default connect(mapStateToProps, mapDispatchToProps, null, {forwardRef: true})(ForumUserCard);

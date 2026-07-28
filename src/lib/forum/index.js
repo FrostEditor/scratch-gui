@@ -10,6 +10,7 @@ export {
     updateProject,
     deleteProject,
     myProjects,
-    toggleLike
+    toggleLike,
+    downloadProjectSb3
 } from './projects.js';
 export {uploadFile, validateSb3Blob, setResourcePublic} from './upload.js';

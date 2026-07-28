@@ -229,6 +229,7 @@ MenuItemLink.propTypes = {
 class MenuBar extends React.Component {
     constructor (props) {
         super(props);
+        this.forumCardRef = React.createRef();
         this.state = {
             collaborationModalOpen: false,
             isCollaborating: false,
@@ -258,7 +259,8 @@ class MenuBar extends React.Component {
             'handleCollaborationDisconnected',
             'handleMembersUpdated',
             'handleOpenChat',
-            'handleCloseChat'
+            'handleCloseChat',
+            'handleClickUpdateWork'
         ]);
     }
     componentDidMount () {
@@ -467,6 +469,11 @@ class MenuBar extends React.Component {
     }
     handleCloseChat () {
         this.setState({chatModalOpen: false});
+    }
+    handleClickUpdateWork () {
+        if (this.forumCardRef.current) {
+            this.forumCardRef.current.openUpdateSelector();
+        }
     }
     buildAboutMenu (onClickAbout) {
         if (!onClickAbout) {

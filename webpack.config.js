@@ -59,6 +59,15 @@ const base = {
                 secure: true,
                 pathRewrite: {'^/forum-api': '/api'}
             }));
+            // tw: 论坛静态资源（sb3 文件等）同源代理。sb3Url 形如 /uploads/xxx.sb3，
+            // 论坛未对这些文件开放 CORS，浏览器直接 fetch 会被拦截。本地走 /forum-files
+            // 同源代理转发；生产部署用 Cloudflare Pages _redirects 做 200 代理。
+            app.use('/forum-files', proxy({
+                target: 'https://forum.ctspace.xyz',
+                changeOrigin: true,
+                secure: true,
+                pathRewrite: {'^/forum-files': ''}
+            }));
             const {corsProxyMiddleware} = require('./src/lib/tw-cors-proxy.js');
             app.use('/proxy', corsProxyMiddleware());
         },
