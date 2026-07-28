@@ -1,5 +1,8 @@
 // 自定义编辑器背景工具函数
 
+// 默认编辑器背景图（项目根目录 pb.png）
+import defaultBackground from '../../pb.png';
+
 let backgroundCheckInterval = null;
 
 // 图片压缩函数
@@ -105,7 +108,8 @@ function ensureBackgroundImage(svg) {
 
 // 应用背景
 function applyBgInternal() {
-    const backgroundImage = localStorage.getItem('customBackgroundImage');
+    // localStorage 无值时使用默认背景图 pb.png
+    const backgroundImage = localStorage.getItem('customBackgroundImage') || defaultBackground;
     const blurAmount = parseInt(localStorage.getItem('customBlurAmount'), 10) || 0;
     
     // 找到工作区 SVG
@@ -177,6 +181,9 @@ export function applyCustomBackground() {
     return applyBgInternal();
 }
 
+// 默认背景图（pb.png），供设置弹窗初始化用
+export { defaultBackground };
+
 // 初始化背景监听器
 export function initBackgroundObserver() {
     // 先尝试应用一次
@@ -190,14 +197,12 @@ export function initBackgroundObserver() {
     }
     
     backgroundCheckInterval = setInterval(() => {
-        const hasBg = localStorage.getItem('customBackgroundImage');
-        if (hasBg) {
-            const svg = document.querySelector('.blocklySvg');
-            if (svg) {
-                const bgImage = svg.querySelector('.customBackgroundImage');
-                if (!bgImage) {
-                    applyBgInternal();
-                }
+        // 默认背景始终存在（pb.png），所以总是检查 blocklySvg 里有没有背景图
+        const svg = document.querySelector('.blocklySvg');
+        if (svg) {
+            const bgImage = svg.querySelector('.customBackgroundImage');
+            if (!bgImage) {
+                applyBgInternal();
             }
         }
     }, 2000);

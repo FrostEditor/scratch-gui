@@ -6,7 +6,7 @@ import {connect} from 'react-redux';
 import {closeSettingsModal} from '../reducers/modals';
 import SettingsModalComponent from '../components/tw-settings-modal/settings-modal.jsx';
 import {defaultStageSize} from '../reducers/custom-stage-size';
-import {applyCustomBackground, compressImage} from '../lib/custom-background.js';
+import {applyCustomBackground, compressImage, defaultBackground} from '../lib/custom-background.js';
 
 const messages = defineMessages({
     newFramerate: {
@@ -37,12 +37,12 @@ class UsernameModal extends React.Component {
             'handleClearBackgroundImage'
         ]);
         
-        // 从 localStorage 读取自定义背景设置
+        // 从 localStorage 读取自定义背景设置，无值时使用默认背景 pb.png
         const storedBackgroundImage = localStorage.getItem('customBackgroundImage');
         const storedBlurAmount = parseInt(localStorage.getItem('customBlurAmount'), 10) || 0;
-        
+
         this.state = {
-            backgroundImage: storedBackgroundImage,
+            backgroundImage: storedBackgroundImage || defaultBackground,
             blurAmount: storedBlurAmount
         };
     }
@@ -139,9 +139,9 @@ class UsernameModal extends React.Component {
         applyCustomBackground();
     }
 
-    // 清除背景图片
+    // 清除背景图片（回到默认背景 pb.png）
     handleClearBackgroundImage () {
-        this.setState({ backgroundImage: null });
+        this.setState({ backgroundImage: defaultBackground });
         localStorage.removeItem('customBackgroundImage');
         applyCustomBackground();
     }
