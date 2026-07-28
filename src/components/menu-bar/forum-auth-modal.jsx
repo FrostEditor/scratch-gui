@@ -3,6 +3,21 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {getCaptcha, solvePow, login, register, getMe} from '../../lib/forum/index.js';
 
+// 根据错误给出确定中文（服务端中文 message 偶发 GBK 乱码，故优先按状态码兜底）
+function errorMessage (err) {
+    const status = err && err.status;
+    if (!status) {
+        return (err && err.message) ||
+            '无法连接论坛服务：请确认已重启 npm start（修改 devServer 代理后必须重启开发服务器）。';
+    }
+    if (status === 400) return '验证码错误或未通过人机验证，请刷新验证码后重试';
+    if (status === 401) return '用户名或密码错误';
+    if (status === 403) return '当前凭证无权执行该操作';
+    if (status === 429) return '操作过于频繁，请稍后再试';
+    if (status >= 500) return '论坛服务器异常，请稍后再试';
+    return (err && err.message) || '请求失败，请重试';
+}
+
 const overlay = {
     position: 'fixed', left: 0, top: 0, right: 0, bottom: 0,
     background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center',
@@ -54,7 +69,7 @@ class ForumAuthModal extends React.Component {
             const c = await getCaptcha();
             this.setState({captcha: c, loadingCaptcha: false});
         } catch (e) {
-            this.setState({error: e.message || '验证码加载失败', loadingCaptcha: false});
+            this.setState({error: errorMessage(e), loadingCaptcha: false});
         }
     };
     switchMode = () => {
@@ -77,7 +92,7 @@ class ForumAuthModal extends React.Component {
             const powNonce = await solvePow(captcha.pow.challenge, captcha.pow.difficulty);
             const captchaData = {
                 captchaToken: captcha.token,
-                captchaAnswer: captchaAnswer.trim().toUpperCase(),
+                captchaAnswer: captchaAnswer.trim(),
                 captchaPowNonce: powNonce
             };
             let res;
@@ -99,7 +114,7 @@ class ForumAuthModal extends React.Component {
         } catch (err) {
             this.setState({
                 loading: false, powStatus: '',
-                error: err.message || '请求失败，请重试',
+                error: errorMessage(err),
                 captchaAnswer: ''
             });
             this.loadCaptcha();

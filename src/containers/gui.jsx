@@ -38,7 +38,7 @@ import cloudManagerHOC from '../lib/cloud-manager-hoc.jsx';
 
 import GUIComponent from '../components/gui/gui.jsx';
 import {setIsScratchDesktop} from '../lib/isScratchDesktop.js';
-import {getMe, logout as forumLogout} from '../lib/forum/index.js'; // tw: 论坛登录
+import {getMe, logout as forumLogout, getUserToken, clearUserToken} from '../lib/forum/index.js'; // tw: 论坛登录
 import {setForumUser, logoutForumUser} from '../reducers/forum-user.js';
 import TWFullScreenResizerHOC from '../lib/tw-fullscreen-resizer-hoc.jsx';
 import TWStageFullScreenHOC from '../lib/tw-stage-fullscreen-hoc.jsx'; // tw: 编辑器页原生 F11 式全屏（运行当前作品、退出不丢）
@@ -86,12 +86,19 @@ class GUI extends React.Component {
         if (window.electronAPI) {
             this.setupElectronListeners();
         }
-        // tw: 论坛自动登录——用客户端 API key 调 /auth/me，成功即视为已登录
-        getMe()
-            .then(user => {
-                if (user) this.props.onSetForumUser(user);
-            })
-            .catch(() => {});
+        // tw: 论坛自动登录——仅当用户之前登录过（本地存有个人 token）才自动恢复登录态；
+        // 否则保持未登录，显示登录/注册按钮，让用户主动登录自己的账号。
+        const savedToken = getUserToken();
+        if (savedToken) {
+            getMe()
+                .then(user => {
+                    if (user) this.props.onSetForumUser(user);
+                })
+                .catch(() => {
+                    clearUserToken();
+                    this.props.onLogoutForumUser();
+                });
+        }
     }
     
     // 设置 Electron 监听器

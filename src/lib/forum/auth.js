@@ -1,5 +1,5 @@
 /* eslint-disable */
-import client, {setUserToken} from './client.js';
+import client, {setUserToken, clearUserToken} from './client.js';
 
 // 账号密码登录（需人机验证字段）。POST /auth/login
 // 成功返回 { token, user }，自动写入后续请求的 Bearer。
@@ -42,5 +42,5 @@ export async function updateMe (patch) {
 
 // 退出登录（清除内存中的个人 JWT，回退到客户端 API key）。
 export function logout () {
-    setUserToken(null);
+    clearUserToken();
 }
