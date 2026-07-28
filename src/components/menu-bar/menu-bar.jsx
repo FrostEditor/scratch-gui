@@ -1195,32 +1195,21 @@ class MenuBar extends React.Component {
                             />
                         ) : []))}
                     </div>
-                    {/* tw: add a feedback button */}
+                    {/* tw: 更新作品按钮（替代原反馈按钮，点击后选择账号中的作品进行更新） */}
                     <div className={styles.menuBarItem}>
-                        <a
-                            className={styles.feedbackLink}
-                            href="https://github.com/FrostEditor/scratch-gui/issues"
-                            rel="noopener noreferrer"
-                            target="_blank"
+                        <Button
+                            className={styles.feedbackButton}
+                            onClick={this.handleClickUpdateWork}
                         >
-                            {/* todo: icon */}
-                            <Button className={styles.feedbackButton}>
-                                <FormattedMessage
-                                    defaultMessage="{APP_NAME} Feedback"
-                                    description="Button to give feedback in the menu bar"
-                                    id="tw.feedbackButton"
-                                    values={{
-                                        APP_NAME
-                                    }}
-                                />
-                            </Button>
-                        </a>
+                            更新作品
+                        </Button>
                     </div>
                 </div>
 
                 <div className={styles.accountInfoGroup}>
                     <span style={{marginLeft: 8}}>
                         <ForumUserCard
+                            ref={this.forumCardRef}
                             forumUser={this.props.forumUser}
                             onSetForumUser={this.props.onSetForumUser}
                             onLogoutForumUser={this.props.onLogoutForumUser}
