@@ -166,19 +166,19 @@ class LoaderComponent extends React.Component {
                     [styles.fullscreen]: this.props.isFullScreen
                 })}
             >
+                {/* tw: 全屏加载背景图——铺满整个屏幕当作加载界面 */}
+                <img
+                    src={loadImage}
+                    className={styles.loadImageBg}
+                    alt=""
+                    aria-hidden="true"
+                />
                 <div className={styles.container}>
                     {this.props.messageId !== 'gui.loader.creating' && (
                         <div className={classNames(styles.title, {[styles.hidden]: this.state.finishing})}>
                             {mainMessages[this.props.messageId]}
                         </div>
                     )}
-
-                    {/* tw: 自定义加载图 load.png */}
-                    <img
-                        src={loadImage}
-                        className={styles.loadImage}
-                        alt="加载中"
-                    />
 
                     {/* tw: 加载作品时，在图片下方显示积木进度（X / 共 Y，百分比） */}
                     <div

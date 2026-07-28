@@ -32,6 +32,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  position: relative;
+  z-index: 1; /* tw: 内容层浮在全屏加载图之上 */
 }
 
 
@@ -255,25 +257,28 @@
     background-color: $ui-white-default;
 }
 
-/* tw: 自定义加载图 load.png */
-.loadImage {
-    width: 320px;
-    max-width: 60%;
-    height: auto;
-    margin: 8px auto 10px;
+/* tw: 全屏加载背景图——铺满整个屏幕当作加载界面 */
+.loadImageBg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;       /* 铺满整屏（超出部分裁剪） */
+    object-position: center;
+    z-index: 0;
     display: block;
     user-select: none;
     -webkit-user-drag: none;
-    animation: load-pulse 1.4s ease-in-out infinite;
+    pointer-events: none;
+    animation: load-fade-in 0.4s ease-out;
 }
 
-@keyframes load-pulse {
-    0% { opacity: 0.55; transform: scale(0.98); }
-    50% { opacity: 1; transform: scale(1.0); }
-    100% { opacity: 0.55; transform: scale(0.98); }
+@keyframes load-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-/* tw: 图片下方积木进度文本（X / 共 Y，百分比） */
+/* tw: 图片下方积木进度文本（X / 共 Y，百分比），叠在背景图之上 */
 .blockText {
     min-height: 22px;
     margin: 4px auto 10px;
