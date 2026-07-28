@@ -77,7 +77,6 @@ class PublishProjectModal extends React.Component {
             summary: proj ? (proj.summary || '') : '',
             category: proj ? (proj.category || 'game') : 'game',
             coverFile: null, coverPreview: null,
-            sb3File: null, sb3Name: '',
             loading: false, error: '', done: null, progress: ''
         };
     }
@@ -87,31 +86,19 @@ class PublishProjectModal extends React.Component {
         if (this.state.coverPreview) URL.revokeObjectURL(this.state.coverPreview);
         this.setState({coverFile: f, coverPreview: URL.createObjectURL(f)});
     };
-    chooseSb3 = (e) => {
-        const f = e.target.files && e.target.files[0];
-        if (!f) return;
-        this.setState({sb3File: f, sb3Name: f.name});
-    };
     publish = async () => {
         const {title, summary, category, coverFile} = this.state;
         if (!title.trim()) return this.setState({error: '请填写作品标题'});
         const vm = this.props.vm;
         if (!vm) return this.setState({error: '编辑器尚未就绪，请稍候'});
 
-        this.setState({loading: true, error: '', progress: this.state.sb3File ? '正在校验所选 SB3 文件…' : '正在导出当前作品…'});
+        this.setState({loading: true, error: '', progress: '正在导出当前作品…'});
         try {
             const baseName = `${(title.trim() || 'project').replace(/[\\/:*?"<>|]/g, '_')}.sb3`;
-            let sb3;
-            if (this.state.sb3File) {
-                // 用户直接选择了本地 SB3 文件：直接用它，跳过 saveProjectSb3 现场生成。
-                // 部分情况下 saveProjectSb3 生成的 Blob 经 File 包装后字节异常，直接上传原文件最稳妥。
-                sb3 = this.state.sb3File;
-            } else {
-                // 注意：saveProjectSb3() 默认返回 Blob；这里显式传 'arraybuffer' 取字节数组，
-                // 再包成带 .sb3 扩展名的 File，避免「File 内嵌 JSZip Blob」在读取 arrayBuffer 时字节异常。
-                const data = await vm.saveProjectSb3('arraybuffer');
-                sb3 = new File([data], baseName, {type: 'application/x.scratch.sb3'});
-            }
+            // 与「保存到电脑 / 保存作品」完全一致的生成方式：saveProjectSb3() 默认返回合法 zip Blob。
+            // （之前用 saveProjectSb3('arraybuffer') 在部分项目下生成的字节流缺 ZIP 头部，故回归默认 Blob。）
+            const blob = await vm.saveProjectSb3();
+            const sb3 = new File([blob], baseName, {type: 'application/x.scratch.sb3'});
 
             // 上传前校验：确保是合法 SB3（zip + meta.semver），与 Turbowarp 嵌入校验口径一致。
             this.setState({progress: '正在校验作品文件…'});
@@ -164,7 +151,7 @@ class PublishProjectModal extends React.Component {
     };
     render () {
         if (!this.props.open) return null;
-        const {title, summary, category, coverPreview, sb3Name, loading, error, done, progress} = this.state;
+        const {title, summary, category, coverPreview, loading, error, done, progress} = this.state;
         return (
             <div style={overlay} onMouseDown={(e) => {
                 if (e.target === e.currentTarget && !loading && this.props.onClose) this.props.onClose();
@@ -214,16 +201,6 @@ class PublishProjectModal extends React.Component {
                                     <option key={c.value} value={c.value}>{c.label}</option>
                                 ))}
                             </select>
-                            <label style={{fontSize: 13, color: '#333'}}>SB3 文件（可选）</label>
-                            <div style={{marginBottom: 12, fontSize: 12, color: '#666'}}>
-                                <input type="file" accept=".sb3" onChange={this.chooseSb3} />
-                                {sb3Name && (
-                                    <div style={{marginTop: 4, color: '#1a73e8'}}>已选择：{sb3Name}</div>
-                                )}
-                                <div style={{marginTop: 2, fontSize: 11, color: '#999'}}>
-                                    留空则自动发布当前作品；若自动导出的文件无效，可在此手动选择本地 .sb3 文件
-                                </div>
-                            </div>
                             <label style={{fontSize: 13, color: '#333'}}>封面（可选）</label>
                             <div style={{marginBottom: 12}}>
                                 {coverPreview && (
