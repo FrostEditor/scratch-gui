@@ -92,23 +92,41 @@ class PublishProjectModal extends React.Component {
         const vm = this.props.vm;
         if (!vm) return this.setState({error: '编辑器尚未就绪，请稍候'});
 
+        console.log('[发布] ===== 开始 =====', {
+            title: title.trim(),
+            hasVm: !!vm,
+            hasSaveProjectSb3: typeof (vm && vm.saveProjectSb3),
+            isUpdate: Boolean(this.props.project && this.props.project.id)
+        });
         this.setState({loading: true, error: '', progress: '正在导出当前作品…'});
         try {
             const baseName = `${(title.trim() || 'project').replace(/[\\/:*?"<>|]/g, '_')}.sb3`;
+            console.log('[发布] 文件名 =', baseName);
             // 与「保存到电脑 / 保存作品」完全一致的生成方式：saveProjectSb3() 默认返回合法 zip Blob。
-            // （之前用 saveProjectSb3('arraybuffer') 在部分项目下生成的字节流缺 ZIP 头部，故回归默认 Blob。）
+            console.log('[发布] 调用 vm.saveProjectSb3() …');
             const blob = await vm.saveProjectSb3();
+            console.log('[发布] saveProjectSb3 返回', {type: blob && blob.type, size: blob && blob.size, isBlob: blob instanceof Blob});
+            // 打印前 4 字节，确认 ZIP 魔数 PK\x03\x04
+            const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+            const isPk = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
+            console.log('[发布] 文件头(hex) =', Array.from(head).map(b => b.toString(16).padStart(2, '0')).join(' '), '是合法 ZIP(PK)=', isPk);
             const sb3 = new File([blob], baseName, {type: 'application/x.scratch.sb3'});
+            console.log('[发布] 包装为 File', {name: sb3.name, size: sb3.size, type: sb3.type});
 
             // 上传前校验：确保是合法 SB3（zip + meta.semver），与 Turbowarp 嵌入校验口径一致。
             this.setState({progress: '正在校验作品文件…'});
             const valid = await validateSb3Blob(sb3);
+            console.log('[发布] validateSb3Blob 结果 =', valid);
             if (!valid.ok) throw new Error(valid.error);
 
             this.setState({progress: '正在上传作品文件…'});
+            console.log('[发布] 调用 uploadFile …');
             const uploaded = await uploadFile(sb3);
+            console.log('[发布] uploadFile 返回 =', uploaded);
             // 作品广场作品需匿名（如 Turbowarp 嵌入）可下载，关闭「需要登录」。
-            setResourcePublic(uploaded.id).catch(() => {});
+            setResourcePublic(uploaded.id)
+                .then(r => console.log('[发布] setResourcePublic 返回 =', r))
+                .catch(e => console.warn('[发布] setResourcePublic 失败（不影响发布）', e));
 
             const body = {
                 title: title.trim(),
@@ -137,15 +155,26 @@ class PublishProjectModal extends React.Component {
             }
 
             this.setState({progress: this.props.project ? '正在更新作品…' : '正在发布到作品广场…'});
-            const project = (this.props.project && this.props.project.id)
+            console.log('[发布] 调用', isUpdate ? 'updateProject' : 'createProject', body);
+            const project = isUpdate
                 ? await updateProject(this.props.project.id, body)
                 : await createProject(body);
+            console.log('[发布] ✅ 成功 =', project);
             this.setState({loading: false, progress: '', done: project});
             if (this.props.onPublished) this.props.onPublished(project);
         } catch (err) {
+            console.error('[发布] ❌ 失败', err);
+            console.error('[发布] 失败详情', {
+                message: err && err.message,
+                status: err && err.status,
+                data: err && err.data,
+                stack: err && err.stack
+            });
+            const detail = (err && err.message) || '发布失败，请重试';
+            const statusText = (err && err.status) ? `（HTTP ${err.status}）` : '';
             this.setState({
                 loading: false, progress: '',
-                error: err.message || '发布失败，请重试'
+                error: `${detail}${statusText}`
             });
         }
     };

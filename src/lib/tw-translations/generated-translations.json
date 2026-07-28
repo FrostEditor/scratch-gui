@@ -4711,6 +4711,7 @@
         "tw.alerts.restorePointSuccess": "可在“文件”菜单中访问还原点",
         "tw.alerts.savedToDisk": "已保存至您的计算机。",
         "tw.backpack.rename": "新名称：",
+        "gui.spriteSelector.addSpriteFromBilibili": "B站视频封面",
         "tw.blockColors.custom": "请在插件设置中自定义",
         "tw.blockColors.dark": "深色（测试）",
         "tw.blockColors.highContrast": "高对比度",
