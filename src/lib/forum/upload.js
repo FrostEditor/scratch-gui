@@ -7,12 +7,13 @@ export async function uploadFile (file) {
     const form = new FormData();
     form.append('file', file);
     // 重点：client.js 的 axios 实例默认把 Content-Type 锁成 application/json，
-    // 会覆盖浏览器对 FormData 自动加的 multipart/form-data; boundary=... ，
-    // 导致服务端收到 Content-Type=application/json、body 被序列化成 "null"，
-    // 从而 400「未收到文件」。故此处必须显式把 Content-Type 置 undefined，
-    // 让浏览器/运行时重新按 multipart 处理并自动补全 boundary。
+    // 会覆盖浏览器对 FormData 自动加的 multipart/form-data; boundary=... 。
+    // 在 axios 1.18 里，实例默认 header 与请求 header 合并时：
+    //   - 传 undefined 不会删除默认头，反而被兜底成 application/x-www-form-urlencoded（错误！）
+    //   - 只有传 null 才会真正把合并后的 Content-Type 抹掉，
+    //     浏览器才会自动补带 boundary 的 multipart/form-data，服务端才能解析到文件。
     const {data} = await client.post('/resources/upload', form, {
-        headers: {'Content-Type': undefined}
+        headers: {'Content-Type': null}
     });
     return data;
 }
