@@ -172,6 +172,9 @@ const GUIComponent = props => {
         unknownPlatformModalVisible,
         invalidProjectModalVisible,
         vm,
+        forumUser,
+        onSetForumUser,
+        onLogoutForumUser,
         ...componentProps
     } = omit(props, 'dispatch');
     
@@ -377,6 +380,9 @@ const GUIComponent = props => {
                         onShare={onShare}
                         onStartSelectingFileUpload={onStartSelectingFileUpload}
                         onToggleLoginOpen={onToggleLoginOpen}
+                        forumUser={forumUser}
+                        onSetForumUser={onSetForumUser}
+                        onLogoutForumUser={onLogoutForumUser}
                     />
                     <Box className={styles.bodyWrapper}>
                         <Box className={styles.flexWrapper}>
@@ -586,6 +592,13 @@ GUIComponent.propTypes = {
     onRequestCloseTelemetryModal: PropTypes.func,
     onSeeCommunity: PropTypes.func,
     onShare: PropTypes.func,
+    forumUser: PropTypes.shape({
+        user: PropTypes.object,
+        loggedIn: PropTypes.bool,
+        status: PropTypes.string
+    }),
+    onSetForumUser: PropTypes.func,
+    onLogoutForumUser: PropTypes.func,
     onShowPrivacyPolicy: PropTypes.func,
     onStartSelectingFileUpload: PropTypes.func,
     onTabSelect: PropTypes.func,

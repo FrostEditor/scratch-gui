@@ -32,6 +32,7 @@ import FramerateChanger from '../../containers/tw-framerate-changer.jsx';
 import ChangeUsername from '../../containers/tw-change-username.jsx';
 import CloudVariablesToggler from '../../containers/tw-cloud-toggler.jsx';
 import TWSaveStatus from './tw-save-status.jsx';
+import ForumUserCard from './forum-user-card.jsx'; // tw: 论坛登录卡片
 
 import {openTipsLibrary, openSettingsModal, openRestorePointModal} from '../../reducers/modals';
 import {setPlayer} from '../../reducers/mode';
@@ -1214,6 +1215,11 @@ class MenuBar extends React.Component {
                     <TWSaveStatus
                         showSaveFilePicker={this.props.showSaveFilePicker}
                     />
+                    <ForumUserCard
+                        forumUser={this.props.forumUser}
+                        onSetForumUser={this.props.onSetForumUser}
+                        onLogoutForumUser={this.props.onLogoutForumUser}
+                    />
                 </div>
 
                 {aboutButton}
@@ -1340,6 +1346,13 @@ MenuBar.propTypes = {
     settingsMenuOpen: PropTypes.bool,
     shouldSaveBeforeTransition: PropTypes.func,
     showSaveFilePicker: PropTypes.func,
+    forumUser: PropTypes.shape({
+        user: PropTypes.object,
+        loggedIn: PropTypes.bool,
+        status: PropTypes.string
+    }),
+    onSetForumUser: PropTypes.func,
+    onLogoutForumUser: PropTypes.func,
     showComingSoon: PropTypes.bool,
     username: PropTypes.string,
     userOwnsProject: PropTypes.bool,

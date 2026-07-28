@@ -38,6 +38,8 @@ import cloudManagerHOC from '../lib/cloud-manager-hoc.jsx';
 
 import GUIComponent from '../components/gui/gui.jsx';
 import {setIsScratchDesktop} from '../lib/isScratchDesktop.js';
+import {getMe, logout as forumLogout} from '../lib/forum/index.js'; // tw: 论坛登录
+import {setForumUser, logoutForumUser} from '../reducers/forum-user.js';
 import TWFullScreenResizerHOC from '../lib/tw-fullscreen-resizer-hoc.jsx';
 import TWStageFullScreenHOC from '../lib/tw-stage-fullscreen-hoc.jsx'; // tw: 编辑器页原生 F11 式全屏（运行当前作品、退出不丢）
 import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
@@ -84,6 +86,12 @@ class GUI extends React.Component {
         if (window.electronAPI) {
             this.setupElectronListeners();
         }
+        // tw: 论坛自动登录——用客户端 API key 调 /auth/me，成功即视为已登录
+        getMe()
+            .then(user => {
+                if (user) this.props.onSetForumUser(user);
+            })
+            .catch(() => {});
     }
     
     // 设置 Electron 监听器
@@ -253,7 +261,8 @@ const mapStateToProps = state => {
         fontsModalVisible: state.scratchGui.modals.fontsModal,
         unknownPlatformModalVisible: state.scratchGui.modals.unknownPlatformModal,
         invalidProjectModalVisible: state.scratchGui.modals.invalidProjectModal,
-        vm: state.scratchGui.vm
+        vm: state.scratchGui.vm,
+        forumUser: state.scratchGui.forumUser
     };
 };
 
@@ -264,7 +273,12 @@ const mapDispatchToProps = dispatch => ({
     onActivateSoundsTab: () => dispatch(activateTab(SOUNDS_TAB_INDEX)),
     onRequestCloseBackdropLibrary: () => dispatch(closeBackdropLibrary()),
     onRequestCloseCostumeLibrary: () => dispatch(closeCostumeLibrary()),
-    onRequestCloseTelemetryModal: () => dispatch(closeTelemetryModal())
+    onRequestCloseTelemetryModal: () => dispatch(closeTelemetryModal()),
+    onSetForumUser: user => dispatch(setForumUser(user)),
+    onLogoutForumUser: () => {
+        forumLogout();
+        dispatch(logoutForumUser());
+    }
 });
 
 const ConnectedGUI = injectIntl(connect(
