@@ -37,6 +37,16 @@ const base = {
         disableHostCheck: true,
         compress: true,
         port: process.env.PORT || 8601,
+        // tw: 论坛 API 同源代理，绕开浏览器 CORS（论坛未对 localhost 开放跨域，直连会 Network Error）
+        // 前端请求 /forum-api/* 由 devServer 转发到 https://forum.ctspace.xyz/api/*（见 src/lib/forum/config.js）
+        proxy: {
+            '/forum-api': {
+                target: 'https://forum.ctspace.xyz',
+                changeOrigin: true,
+                secure: true,
+                pathRewrite: {'^/forum-api': '/api'}
+            }
+        },
         // tw: 同源 CORS 代理，使远程 project_url / ?=url 跨域 .sb3 能正常加载
         before (app) {
             const {corsProxyMiddleware} = require('./src/lib/tw-cors-proxy.js');
