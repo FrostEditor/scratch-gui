@@ -254,3 +254,34 @@
     height: 100%;
     background-color: $ui-white-default;
 }
+
+/* tw: 自定义加载图 load.png */
+.loadImage {
+    width: 320px;
+    max-width: 60%;
+    height: auto;
+    margin: 8px auto 10px;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+    animation: load-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes load-pulse {
+    0% { opacity: 0.55; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.0); }
+    100% { opacity: 0.55; transform: scale(0.98); }
+}
+
+/* tw: 图片下方积木进度文本（X / 共 Y，百分比） */
+.blockText {
+    min-height: 22px;
+    margin: 4px auto 10px;
+    text-align: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}

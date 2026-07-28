@@ -43,6 +43,7 @@ import {loadServiceWorker} from './load-service-worker';
 import runAddons from '../addons/entry';
 import InvalidEmbed from '../components/tw-invalid-embed/invalid-embed.jsx';
 import {APP_NAME} from '../lib/brand.js';
+import {setForumUser, logoutForumUser} from '../reducers/forum-user';
 
 import styles from './interface.css';
 
@@ -156,6 +157,9 @@ class Interface extends React.Component {
             isPlayerOnly,
             isRtl,
             projectId,
+            forumUser,
+            onSetForumUser,
+            onLogoutForumUser,
             /* eslint-enable no-unused-vars */
             ...props
         } = this.props;
@@ -178,6 +182,9 @@ class Interface extends React.Component {
                             canChangeTheme
                             enableSeeInside
                             onClickAddonSettings={handleClickAddonSettings}
+                            forumUser={forumUser}
+                            onSetForumUser={onSetForumUser}
+                            onLogoutForumUser={onLogoutForumUser}
                         />
                     </div>
                 ) : null}
@@ -319,10 +326,15 @@ const mapStateToProps = state => ({
     isLoading: getIsLoading(state.scratchGui.projectState.loadingState),
     isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
     isRtl: state.locales.isRtl,
-    projectId: state.scratchGui.projectState.projectId
+    projectId: state.scratchGui.projectState.projectId,
+    // tw: 首页菜单栏显示登录态（头像/昵称）
+    forumUser: state.scratchGui.forumUser
 });
 
-const mapDispatchToProps = () => ({});
+const mapDispatchToProps = dispatch => ({
+    onSetForumUser: user => dispatch(setForumUser(user)),
+    onLogoutForumUser: () => dispatch(logoutForumUser())
+});
 
 const ConnectedInterface = injectIntl(connect(
     mapStateToProps,

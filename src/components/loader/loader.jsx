@@ -6,7 +6,7 @@ import PropTypes from 'prop-types';
 import bindAll from 'lodash.bindall';
 import styles from './loader.css';
 import {getIsLoadingWithId} from '../../reducers/project-state';
-// Use snowflake characters for the loading animation
+import loadImage from '../../../load.png'; // tw: 自定义加载图
 
 const mainMessages = {
     'gui.loader.headline': (
@@ -53,12 +53,16 @@ class LoaderComponent extends React.Component {
             'handleAssetProgress',
             'handleProjectLoaded',
             'barInnerRef',
-            'messageRef'
+            'messageRef',
+            'blockRef',
+            'updateBlockText'
         ]);
         this.barInnerEl = null;
         this.messageEl = null;
+        this.blockEl = null;
         this.ignoreProgress = false;
         this.finishing = false;
+        this.lastProgress = null; // {finished, total} 最近一次资产进度，用于 blockTotal 晚到时刷新
         this.state = {
             finishing: false
         };
@@ -71,42 +75,71 @@ class LoaderComponent extends React.Component {
         this.props.vm.on('ASSET_PROGRESS', this.handleAssetProgress);
         this.props.vm.runtime.on('PROJECT_LOADED', this.handleProjectLoaded);
     }
+    componentDidUpdate (prevProps) {
+        // 积木总数或「是否显示积木进度」变化后，用最近一次资产进度刷新文本
+        if (this.lastProgress &&
+            (prevProps.blockTotal !== this.props.blockTotal ||
+                prevProps.showBlockProgress !== this.props.showBlockProgress)) {
+            this.updateBlockText(this.lastProgress.finished, this.lastProgress.total);
+        }
+    }
     componentWillUnmount () {
         this.props.vm.off('ASSET_PROGRESS', this.handleAssetProgress);
         this.props.vm.runtime.off('PROJECT_LOADED', this.handleProjectLoaded);
     }
-    handleAssetProgress (finished, total) {
-        if (this.ignoreProgress || !this.barInnerEl || !this.messageEl) {
+    // 更新「已加载积木 X / 共 Y（Z%）」文本
+    updateBlockText (finished, total) {
+        if (!this.blockEl || !this.props.showBlockProgress || !(this.props.blockTotal > 0)) return;
+        if (total === 0) {
+            this.blockEl.textContent = `已加载积木 0 / 共 ${this.props.blockTotal}（0%）`;
             return;
         }
+        const pct = finished / total;
+        const loaded = Math.round(pct * this.props.blockTotal);
+        this.blockEl.textContent = `已加载积木 ${loaded} / 共 ${this.props.blockTotal}（${Math.round(pct * 100)}%）`;
+    }
+    handleAssetProgress (finished, total) {
+        if (!this.barInnerEl) {
+            return;
+        }
+        this.lastProgress = {finished, total};
 
         if (total === 0) {
             // Started loading a new project.
             this.barInnerEl.style.width = '0';
-            this.messageEl.textContent = this.props.intl.formatMessage(messages.projectData);
+            if (this.messageEl) {
+                this.messageEl.textContent = this.props.intl.formatMessage(messages.projectData);
+            }
         } else {
             this.barInnerEl.style.width = `${finished / total * 100}%`;
             const message = this.props.isRemote ? messages.downloadingAssets : messages.loadingAssets;
-            this.messageEl.textContent = this.props.intl.formatMessage(message, {
-                complete: finished,
-                total
-            });
+            if (this.messageEl) {
+                this.messageEl.textContent = this.props.intl.formatMessage(message, {
+                    complete: finished,
+                    total
+                });
+            }
         }
+        this.updateBlockText(finished, total);
     }
     handleProjectLoaded () {
-        if (this.ignoreProgress || !this.barInnerEl || !this.messageEl) return;
+        if (!this.barInnerEl) return;
 
         // Mark finishing state and allow one animation cycle before fully closing loader
         this.finishing = true;
         this.setState({finishing: true});
         // hide any loading text immediately
         try {
-            this.messageEl.textContent = '';
+            if (this.messageEl) this.messageEl.textContent = '';
         } catch (e) {}
         // ensure progress bar visually full
         try {
             this.barInnerEl.style.width = '100%';
         } catch (e) {}
+        // 结束时把积木数补齐为总数（100%）
+        if (this.props.showBlockProgress && this.props.blockTotal > 0 && this.blockEl) {
+            this.blockEl.textContent = `已加载积木 ${this.props.blockTotal} / 共 ${this.props.blockTotal}（100%）`;
+        }
         const ANIMATION_MS = 1200;
         setTimeout(() => {
             this.ignoreProgress = true;
@@ -123,9 +156,10 @@ class LoaderComponent extends React.Component {
     messageRef (message) {
         this.messageEl = message;
     }
+    blockRef (block) {
+        this.blockEl = block;
+    }
     render () {
-        const snowSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.2 4.2l2.8 2.8"/><path d="M17 17l2.8 2.8"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.2 19.8l2.8-2.8"/><path d="M17 7l2.8-2.8"/><circle cx="12" cy="12" r="1.4" fill="#FFFFFF" stroke="none"/></g></svg>';
-        const snowData = 'data:image/svg+xml;utf8,' + encodeURIComponent(snowSvg);
         return (
             <div
                 className={classNames(styles.background, {
@@ -139,54 +173,19 @@ class LoaderComponent extends React.Component {
                         </div>
                     )}
 
-                    {this.props.messageId === 'gui.loader.creating' ? (
-                        <div className={styles.snowTopWrapper}>
-                            <div className={styles.snowAnimation}>
-                                <span
-                                    className={styles.snowflake}
-                                    style={{
-                                        animationDelay: '0s',
-                                        color: '#FFFFFF',
-                                        fontSize: '120px',
-                                        opacity: 1,
-                                        display: 'inline-block',
-                                        zIndex: 11
-                                    }}
-                                >
-                                    ❄
-                                </span>
-                            </div>
-                            
-                            {/* keep a hidden message element so messageRef is available for progress updates */}
-                            <div
-                                className={styles.snowMessageHidden}
-                                ref={this.messageRef}
-                                aria-hidden="true"
-                            />
-                        </div>
-                    ) : (
-                        <div className={styles.snowWrapper}>
-                            <div className={styles.snowAnimation}>
-                                <span
-                                    className={styles.snowflake}
-                                    style={{
-                                        animationDelay: '0s',
-                                        opacity: 1,
-                                        display: 'inline-block',
-                                        zIndex: 11
-                                    }}
-                                >
-                                    <img src={snowData} alt="snow" style={{width:120,height:120,display:'block'}} />
-                                </span>
-                            </div>
-                            
-                            <div
-                                className={styles.snowMessage}
-                                ref={this.messageRef}
-                            />
-                        </div>
-                    )}
-                    
+                    {/* tw: 自定义加载图 load.png */}
+                    <img
+                        src={loadImage}
+                        className={styles.loadImage}
+                        alt="加载中"
+                    />
+
+                    {/* tw: 加载作品时，在图片下方显示积木进度（X / 共 Y，百分比） */}
+                    <div
+                        className={styles.blockText}
+                        ref={this.blockRef}
+                    />
+
                     {/* 进度条 */}
                     <div className={styles['bar-outer']}>
                         <div
@@ -194,6 +193,13 @@ class LoaderComponent extends React.Component {
                             ref={this.barInnerRef}
                         />
                     </div>
+
+                    {/* 隐藏的消息元素，供资产进度文本更新（保留引用，不直接展示） */}
+                    <div
+                        className={styles.snowMessageHidden}
+                        ref={this.messageRef}
+                        aria-hidden="true"
+                    />
                 </div>
             </div>
         );
@@ -201,10 +207,12 @@ class LoaderComponent extends React.Component {
 }
 
 LoaderComponent.propTypes = {
+    blockTotal: PropTypes.number,
     intl: intlShape,
     isFullScreen: PropTypes.bool,
     isRemote: PropTypes.bool,
     messageId: PropTypes.string,
+    showBlockProgress: PropTypes.bool,
     vm: PropTypes.shape({
         on: PropTypes.func,
         off: PropTypes.func,
@@ -218,13 +226,16 @@ LoaderComponent.propTypes = {
     })
 };
 LoaderComponent.defaultProps = {
+    blockTotal: 0,
     isFullScreen: false,
-    messageId: 'gui.loader.headline'
+    messageId: 'gui.loader.headline',
+    showBlockProgress: false
 };
 
 const mapStateToProps = state => ({
     isRemote: getIsLoadingWithId(state.scratchGui.projectState.loadingState),
-    vm: state.scratchGui.vm
+    vm: state.scratchGui.vm,
+    blockTotal: state.scratchGui.projectBlockCount.total
 });
 
 const mapDispatchToProps = () => ({});

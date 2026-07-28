@@ -295,7 +295,10 @@ const GUIComponent = props => {
                         />
                     ) : null}
                     {loading ? (
-                        <Loader isFullScreen />
+                        <Loader
+                            isFullScreen
+                            showBlockProgress={!isCreating}
+                        />
                     ) : null}
                     {isCreating ? (
                         <Loader
@@ -328,6 +331,7 @@ const GUIComponent = props => {
                             vm={vm}
                             isFullScreen={isFullScreen}
                             messageId={isCreating ? 'gui.loader.creating' : 'gui.loader.headline'}
+                            showBlockProgress={!isCreating}
                         />
                     ) : null}
                     {costumeLibraryVisible ? (

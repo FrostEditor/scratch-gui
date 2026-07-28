@@ -9,6 +9,7 @@ import * as accentCostom from './custom/custom';
 import * as accentCE from './accent/ce';
 import * as accentTY from './accent/ty';
 import * as accentMIKU from './accent/miku';
+import * as accentTeal from './accent/teal';
 
 import * as guiLight from './gui/light';
 import * as guiDark from './gui/dark';
@@ -26,6 +27,7 @@ const ACCENT_COSTOM = 'custom';
 const ACCENT_CE = 'ce';
 const ACCENT_TY = 'ty';
 const ACCENT_MIKU = 'miku';
+const ACCENT_TEAL = 'teal';
 const ACCENT_MAP = {
     [ACCENT_PURPLE]: accentPurple,
     [ACCENT_BLUE]: accentBlue,
@@ -37,9 +39,10 @@ const ACCENT_MAP = {
     },
     [ACCENT_CE]: accentCE,
     [ACCENT_TY]: accentTY,
-    [ACCENT_MIKU]: accentMIKU
+    [ACCENT_MIKU]: accentMIKU,
+    [ACCENT_TEAL]: accentTeal
 };
-const ACCENT_DEFAULT = ACCENT_FE;
+const ACCENT_DEFAULT = ACCENT_TEAL;
 
 const GUI_LIGHT = 'light';
 const GUI_DARK = 'dark';
@@ -47,7 +50,7 @@ const GUI_MAP = {
     [GUI_LIGHT]: guiLight,
     [GUI_DARK]: guiDark
 };
-const GUI_DEFAULT = GUI_DARK;
+const GUI_DEFAULT = GUI_LIGHT;
 
 const BLOCKS_THREE = 'three';
 const BLOCKS_DARK = 'dark';
@@ -172,6 +175,7 @@ export {
     ACCENT_CE,
     ACCENT_TY,
     ACCENT_MIKU,
+    ACCENT_TEAL,
     ACCENT_MAP,
 
     GUI_LIGHT,

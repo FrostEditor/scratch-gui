@@ -2,7 +2,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
-import {createProject, updateProject, uploadFile} from '../../lib/forum/index.js';
+import {createProject, updateProject, uploadFile, validateSb3Blob, setResourcePublic} from '../../lib/forum/index.js';
 
 const overlay = {
     position: 'fixed', left: 0, top: 0, right: 0, bottom: 0,
@@ -15,7 +15,9 @@ const card = {
 };
 const input = {
     width: '100%', boxSizing: 'border-box', padding: '9px 11px', marginTop: 6,
-    marginBottom: 12, border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14, outline: 'none'
+    marginBottom: 12, border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
+    outline: 'none',
+    background: '#fff', color: '#222' /* 显式白底深字，避免深色主题下输入框变黑与白弹窗冲突 */
 };
 const btn = {
     width: '100%', padding: '10px', border: 'none', borderRadius: 8, fontSize: 14,
@@ -31,6 +33,38 @@ const CATEGORIES = [
     {value: 'tutorial', label: '教程'},
     {value: 'other', label: '其他'}
 ];
+
+// 截取当前舞台画面作为封面图（PNG）。
+// 论坛作品广场在缺封面时会显示「未收到图片」缺图占位，因此发布时若用户未手动选封面，
+// 自动用舞台快照当封面，保证每个发布的作品都有缩略图。
+function captureStageThumbnail (vm) {
+    return new Promise((resolve, reject) => {
+        const renderer = vm && vm.runtime && vm.runtime.renderer;
+        if (!renderer || typeof renderer.requestSnapshot !== 'function') {
+            return reject(new Error('renderer 不可用，无法截取舞台'));
+        }
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (!settled) { settled = true; reject(new Error('截取舞台画面超时')); }
+        }, 2000);
+        renderer.requestSnapshot((dataUri) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            try {
+                const base64 = String(dataUri).split(',')[1];
+                if (!base64) throw new Error('快照数据为空');
+                const bin = atob(base64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const blob = new Blob([bytes], {type: 'image/png'});
+                resolve(new File([blob], 'stage-thumbnail.png', {type: 'image/png'}));
+            } catch (e) {
+                reject(e);
+            }
+        });
+    });
+}
 
 class PublishProjectModal extends React.Component {
     constructor (props) {
@@ -70,8 +104,16 @@ class PublishProjectModal extends React.Component {
                 {type: 'application/x.scratch.sb3'}
             );
 
+            // 上传前校验：确保生成的是合法 SB3（zip + meta.semver），
+            // 与 Turbowarp 嵌入播放器校验口径一致，避免发布后无法嵌入（报 missing meta.semver）。
+            this.setState({progress: '正在校验作品文件…'});
+            const valid = await validateSb3Blob(sb3);
+            if (!valid.ok) throw new Error(valid.error);
+
             this.setState({progress: '正在上传作品文件…'});
             const uploaded = await uploadFile(sb3);
+            // 作品广场作品需匿名（如 Turbowarp 嵌入）可下载，关闭「需要登录」。
+            setResourcePublic(uploaded.id).catch(() => {});
 
             const body = {
                 title: title.trim(),
@@ -79,10 +121,24 @@ class PublishProjectModal extends React.Component {
                 category,
                 fileResourceId: uploaded.id
             };
-            if (coverFile) {
+            // 封面：用户已选则用用户选的；新建发布且未选封面时，自动截取舞台画面当封面，
+            // 避免发布到作品广场后显示「未收到图片」缺图占位。
+            // 更新作品模式下未重新选封面则不发送 coverResourceId，保留作品原有封面。
+            let coverToUpload = coverFile;
+            const isUpdate = Boolean(this.props.project && this.props.project.id);
+            if (!coverToUpload && !isUpdate) {
+                try {
+                    this.setState({progress: '正在截取舞台画面作为封面…'});
+                    coverToUpload = await captureStageThumbnail(vm);
+                } catch (e) {
+                    console.warn('[发布] 自动截取封面失败，将不传封面：', e);
+                }
+            }
+            if (coverToUpload) {
                 this.setState({progress: '正在上传封面…'});
-                const cover = await uploadFile(coverFile);
+                const cover = await uploadFile(coverToUpload);
                 body.coverResourceId = cover.id;
+                setResourcePublic(cover.id).catch(() => {});
             }
 
             this.setState({progress: this.props.project ? '正在更新作品…' : '正在发布到作品广场…'});

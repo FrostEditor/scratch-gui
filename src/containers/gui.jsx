@@ -47,6 +47,8 @@ import {initBackgroundObserver} from '../lib/custom-background.js';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 import defaultProjectData from '../lib/default-project/project-data.js';
 import loadRandomDefaultCostume from '../lib/random-default-costume.js';
+import {countProjectBlocks} from '../lib/project-blocks.js'; // tw: 统计加载作品的积木总数
+import {setProjectBlockTotal} from '../reducers/project-block-count.js'; // tw: 积木总数 redux action
 
 const {RequestMetadata, setMetadata, unsetMetadata} = storage.scratchFetch;
 
@@ -99,6 +101,30 @@ class GUI extends React.Component {
                     this.props.onLogoutForumUser();
                 });
         }
+
+        // tw: 包装 vm.loadProject，加载作品时把积木总数写入 redux，供 Loader 显示进度。
+        // 放在此处可一次性覆盖所有加载入口（菜单打开/Electron/默认项目/协作等）。
+        this.wrapLoadProjectForBlockCount();
+    }
+
+    // tw: 包装 vm.loadProject，统计并上报积木总数
+    wrapLoadProjectForBlockCount () {
+        const vm = this.props.vm;
+        if (!vm || vm.__blockCountWrapped) return;
+        vm.__blockCountWrapped = true;
+        const originalLoadProject = vm.loadProject.bind(vm);
+        const dispatchTotal = this.props.onSetProjectBlockTotal;
+        vm.loadProject = (data, ...rest) => {
+            // 加载开始先清零，避免残留上一个作品的总数
+            dispatchTotal(0);
+            // 异步统计积木总数（解析 SB3/SB2），统计完再上报
+            Promise.resolve(countProjectBlocks(data))
+                .then(total => {
+                    if (typeof total === 'number') dispatchTotal(total);
+                })
+                .catch(() => {});
+            return originalLoadProject(data, ...rest);
+        };
     }
     
     // 设置 Electron 监听器
@@ -285,7 +311,8 @@ const mapDispatchToProps = dispatch => ({
     onLogoutForumUser: () => {
         forumLogout();
         dispatch(logoutForumUser());
-    }
+    },
+    onSetProjectBlockTotal: total => dispatch(setProjectBlockTotal(total)) // tw: 加载作品的积木总数
 });
 
 const ConnectedGUI = injectIntl(connect(

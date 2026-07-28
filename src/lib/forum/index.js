@@ -12,4 +12,4 @@ export {
     myProjects,
     toggleLike
 } from './projects.js';
-export {uploadFile} from './upload.js';
+export {uploadFile, validateSb3Blob, setResourcePublic} from './upload.js';

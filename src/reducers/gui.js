@@ -31,6 +31,7 @@ import vmReducer, {vmInitialState} from './vm';
 import vmStatusReducer, {vmStatusInitialState} from './vm-status';
 import workspaceMetricsReducer, {workspaceMetricsInitialState} from './workspace-metrics';
 import forumUserReducer, {forumUserInitialState} from './forum-user'; // tw: 论坛登录态
+import projectBlockCountReducer, {initialState as projectBlockCountInitialState} from './project-block-count'; // tw: 加载作品时的积木总数
 import throttle from 'redux-throttle';
 
 import decks from '../lib/libraries/decks/index.jsx';
@@ -69,7 +70,8 @@ const guiInitialState = {
     vm: vmInitialState,
     vmStatus: vmStatusInitialState,
     workspaceMetrics: workspaceMetricsInitialState,
-    forumUser: forumUserInitialState
+    forumUser: forumUserInitialState,
+    projectBlockCount: projectBlockCountInitialState
 };
 
 const initPlayer = function (currentState) {
@@ -176,7 +178,8 @@ const guiReducer = combineReducers({
     vm: vmReducer,
     vmStatus: vmStatusReducer,
     workspaceMetrics: workspaceMetricsReducer,
-    forumUser: forumUserReducer
+    forumUser: forumUserReducer,
+    projectBlockCount: projectBlockCountReducer
 });
 
 export {

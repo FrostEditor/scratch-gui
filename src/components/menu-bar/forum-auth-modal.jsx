@@ -29,7 +29,9 @@ const card = {
 };
 const input = {
     width: '100%', boxSizing: 'border-box', padding: '9px 11px', marginTop: 6,
-    marginBottom: 12, border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14, outline: 'none'
+    marginBottom: 12, border: '1px solid #d9d9d9', borderRadius: 8, fontSize: 14,
+    outline: 'none',
+    background: '#fff', color: '#222' /* 显式白底深字，避免深色主题下输入框变黑与白弹窗冲突 */
 };
 const btn = {
     width: '100%', padding: '10px', border: 'none', borderRadius: 8, fontSize: 14,

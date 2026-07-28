@@ -13,9 +13,7 @@ const systemPreferencesTheme = () => {
     if (PREFERS_HIGH_CONTRAST_QUERY && PREFERS_HIGH_CONTRAST_QUERY.matches) {
         return Theme.highContrast;
     }
-    if (PREFERS_DARK_QUERY && PREFERS_DARK_QUERY.matches) {
-        return Theme.dark;
-    }
+    // tw: 默认日间主题（浅色），不再跟随系统深色偏好
     return Theme.light;
 };
 
