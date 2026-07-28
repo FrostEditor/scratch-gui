@@ -167,6 +167,66 @@ const messages = defineMessages({
         defaultMessage: '复制房间链接',
         description: 'Button to copy multi-end room URL',
         id: 'tw.collaboration.multiCopyRoomUrl'
+    },
+    privacyTitle: {
+        defaultMessage: '房间隐私',
+        description: 'Title for room privacy section',
+        id: 'tw.collaboration.privacyTitle'
+    },
+    publicRoom: {
+        defaultMessage: '公开房间',
+        description: 'Public room label',
+        id: 'tw.collaboration.publicRoom'
+    },
+    publicRoomDesc: {
+        defaultMessage: '任何人都可以直接加入，无需批准',
+        description: 'Description of public room',
+        id: 'tw.collaboration.publicRoomDesc'
+    },
+    privateRoom: {
+        defaultMessage: '私有房间',
+        description: 'Private room label',
+        id: 'tw.collaboration.privateRoom'
+    },
+    privateRoomDesc: {
+        defaultMessage: '需要主机批准才能加入',
+        description: 'Description of private room',
+        id: 'tw.collaboration.privateRoomDesc'
+    },
+    makePublic: {
+        defaultMessage: '设为公开',
+        description: 'Button to set room public',
+        id: 'tw.collaboration.makePublic'
+    },
+    makePrivate: {
+        defaultMessage: '设为私有',
+        description: 'Button to set room private',
+        id: 'tw.collaboration.makePrivate'
+    },
+    pendingRequests: {
+        defaultMessage: '待处理的加入请求',
+        description: 'Title for pending join requests',
+        id: 'tw.collaboration.pendingRequests'
+    },
+    approve: {
+        defaultMessage: '批准',
+        description: 'Approve join request',
+        id: 'tw.collaboration.approve'
+    },
+    deny: {
+        defaultMessage: '拒绝',
+        description: 'Deny join request',
+        id: 'tw.collaboration.deny'
+    },
+    waitingApproval: {
+        defaultMessage: '等待主机批准...',
+        description: 'Waiting for host approval',
+        id: 'tw.collaboration.waitingApproval'
+    },
+    requestDenied: {
+        defaultMessage: '您的加入请求被拒绝',
+        description: 'Join request denied',
+        id: 'tw.collaboration.requestDenied'
     }
 });
 
@@ -197,6 +257,11 @@ const CollaborationModal = props => {
     const [multiError, setMultiError] = useState('');
     const [multiIsLoading, setMultiIsLoading] = useState(false);
     const [multiCopied, setMultiCopied] = useState(false);
+
+    // 多端协作隐私与审批状态
+    const [multiPrivacy, setMultiPrivacy] = useState('public');
+    const [multiPendingRequests, setMultiPendingRequests] = useState([]);
+    const [multiApprovalState, setMultiApprovalState] = useState(null); // null, 'pending', 'approved', 'denied'
 
     const isMounted = useRef(true);
 
@@ -316,6 +381,9 @@ const CollaborationModal = props => {
             setMultiRoomId('');
             setMultiMembers([]);
             setMultiIsHost(false);
+            setMultiPrivacy('public');
+            setMultiPendingRequests([]);
+            setMultiApprovalState(null);
         };
 
         const handleMultiError = data => {
@@ -344,6 +412,52 @@ const CollaborationModal = props => {
         multiCollaborationManager.on('members-updated', handleMultiMembersUpdated);
         multiCollaborationManager.on('kicked', handleMultiKicked);
 
+        const handleMultiPrivacyChanged = privacy => {
+            if (!isMounted.current) return;
+            setMultiPrivacy(privacy);
+        };
+
+        const handleMultiPendingRequestsUpdated = requests => {
+            if (!isMounted.current) return;
+            setMultiPendingRequests(requests);
+        };
+
+        const handleMultiJoinRequestReceived = data => {
+            if (!isMounted.current) return;
+            setMultiApprovalState('pending');
+        };
+
+        const handleMultiApprovalResolved = data => {
+            if (!isMounted.current) return;
+            if (data.approved) {
+                setMultiApprovalState('approved');
+                setMultiView('room');
+                setMultiError('');
+                setMultiStatus('connected');
+            } else {
+                setMultiApprovalState('denied');
+                setMultiError(data.reason || '您的加入请求被拒绝');
+                setTimeout(() => {
+                    multiCollaborationManager.disconnect();
+                    setMultiView('main');
+                    setMultiApprovalState(null);
+                }, 2000);
+            }
+        };
+
+        const handleMultiAwaitingApproval = () => {
+            if (!isMounted.current) return;
+            setMultiApprovalState('pending');
+            setMultiView('room');
+            setMultiStatus('connecting');
+        };
+
+        multiCollaborationManager.on('privacy-changed', handleMultiPrivacyChanged);
+        multiCollaborationManager.on('pending-requests-updated', handleMultiPendingRequestsUpdated);
+        multiCollaborationManager.on('join-request-received', handleMultiJoinRequestReceived);
+        multiCollaborationManager.on('approval-resolved', handleMultiApprovalResolved);
+        multiCollaborationManager.on('awaiting-approval', handleMultiAwaitingApproval);
+
         // 检查当前状态
         if (multiCollaborationManager.isConnected) {
             setMultiStatus('connected');
@@ -351,6 +465,7 @@ const CollaborationModal = props => {
                 setMultiRoomId(multiCollaborationManager.roomId);
                 setMultiIsHost(multiCollaborationManager.isHost);
                 setMultiMembers(multiCollaborationManager.members);
+                setMultiPrivacy(multiCollaborationManager.roomPrivacy);
                 setMultiView('room');
             }
         }
@@ -368,6 +483,11 @@ const CollaborationModal = props => {
             multiCollaborationManager.off('error', handleMultiError);
             multiCollaborationManager.off('members-updated', handleMultiMembersUpdated);
             multiCollaborationManager.off('kicked', handleMultiKicked);
+            multiCollaborationManager.off('privacy-changed', handleMultiPrivacyChanged);
+            multiCollaborationManager.off('pending-requests-updated', handleMultiPendingRequestsUpdated);
+            multiCollaborationManager.off('join-request-received', handleMultiJoinRequestReceived);
+            multiCollaborationManager.off('approval-resolved', handleMultiApprovalResolved);
+            multiCollaborationManager.off('awaiting-approval', handleMultiAwaitingApproval);
         };
     }, []);
 
@@ -542,6 +662,25 @@ const CollaborationModal = props => {
         setMultiMembers([]);
         setMultiIsHost(false);
         setMultiStatus('disconnected');
+        setMultiPrivacy('public');
+        setMultiPendingRequests([]);
+        setMultiApprovalState(null);
+    };
+
+    // 设置房间隐私
+    const handleMultiSetPrivacy = privacy => {
+        multiCollaborationManager.setRoomPrivacy(privacy);
+        setMultiPrivacy(privacy);
+    };
+
+    // 批准加入请求
+    const handleMultiApproveRequest = requestId => {
+        multiCollaborationManager.approveJoinRequest(requestId);
+    };
+
+    // 拒绝加入请求
+    const handleMultiDenyRequest = requestId => {
+        multiCollaborationManager.denyJoinRequest(requestId);
     };
 
     // 踢出多端协作成员
@@ -892,6 +1031,88 @@ const CollaborationModal = props => {
                 </div>
             </div>
 
+            {/* 房间隐私设置（仅主机可见） */}
+            {multiIsHost && (
+                <div className={styles.privacySection}>
+                    <h4 className={styles.privacyTitle}>
+                        {props.intl.formatMessage(messages.privacyTitle)}
+                    </h4>
+                    <div className={styles.privacyOptions}>
+                        <label className={`${styles.privacyOption} ${multiPrivacy === 'public' ? styles.privacyOptionActive : ''}`}>
+                            <input
+                                type="radio"
+                                name="roomPrivacy"
+                                value="public"
+                                checked={multiPrivacy === 'public'}
+                                onChange={() => handleMultiSetPrivacy('public')}
+                            />
+                            <div className={styles.privacyOptionContent}>
+                                <span className={styles.privacyOptionTitle}>
+                                    {props.intl.formatMessage(messages.publicRoom)}
+                                </span>
+                                <span className={styles.privacyOptionDesc}>
+                                    {props.intl.formatMessage(messages.publicRoomDesc)}
+                                </span>
+                            </div>
+                        </label>
+                        <label className={`${styles.privacyOption} ${multiPrivacy === 'private' ? styles.privacyOptionActive : ''}`}>
+                            <input
+                                type="radio"
+                                name="roomPrivacy"
+                                value="private"
+                                checked={multiPrivacy === 'private'}
+                                onChange={() => handleMultiSetPrivacy('private')}
+                            />
+                            <div className={styles.privacyOptionContent}>
+                                <span className={styles.privacyOptionTitle}>
+                                    {props.intl.formatMessage(messages.privateRoom)}
+                                </span>
+                                <span className={styles.privacyOptionDesc}>
+                                    {props.intl.formatMessage(messages.privateRoomDesc)}
+                                </span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            )}
+
+            {/* 待处理的加入请求（仅主机，私有房间） */}
+            {multiIsHost && multiPrivacy === 'private' && multiPendingRequests.length > 0 && (
+                <div className={styles.pendingSection}>
+                    <h4 className={styles.pendingTitle}>
+                        {props.intl.formatMessage(messages.pendingRequests)} ({multiPendingRequests.length})
+                    </h4>
+                    <div className={styles.pendingList}>
+                        {multiPendingRequests.map(request => (
+                            <div key={request.id} className={styles.pendingItem}>
+                                <div className={styles.pendingUser}>
+                                    <div className={styles.memberAvatar}>
+                                        {request.username.charAt(0)}
+                                    </div>
+                                    <span className={styles.pendingUsername}>
+                                        {request.username}
+                                    </span>
+                                </div>
+                                <div className={styles.pendingActions}>
+                                    <button
+                                        className={styles.approveButton}
+                                        onClick={() => handleMultiApproveRequest(request.id)}
+                                    >
+                                        {props.intl.formatMessage(messages.approve)}
+                                    </button>
+                                    <button
+                                        className={styles.denyButton}
+                                        onClick={() => handleMultiDenyRequest(request.id)}
+                                    >
+                                        {props.intl.formatMessage(messages.deny)}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className={styles.membersSection}>
                 <h4 className={styles.membersTitle}>
                     {props.intl.formatMessage(messages.members)} ({multiMembers.length})
@@ -935,6 +1156,34 @@ const CollaborationModal = props => {
                 </div>
             </div>
 
+            <div className={styles.roomActions}>
+                <button
+                    className={styles.leaveButton}
+                    onClick={handleMultiLeaveRoom}
+                >
+                    {props.intl.formatMessage(messages.leaveRoom)}
+                </button>
+            </div>
+        </div>
+    );
+
+    // 渲染等待批准界面（客户端在私有房间中等待批准）
+    const renderMultiApprovalView = () => (
+        <div className={styles.approvalView}>
+            <div className={styles.approvalSpinner}>
+                <div className={styles.spinner} />
+            </div>
+            <h3 className={styles.approvalTitle}>
+                {props.intl.formatMessage(messages.waitingApproval)}
+            </h3>
+            <p className={styles.approvalDesc}>
+                {props.intl.formatMessage(messages.privateRoomDesc)}
+            </p>
+            {multiError && (
+                <div className={styles.errorMessage}>
+                    {multiError}
+                </div>
+            )}
             <div className={styles.roomActions}>
                 <button
                     className={styles.leaveButton}
@@ -999,7 +1248,8 @@ const CollaborationModal = props => {
                     <>
                         {multiView === 'main' && renderMultiMainView()}
                         {multiView === 'join' && renderMultiJoinView()}
-                        {multiView === 'room' && renderMultiRoomView()}
+                        {multiView === 'room' && multiApprovalState === 'pending' && renderMultiApprovalView()}
+                        {multiView === 'room' && multiApprovalState !== 'pending' && renderMultiRoomView()}
 
                         {multiView !== 'room' && (
                             <div className={styles.buttonRow}>

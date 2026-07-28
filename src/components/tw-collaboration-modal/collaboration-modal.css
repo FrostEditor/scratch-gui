@@ -529,3 +529,187 @@
         background-color: $looks-secondary-dark;
     }
 }
+
+/* 房间隐私设置 */
+.privacySection {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: $ui-secondary;
+    border-radius: 0.5rem;
+    border: 1px solid $ui-tertiary;
+}
+
+.privacyTitle {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: $text-primary;
+}
+
+.privacyOptions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.privacyOption {
+    display: flex;
+    align-items: flex-start;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid $ui-tertiary;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    input[type="radio"] {
+        margin-right: 0.6rem;
+        margin-top: 0.2rem;
+        accent-color: $looks-secondary;
+    }
+
+    &:hover {
+        border-color: $looks-secondary;
+    }
+}
+
+.privacyOptionActive {
+    border-color: $looks-secondary;
+    background-color: $looks-transparent;
+}
+
+.privacyOptionContent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.privacyOptionTitle {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: $text-primary;
+}
+
+.privacyOptionDesc {
+    font-size: 0.75rem;
+    color: $ui-black-transparent;
+}
+
+/* 待处理请求 */
+.pendingSection {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: $looks-transparent;
+    border-radius: 0.5rem;
+    border: 1px solid $looks-secondary;
+}
+
+.pendingTitle {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: $looks-secondary;
+}
+
+.pendingList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pendingItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background-color: $ui-white;
+    border-radius: 0.375rem;
+    border: 1px solid $ui-tertiary;
+}
+
+.pendingUser {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pendingUsername {
+    font-size: 0.85rem;
+    color: $text-primary;
+    font-weight: 500;
+}
+
+.pendingActions {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.approveButton {
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: $looks-secondary;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+
+    &:hover {
+        background-color: $looks-secondary-dark;
+    }
+}
+
+.denyButton {
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: $ui-white;
+    color: $error-primary;
+    border: 1px solid $error-primary;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+
+    &:hover {
+        background-color: $error-transparent;
+    }
+}
+
+/* 批准等待界面 */
+.approvalView {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 0.5rem;
+    text-align: center;
+}
+
+.approvalSpinner {
+    margin-bottom: 1rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid $ui-tertiary;
+    border-top-color: $looks-secondary;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.approvalTitle {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: $text-primary;
+}
+
+.approvalDesc {
+    margin: 0 0 1rem 0;
+    font-size: 0.85rem;
+    color: $ui-black-transparent;
+}

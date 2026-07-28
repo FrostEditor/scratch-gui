@@ -59,6 +59,13 @@ class MultiCollaborationManager {
         this.connectionTimeout = null;
         this.wasKicked = false;
 
+        this.roomPrivacy = 'public';
+        this.pendingJoinRequests = new Map();
+
+        this._joinResolve = null;
+        this._joinReject = null;
+        this._joinResolved = false;
+
         this._reconnectTimer = null;
         this._reconnectionState = null;
         this.currentConnectionFailureHandler = null;
@@ -122,12 +129,21 @@ class MultiCollaborationManager {
         this.username = username || `User${Math.floor(Math.random() * 1000)}`;
     }
 
+    // --- 设置房间隐私 ---
+    setRoomPrivacy (privacy) {
+        if (privacy !== 'public' && privacy !== 'private') return;
+        this.roomPrivacy = privacy;
+        this.sendMessage('privacy-changed', {privacy});
+        this.emit('privacy-changed', privacy);
+    }
+
     // --- 创建房间（作为主机） ---
     createRoom (roomId, username) {
         const code = roomId || this.generateRoomCode();
         this.username = username || `User${Math.floor(Math.random() * 1000)}`;
         this.roomId = code;
         this.isHost = true;
+        this.roomPrivacy = 'public';
 
         const peerId = this.generatePeerId(code, true);
 
@@ -193,6 +209,10 @@ class MultiCollaborationManager {
         const peerId = this.generatePeerId(this.roomId, false);
 
         return new Promise((resolve, reject) => {
+            this._joinResolve = resolve;
+            this._joinReject = reject;
+            this._joinResolved = false;
+
             try {
                 this.peer = new Peer(peerId, PEER_CONFIG);
             } catch (error) {
@@ -200,10 +220,9 @@ class MultiCollaborationManager {
                 return;
             }
 
-            let resolved = false;
             const timeout = setTimeout(() => {
-                if (!resolved) {
-                    resolved = true;
+                if (!this._joinResolved) {
+                    this._joinResolved = true;
                     this.emit('error', {message: `连接房间 "${this.roomId}" 超时，主机可能不在线`});
                     this.disconnect();
                     reject(new Error(`连接房间 "${this.roomId}" 超时`));
@@ -214,12 +233,12 @@ class MultiCollaborationManager {
             this.peer.on('open', id => {
                 this.memberId = id;
                 this.isConnected = true;
-                this.connectToHost(resolve, reject);
+                this.connectToHost();
             });
 
             this.peer.on('error', error => {
-                if (this.isDisconnecting || resolved) return;
-                resolved = true;
+                if (this.isDisconnecting || this._joinResolved) return;
+                this._joinResolved = true;
                 if (this.connectionTimeout) {
                     clearTimeout(this.connectionTimeout);
                     this.connectionTimeout = null;
@@ -234,26 +253,9 @@ class MultiCollaborationManager {
     }
 
     // --- 客户端连接到主机 ---
-    connectToHost (resolve, reject) {
+    connectToHost () {
         const hostId = this.generatePeerId(this.roomId, true);
         this.hostId = hostId;
-
-        let resolved = false;
-        const finishResolve = success => {
-            if (resolved) return;
-            resolved = true;
-            if (this.connectionTimeout) {
-                clearTimeout(this.connectionTimeout);
-                this.connectionTimeout = null;
-            }
-            if (success) {
-                resolve({
-                    roomKey: this.roomId,
-                    isHost: false,
-                    members: Array.from(this.users.values())
-                });
-            }
-        };
 
         try {
             const conn = this.peer.connect(hostId, {
@@ -267,14 +269,11 @@ class MultiCollaborationManager {
 
             conn.on('open', () => {
                 this.isConnectedToHost = true;
-                this.emit('connected', {roomId: this.roomId, isHost: false});
-                // 向主机发送加入信息
                 this.sendMessage('user-join', {
                     id: this.peer.id,
                     username: this.username,
                     isHost: false
                 }, conn);
-                finishResolve(true);
             });
 
             conn.on('data', data => {
@@ -291,22 +290,57 @@ class MultiCollaborationManager {
             });
 
             conn.on('error', () => {
-                if (!resolved) {
-                    finishResolve(false);
+                if (!this._joinResolved) {
+                    this._joinResolved = true;
                     this.emit('error', {
                         message: `无法连接到主机。房间 "${this.roomId}" 可能不存在或主机不在线。`
                     });
                     this.disconnect();
-                    reject(new Error('无法连接到主机'));
+                    if (this._joinReject) {
+                        this._joinReject(new Error('无法连接到主机'));
+                    }
                 }
             });
 
             this.connections.set(hostId, conn);
         } catch (error) {
-            finishResolve(false);
+            this._joinResolved = true;
             this.emit('error', {message: `连接房间失败: ${error.message}`});
             this.disconnect();
-            reject(error);
+            if (this._joinReject) {
+                this._joinReject(error);
+            }
+        }
+    }
+
+    // 客户端加入成功（主机批准后调用）
+    _resolveJoin () {
+        if (this._joinResolved) return;
+        this._joinResolved = true;
+        if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+        }
+        this.emit('connected', {roomId: this.roomId, isHost: false});
+        if (this._joinResolve) {
+            this._joinResolve({
+                roomKey: this.roomId,
+                isHost: false,
+                members: Array.from(this.users.values())
+            });
+        }
+    }
+
+    // 客户端加入被拒绝
+    _rejectJoin (error) {
+        if (this._joinResolved) return;
+        this._joinResolved = true;
+        if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+        }
+        if (this._joinReject) {
+            this._joinReject(error);
         }
     }
 
@@ -323,6 +357,11 @@ class MultiCollaborationManager {
         });
 
         conn.on('close', () => {
+            const wasPending = this.pendingJoinRequests.has(conn.peer);
+            if (wasPending) {
+                this.pendingJoinRequests.delete(conn.peer);
+                this.emit('pending-requests-updated', this.getPendingRequests());
+            }
             const userInfo = this.users.get(conn.peer);
             this.connections.delete(conn.peer);
             this.users.delete(conn.peer);
@@ -354,6 +393,18 @@ class MultiCollaborationManager {
         case 'kick-user':
             this.handleKickUser(payload);
             break;
+        case 'join-request':
+            this.handleJoinRequest(payload, conn);
+            break;
+        case 'join-approved':
+            this.handleJoinApproved(payload);
+            break;
+        case 'join-denied':
+            this.handleJoinDenied(payload);
+            break;
+        case 'privacy-changed':
+            this.handlePrivacyChanged(payload);
+            break;
         default:
             break;
         }
@@ -361,27 +412,155 @@ class MultiCollaborationManager {
 
     handleUserJoin (payload, conn) {
         if (!this.isHost) return;
-        // 添加用户
-        const userPayload = {
+
+        // 如果是私有房间，需要主机批准
+        if (this.roomPrivacy === 'private') {
+            // 将连接标记为待处理
+            this.pendingJoinRequests.set(payload.id, {
+                id: payload.id,
+                username: payload.username,
+                isHost: false,
+                conn: conn
+            });
+            this.sendMessage('join-request', {
+                id: payload.id,
+                username: payload.username
+            }, conn);
+            this.emit('join-request-received', {
+                id: payload.id,
+                username: payload.username
+            });
+            this.emit('pending-requests-updated', this.getPendingRequests());
+            return;
+        }
+
+        // 公开房间直接批准
+        this.approveJoinRequest(payload);
+    }
+
+    approveJoinRequest (payload) {
+        if (!this.isHost) return;
+        const requestId = typeof payload === 'string' ? payload : payload.id;
+        const request = this.pendingJoinRequests.get(requestId);
+
+        if (request) {
+            this.pendingJoinRequests.delete(requestId);
+            this.emit('pending-requests-updated', this.getPendingRequests());
+
+            const conn = request.conn;
+            const userPayload = {
+                id: request.id,
+                username: request.username,
+                isHost: false
+            };
+            this.users.set(request.id, userPayload);
+
+            this.sendMessage('join-approved', {
+                id: request.id,
+                privacy: this.roomPrivacy
+            }, conn);
+
+            // 向新用户发送完整用户列表
+            this.sendMessage('users-list', {
+                users: Array.from(this.users.values())
+            }, conn);
+
+            // 向其他客户端广播新用户加入
+            this.connections.forEach(connection => {
+                if (connection.peer !== request.id && connection.open) {
+                    this.sendMessage('user-join', userPayload, connection);
+                }
+            });
+
+            this.emit('members-updated', Array.from(this.users.values()));
+        } else {
+            // 公开房间直接批准（payload 为用户信息）
+            const userPayload = {
+                id: payload.id,
+                username: payload.username,
+                isHost: false
+            };
+            this.users.set(payload.id, userPayload);
+
+            this.sendMessage('users-list', {
+                users: Array.from(this.users.values())
+            }, this.connections.get(this.hostId) || null);
+
+            this.connections.forEach(connection => {
+                if (connection.peer !== payload.id && connection.open) {
+                    this.sendMessage('user-join', userPayload, connection);
+                }
+            });
+
+            this.emit('members-updated', Array.from(this.users.values()));
+        }
+    }
+
+    denyJoinRequest (requestId) {
+        if (!this.isHost) return;
+        const request = this.pendingJoinRequests.get(requestId);
+        if (request) {
+            this.pendingJoinRequests.delete(requestId);
+            const conn = request.conn;
+            this.sendMessage('join-denied', {
+                id: requestId,
+                reason: '您的加入请求被拒绝'
+            }, conn);
+            try {
+                if (conn && conn.close) {
+                    setTimeout(() => conn.close(), 500);
+                }
+            } catch (e) {
+                // 忽略
+            }
+            this.emit('pending-requests-updated', this.getPendingRequests());
+        }
+    }
+
+    handleJoinRequest (payload, conn) {
+        if (!this.isHost) {
+            // 客户端收到 join-request（私有房间，等待批准）
+            this.emit('awaiting-approval', payload);
+            return;
+        }
+        this.pendingJoinRequests.set(payload.id, {
             id: payload.id,
             username: payload.username,
-            isHost: false
-        };
-        this.users.set(payload.id, userPayload);
-
-        // 向新用户发送完整用户列表
-        this.sendMessage('users-list', {
-            users: Array.from(this.users.values())
-        }, conn);
-
-        // 向其他客户端广播新用户加入
-        this.connections.forEach(connection => {
-            if (connection.peer !== payload.id && connection.open) {
-                this.sendMessage('user-join', userPayload, connection);
-            }
+            isHost: false,
+            conn: conn
         });
+        this.emit('join-request-received', {
+            id: payload.id,
+            username: payload.username
+        });
+        this.emit('pending-requests-updated', this.getPendingRequests());
+    }
 
-        this.emit('members-updated', Array.from(this.users.values()));
+    handleJoinApproved (payload) {
+        // 客户端收到主机批准
+        if (payload.privacy) {
+            this.roomPrivacy = payload.privacy;
+        }
+        this.emit('approval-resolved', {approved: true});
+        this._resolveJoin();
+    }
+
+    handleJoinDenied (payload) {
+        this.emit('approval-resolved', {approved: false, reason: payload.reason});
+        this._rejectJoin(new Error(payload.reason || '您的加入请求被拒绝'));
+    }
+
+    handlePrivacyChanged (payload) {
+        this.roomPrivacy = payload.privacy;
+        this.emit('privacy-changed', payload.privacy);
+    }
+
+    getPendingRequests () {
+        const requests = [];
+        this.pendingJoinRequests.forEach((value, key) => {
+            requests.push({id: key, username: value.username});
+        });
+        return requests;
     }
 
     handleUsersList (payload) {
@@ -392,6 +571,10 @@ class MultiCollaborationManager {
             });
         }
         this.emit('members-updated', Array.from(this.users.values()));
+        // 客户端收到用户列表意味着主机已批准（公开房间或私有房间批准后）
+        if (!this.isHost && !this._joinResolved) {
+            this._resolveJoin();
+        }
     }
 
     handleUserLeave (payload) {
@@ -462,6 +645,7 @@ class MultiCollaborationManager {
     resetState () {
         this.connections.clear();
         this.users.clear();
+        this.pendingJoinRequests.clear();
         this.isConnected = false;
         this.isConnectedToHost = false;
         this.isHost = false;
@@ -469,6 +653,10 @@ class MultiCollaborationManager {
         this.hostId = null;
         this.memberId = null;
         this.wasKicked = false;
+        this.roomPrivacy = 'public';
+        this._joinResolve = null;
+        this._joinReject = null;
+        this._joinResolved = false;
     }
 
     disconnect () {
