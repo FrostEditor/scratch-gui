@@ -164,7 +164,7 @@ class PublishProjectModal extends React.Component {
     };
     render () {
         if (!this.props.open) return null;
-        const {title, summary, category, coverPreview, loading, error, done, progress} = this.state;
+        const {title, summary, category, coverPreview, sb3Name, loading, error, done, progress} = this.state;
         return (
             <div style={overlay} onMouseDown={(e) => {
                 if (e.target === e.currentTarget && !loading && this.props.onClose) this.props.onClose();
