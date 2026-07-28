@@ -61,9 +61,14 @@ class PublishProjectModal extends React.Component {
         this.setState({loading: true, error: '', progress: '正在导出当前作品…'});
         try {
             let data = await vm.saveProjectSb3();
-            const sb3 = data instanceof Blob
-                ? data
-                : new File([data], `${title.trim()}.sb3`, {type: 'application/x.scratch.sb3'});
+            // 注意：saveProjectSb3() 返回的是 Blob，本身没有文件名。
+            // 直接上传 Blob 时服务端收到的文件名是 "blob"（无 .sb3 扩展名），
+            // 会被文件类型校验拒绝（暂不支持该文件类型）。必须包成带 .sb3 扩展名的 File。
+            const sb3 = new File(
+                [data],
+                `${(title.trim() || 'project').replace(/[\\/:*?"<>|]/g, '_')}.sb3`,
+                {type: 'application/x.scratch.sb3'}
+            );
 
             this.setState({progress: '正在上传作品文件…'});
             const uploaded = await uploadFile(sb3);

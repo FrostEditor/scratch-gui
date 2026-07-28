@@ -6,8 +6,8 @@ import client from './client.js';
 export async function uploadFile (file) {
     const form = new FormData();
     form.append('file', file);
-    const {data} = await client.post('/resources/upload', form, {
-        headers: {'Content-Type': 'multipart/form-data'}
-    });
+    // 不要手动设置 Content-Type：上传 FormData 时浏览器会自动加上
+    // multipart/form-data 及正确的 boundary，写死反而会解析失败。
+    const {data} = await client.post('/resources/upload', form);
     return data;
 }
