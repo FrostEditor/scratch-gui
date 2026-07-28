@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import bindAll from 'lodash.bindall';
 import styles from './loader.css';
 import {getIsLoadingWithId} from '../../reducers/project-state';
+import snowflakeIcon from '../../../froste-snowflake.png'; // tw: 编辑器官方图标（已抠图透明背景）
 
 const mainMessages = {
     'gui.loader.headline': (
@@ -168,11 +169,11 @@ class LoaderComponent extends React.Component {
                 {/* tw: 纯 CSS 还原 load.png 加载画面（高清、不模糊） */}
                 <div className={styles.loadLogo} aria-hidden="true">
                     <div className={styles.loadLogoIcon}>
-                        <div className={styles.loadSnowflake}>
-                            {[0, 1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className={styles.loadSnowflakeArm} />
-                            ))}
-                        </div>
+                        <img
+                            className={styles.loadSnowflakeImg}
+                            src={snowflakeIcon}
+                            alt="FrosteEditor"
+                        />
                     </div>
                     <div className={styles.loadLogoText}>FrosteEditor</div>
                 </div>

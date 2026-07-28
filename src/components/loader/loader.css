@@ -40,12 +40,9 @@
 .loadLogoIcon {
     width: 52px;
     height: 52px;
-    border-radius: 14px;
-    background-color: #3a5a4a;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .loadLogoText {
@@ -56,53 +53,14 @@
     user-select: none;
 }
 
-.loadSnowflake {
-    width: 34px;
-    height: 34px;
-    position: relative;
+.loadSnowflakeImg {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
 }
-
-.loadSnowflakeArm {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 3px;
-    height: 32px;
-    margin-top: -16px;
-    margin-left: -1.5px;
-    background-color: #40e0d0;
-    border-radius: 2px;
-    transform-origin: center;
-}
-
-.loadSnowflakeArm::before,
-.loadSnowflakeArm::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    width: 9px;
-    height: 3px;
-    margin-left: -4.5px;
-    background-color: #40e0d0;
-    border-radius: 2px;
-}
-
-.loadSnowflakeArm::before {
-    top: 6px;
-    transform: rotate(40deg);
-}
-
-.loadSnowflakeArm::after {
-    bottom: 6px;
-    transform: rotate(-40deg);
-}
-
-.loadSnowflakeArm:nth-child(1) { transform: rotate(0deg); }
-.loadSnowflakeArm:nth-child(2) { transform: rotate(60deg); }
-.loadSnowflakeArm:nth-child(3) { transform: rotate(120deg); }
-.loadSnowflakeArm:nth-child(4) { transform: rotate(180deg); }
-.loadSnowflakeArm:nth-child(5) { transform: rotate(240deg); }
-.loadSnowflakeArm:nth-child(6) { transform: rotate(300deg); }
 
 .loadScene {
     display: flex;
