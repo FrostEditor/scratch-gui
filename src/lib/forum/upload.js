@@ -6,9 +6,14 @@ import client from './client.js';
 export async function uploadFile (file) {
     const form = new FormData();
     form.append('file', file);
-    // 不要手动设置 Content-Type：上传 FormData 时浏览器会自动加上
-    // multipart/form-data 及正确的 boundary，写死反而会解析失败。
-    const {data} = await client.post('/resources/upload', form);
+    // 重点：client.js 的 axios 实例默认把 Content-Type 锁成 application/json，
+    // 会覆盖浏览器对 FormData 自动加的 multipart/form-data; boundary=... ，
+    // 导致服务端收到 Content-Type=application/json、body 被序列化成 "null"，
+    // 从而 400「未收到文件」。故此处必须显式把 Content-Type 置 undefined，
+    // 让浏览器/运行时重新按 multipart 处理并自动补全 boundary。
+    const {data} = await client.post('/resources/upload', form, {
+        headers: {'Content-Type': undefined}
+    });
     return data;
 }
 
