@@ -34,38 +34,6 @@ const CATEGORIES = [
     {value: 'other', label: '其他'}
 ];
 
-// 截取当前舞台画面作为封面图（PNG）。
-// 论坛作品广场在缺封面时会显示「未收到图片」缺图占位，因此发布时若用户未手动选封面，
-// 自动用舞台快照当封面，保证每个发布的作品都有缩略图。
-function captureStageThumbnail (vm) {
-    return new Promise((resolve, reject) => {
-        const renderer = vm && vm.runtime && vm.runtime.renderer;
-        if (!renderer || typeof renderer.requestSnapshot !== 'function') {
-            return reject(new Error('renderer 不可用，无法截取舞台'));
-        }
-        let settled = false;
-        const timer = setTimeout(() => {
-            if (!settled) { settled = true; reject(new Error('截取舞台画面超时')); }
-        }, 2000);
-        renderer.requestSnapshot((dataUri) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            try {
-                const base64 = String(dataUri).split(',')[1];
-                if (!base64) throw new Error('快照数据为空');
-                const bin = atob(base64);
-                const bytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                const blob = new Blob([bytes], {type: 'image/png'});
-                resolve(new File([blob], 'stage-thumbnail.png', {type: 'image/png'}));
-            } catch (e) {
-                reject(e);
-            }
-        });
-    });
-}
-
 class PublishProjectModal extends React.Component {
     constructor (props) {
         super(props);
@@ -100,8 +68,13 @@ class PublishProjectModal extends React.Component {
         });
         this.setState({loading: true, error: '', progress: '正在导出当前作品…'});
         try {
-            const baseName = `${(title.trim() || 'project').replace(/[\\/:*?"<>|]/g, '_')}.sb3`;
-            console.log('[发布] 文件名 =', baseName);
+            // sb3 文件名：优先使用编辑器菜单栏「作品名称」输入框的内容（与「保存到电脑」一致），
+            // 回退到弹窗标题，避免出现乱码文件名。去掉可能自带的 .sb3 后缀，统一追加一次。
+            const rawWork = (typeof this.props.projectTitle === 'string' && this.props.projectTitle.trim()) ||
+                (title && title.trim()) || 'project';
+            const workName = rawWork.replace(/\.sb3$/i, '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'project';
+            const baseName = `${workName}.sb3`;
+            console.log('[发布] 文件名 =', baseName, '（来源作品名称=', rawWork, '）');
             // 与「保存到电脑 / 保存作品」完全一致的生成方式：saveProjectSb3() 默认返回合法 zip Blob。
             console.log('[发布] 调用 vm.saveProjectSb3() …');
             const blob = await vm.saveProjectSb3();
@@ -134,19 +107,10 @@ class PublishProjectModal extends React.Component {
                 category,
                 fileResourceId: uploaded.id
             };
-            // 封面：用户已选则用用户选的；新建发布且未选封面时，自动截取舞台画面当封面，
-            // 避免发布到作品广场后显示「未收到图片」缺图占位。
+            // 封面：仅使用用户手动选择的封面（不再自动截取舞台画面当封面，避免随机/自动图片）。
             // 更新作品模式下未重新选封面则不发送 coverResourceId，保留作品原有封面。
-            let coverToUpload = coverFile;
+            const coverToUpload = coverFile;
             const isUpdate = Boolean(this.props.project && this.props.project.id);
-            if (!coverToUpload && !isUpdate) {
-                try {
-                    this.setState({progress: '正在截取舞台画面作为封面…'});
-                    coverToUpload = await captureStageThumbnail(vm);
-                } catch (e) {
-                    console.warn('[发布] 自动截取封面失败，将不传封面：', e);
-                }
-            }
             if (coverToUpload) {
                 this.setState({progress: '正在上传封面…'});
                 const cover = await uploadFile(coverToUpload);
