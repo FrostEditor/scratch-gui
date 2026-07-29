@@ -94,7 +94,7 @@
     "redux-throttle": "0.1.1",
     "scratch-audio": "github:TurboWarp/scratch-audio#develop",
     "scratch-blocks": "github:TurboWarp/scratch-blocks#develop-builds",
-    "scratch-paint": "github:AstraEditor/scratch-paint#develop",
+    "scratch-paint": "github:AstraEditor/scratch-paint#a55405259d0d158c4851980e9e80463fd73e2c98",
     "scratch-render": "github:TurboWarp/scratch-render#develop",
     "scratch-vm": "github:TurboWarp/scratch-vm#c4823421cb7c17d8d8a89878851ce1668c26a21f",
     "style-loader": "^0.23.0",

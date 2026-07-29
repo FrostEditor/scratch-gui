@@ -255,19 +255,26 @@ const GUIComponent = props => {
                             }}
                         />
                     ) : null}
-                    <StageWrapper
-                        isFullScreen={isFullScreen}
-                        isEmbedded={isEmbedded}
-                        isRendererSupported={isRendererSupported()}
-                        isRtl={isRtl}
-                        loading={loading}
-                        stageSize={STAGE_SIZE_MODES.full}
-                        vm={vm}
+                    <Box
+                        className={classNames(
+                            styles.playerWrapper,
+                            isEmbedded && styles.embedded
+                        )}
                     >
-                        {alertsVisible ? (
-                            <Alerts className={styles.alertsContainer} />
-                        ) : null}
-                    </StageWrapper>
+                        <StageWrapper
+                            isFullScreen={isFullScreen}
+                            isEmbedded={isEmbedded}
+                            isRendererSupported={isRendererSupported()}
+                            isRtl={isRtl}
+                            loading={loading}
+                            stageSize={STAGE_SIZE_MODES.full}
+                            vm={vm}
+                        >
+                            {alertsVisible ? (
+                                <Alerts className={styles.alertsContainer} />
+                            ) : null}
+                        </StageWrapper>
+                    </Box>
                     {alwaysEnabledModals}
                 </React.Fragment>
             ) : (
