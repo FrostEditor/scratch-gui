@@ -112,7 +112,10 @@ const base = {
                 path.resolve(__dirname, 'src'),
                 /node_modules[\\/]scratch-[^\\/]+[\\/]src/,
                 /node_modules[\\/]pify/,
-                /node_modules[\\/]@vernier[\\/]godirect/
+                /node_modules[\\/]@vernier[\\/]godirect/,
+                // peerjs.min.js (v1.5.x) 含可选链 ?. 等现代语法，webpack@3 acorn 无法解析，
+                // 需经 babel 转译后才能打包（桌面端 babel-loader 无 include 限制已自动处理）。
+                /node_modules[\\/]peerjs[\\/]dist/
             ],
             options: {
                 // Explicitly disable babelrc so we don't catch various config
