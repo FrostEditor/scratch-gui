@@ -1,5 +1,6 @@
 import React from 'react';
 
+// [scratch-paint] eager-load
 let realScratchPaint;
 const getRealScratchPaint = () => {
     if (!realScratchPaint) {
@@ -7,6 +8,9 @@ const getRealScratchPaint = () => {
     }
     return realScratchPaint;
 };
+
+// Eagerly load scratch-paint on module init so its IIFE runs at app startup
+realScratchPaint = require('scratch-paint');
 
 const PaintEditor = props => React.createElement(getRealScratchPaint().default, props);
 
