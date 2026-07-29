@@ -10,7 +10,19 @@
 //   光标/聊天/扩展/标签/作品声明/脑图 均为轻量广播消息。
 // - 公开接口（属性 / 方法 / 事件）与旧实现保持一致，确保协作光标、聊天、菜单栏、作品声明等消费者无感切换。
 
-import Peer from 'peerjs';
+import 'peerjs';
+
+// 重要：peerjs 的发布产物 peerjs.min.js 是 esbuild IIFE 格式，不会设置 module.exports，
+// 只在浏览器全局挂载 window.Peer。因此这里从 window.Peer 读取构造器，而不是用
+// `import Peer from 'peerjs'`（其默认导出会是 undefined，导致 new Peer() 报 "is not a constructor"）。
+const Peer = (typeof window !== 'undefined' && window.Peer) || null;
+
+function requirePeer () {
+    if (!Peer) {
+        throw new Error('PeerJS 未正确加载：请确认构建把 peerjs 解析到了 ES5 版本（peerjs.min.js）');
+    }
+    return Peer;
+}
 
 // peer id 前缀（自定协议，不再兼容 bilup/mw/02e/rw）
 const APP_PREFIX = 'froste';
@@ -220,7 +232,7 @@ class CollaborationManager {
         return new Promise((resolve, reject) => {
             let peer;
             try {
-                peer = new Peer(this.memberId);
+                peer = new (requirePeer())(this.memberId);
             } catch (e) {
                 this.isConnecting = false;
                 reject(e);
@@ -281,7 +293,7 @@ class CollaborationManager {
             this._joinResolved = false;
             let peer;
             try {
-                peer = new Peer(this.memberId);
+                peer = new (requirePeer())(this.memberId);
             } catch (e) {
                 this.isConnecting = false;
                 reject(e);

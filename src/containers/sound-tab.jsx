@@ -29,6 +29,8 @@ import SharedAudioContext from '../lib/audio/shared-audio-context.js';
 
 import {connect} from 'react-redux';
 
+import {IS_DESKTOP_APP} from '../lib/forum/config.js';
+
 import {
     closeSoundLibrary,
     openSoundLibrary,
@@ -369,11 +371,13 @@ class SoundTab extends React.Component {
                     title: intl.formatMessage(messages.addSound),
                     img: searchIcon,
                     onClick: onNewSoundFromLibraryClick
-                }, {
+                },
+                ...(IS_DESKTOP_APP ? [{
                     title: intl.formatMessage(messages.neteaseSound),
                     img: neteaseIcon,
                     onClick: this.handleNeteaseClick
-                }] : []}
+                }] : [])
+                ] : []}
                 dragType={DragConstants.SOUND}
                 isRtl={isRtl}
                 items={sounds}

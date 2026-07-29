@@ -11,6 +11,8 @@ import {isRtl} from '@turbowarp/scratch-l10n';
 
 import styles from './sprite-selector.css';
 
+import {IS_DESKTOP_APP} from '../../lib/forum/config.js';
+
 import fileUploadIcon from '../action-menu/icon--file-upload.svg';
 import paintIcon from '../action-menu/icon--paint.svg';
 import spriteIcon from '../action-menu/icon--sprite.svg';
@@ -143,11 +145,12 @@ const SpriteSelectorComponent = function (props) {
                         title: intl.formatMessage(messages.addSpriteFromLibrary),
                         img: searchIcon,
                         onClick: onNewSpriteClick
-                    }, {
+                    },
+                    ...(IS_DESKTOP_APP ? [{
                         title: intl.formatMessage(messages.addSpriteFromBilibili),
                         img: bilibiliIcon,
                         onClick: onBilibiliSpriteClick
-                    }
+                    }] : [])
                 ]}
                 title={intl.formatMessage(messages.addSpriteFromLibrary)}
                 tooltipPlace={isRtl(intl.locale) ? 'right' : 'left'}

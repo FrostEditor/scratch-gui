@@ -98,7 +98,10 @@ const base = {
         symlinks: false,
         alias: {
             'text-encoding$': path.resolve(__dirname, 'src/lib/tw-text-encoder'),
-            'scratch-render-fonts$': path.resolve(__dirname, 'src/lib/tw-scratch-render-fonts')
+            'scratch-render-fonts$': path.resolve(__dirname, 'src/lib/tw-scratch-render-fonts'),
+            // peerjs 1.4.x 的 main/module（bundler.cjs/mjs）含 ES 私有字段 `#`，webpack@3 无法解析；
+            // 改用 ES5 的 peerjs.min.js（esbuild IIFE，会把 Peer 挂到 window.Peer），由 consumer 读取。
+            'peerjs$': path.resolve(__dirname, 'node_modules/peerjs/dist/peerjs.min.js')
         }
     },
     module: {
