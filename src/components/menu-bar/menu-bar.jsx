@@ -229,7 +229,6 @@ MenuItemLink.propTypes = {
 class MenuBar extends React.Component {
     constructor (props) {
         super(props);
-        this.forumCardRef = React.createRef();
         this.state = {
             collaborationModalOpen: false,
             isCollaborating: false,
@@ -259,8 +258,7 @@ class MenuBar extends React.Component {
             'handleCollaborationDisconnected',
             'handleMembersUpdated',
             'handleOpenChat',
-            'handleCloseChat',
-            'handleClickUpdateWork'
+            'handleCloseChat'
         ]);
     }
     componentDidMount () {
@@ -469,11 +467,6 @@ class MenuBar extends React.Component {
     }
     handleCloseChat () {
         this.setState({chatModalOpen: false});
-    }
-    handleClickUpdateWork () {
-        if (this.forumCardRef.current) {
-            this.forumCardRef.current.openUpdateSelector();
-        }
     }
     buildAboutMenu (onClickAbout) {
         if (!onClickAbout) {
@@ -1195,21 +1188,11 @@ class MenuBar extends React.Component {
                             />
                         ) : []))}
                     </div>
-                    {/* tw: 更新作品按钮（替代原反馈按钮，点击后选择账号中的作品进行更新） */}
-                    <div className={styles.menuBarItem}>
-                        <Button
-                            className={styles.feedbackButton}
-                            onClick={this.handleClickUpdateWork}
-                        >
-                            更新作品
-                        </Button>
-                    </div>
                 </div>
 
                 <div className={styles.accountInfoGroup}>
                     <span style={{marginLeft: 8}}>
                         <ForumUserCard
-                            ref={this.forumCardRef}
                             forumUser={this.props.forumUser}
                             onSetForumUser={this.props.onSetForumUser}
                             onLogoutForumUser={this.props.onLogoutForumUser}
