@@ -27,6 +27,9 @@ const isTrustedExtension = url => (
     // Always trust our official extension repostiory.
     url.startsWith('https://extensions.turbowarp.org/') ||
 
+    // Trust our own FrostEditor extension repository (configurable via EXTENSIONS_URL).
+    (process.env.EXTENSIONS_URL && url.startsWith(process.env.EXTENSIONS_URL)) ||
+
     // For development.
     url.startsWith('http://localhost:8000/') ||
 

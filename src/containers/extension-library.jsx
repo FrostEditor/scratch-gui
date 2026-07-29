@@ -50,6 +50,7 @@ const translateGalleryItem = (extension, locale) => ({
 let cachedGallery = null;
 let cachedAstraExtensions = null;
 let cachedUdbbsExtensions = null;
+let cachedFrostExtensions = null;
 
 const fetchLibrary = async () => {
     const res = await fetch('https://extensions.turbowarp.org/generated-metadata/extensions-v0.json');
@@ -179,6 +180,55 @@ const fetchUdbbsExtensions = async () => {
     }
 };
 
+const fetchFrostEditorExtensions = async () => {
+    const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/').replace(/\/$/, '');
+    try {
+        const res = await fetch(`${base}/generated-metadata/extensions-v0.json`);
+        if (!res.ok) {
+            throw new Error(`HTTP status ${res.status}`);
+        }
+        const data = await res.json();
+        return (data.extensions || []).map(extension => ({
+            name: extension.name,
+            nameTranslations: extension.nameTranslations || {},
+            description: extension.description,
+            descriptionTranslations: extension.descriptionTranslations || {},
+            extensionId: extension.id,
+            extensionURL: `${base}/${extension.slug}.js`,
+            iconURL: `${base}/${extension.image || 'images/unknown.svg'}`,
+            tags: ['frosteditor'],
+            credits: [
+                ...(extension.original || []),
+                ...(extension.by || [])
+            ].map(credit => {
+                if (credit.link) {
+                    return (
+                        <a
+                            href={credit.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            key={credit.name}
+                        >
+                            {credit.name}
+                        </a>
+                    );
+                }
+                return credit.name;
+            }),
+            docsURI: extension.docs ? `${base}/${extension.slug}` : null,
+            samples: extension.samples ? extension.samples.map(sample => ({
+                href: `${process.env.ROOT}editor?project_url=${base}/samples/${encodeURIComponent(sample)}.sb3`,
+                text: sample
+            })) : null,
+            incompatibleWithScratch: !extension.scratchCompatible,
+            featured: true
+        }));
+    } catch (error) {
+        console.error('Failed to load FrostEditor extensions:', error);
+        return [];
+    }
+};
+
 class ExtensionLibrary extends React.PureComponent {
     constructor (props) {
         super(props);
@@ -200,6 +250,8 @@ class ExtensionLibrary extends React.PureComponent {
             astraError: null,
             udbbsExtensions: cachedUdbbsExtensions,
             udbbsError: null,
+            frostExtensions: cachedFrostExtensions,
+            frostError: null,
             extensionManagerOpen: false,
             loadedExtensions: [],
             extensionInfoMap: {}, // 存储扩展 ID 到扩展信息的映射
@@ -269,6 +321,22 @@ class ExtensionLibrary extends React.PureComponent {
                     log.error(error);
                     this.setState({
                         udbbsError: error
+                    });
+                });
+        }
+
+        if (!this.state.frostExtensions) {
+            fetchFrostEditorExtensions()
+                .then(extensions => {
+                    cachedFrostExtensions = extensions;
+                    this.setState({
+                        frostExtensions: extensions
+                    });
+                })
+                .catch(error => {
+                    log.error(error);
+                    this.setState({
+                        frostError: error
                     });
                 });
         }
@@ -436,7 +504,8 @@ class ExtensionLibrary extends React.PureComponent {
                 ...(extensionLibraryContent || []),
                 ...(this.state.gallery || []),
                 ...(this.state.astraExtensions || []),
-                ...(this.state.udbbsExtensions || [])
+                ...(this.state.udbbsExtensions || []),
+                ...(this.state.frostExtensions || [])
             ];
             const matched = allLibraryExtensions.find(ext => ext && ext.extensionId === extensionId);
             if (matched) {
@@ -495,7 +564,8 @@ class ExtensionLibrary extends React.PureComponent {
             ...(extensionLibraryContent || []),
             ...(this.state.gallery || []),
             ...(this.state.astraExtensions || []),
-            ...(this.state.udbbsExtensions || [])
+            ...(this.state.udbbsExtensions || []),
+            ...(this.state.frostExtensions || [])
         ];
         const matched = allLibraryExtensions.find(ext => ext && ext.extensionId === extensionId);
         if (matched) {
@@ -589,6 +659,11 @@ class ExtensionLibrary extends React.PureComponent {
                     // 添加 UDBBS 扩展
                     if (this.state.udbbsExtensions && Array.isArray(this.state.udbbsExtensions)) {
                         allLibraryExtensions.push(...this.state.udbbsExtensions);
+                    }
+
+                    // 添加 FrostEditor 扩展
+                    if (this.state.frostExtensions && Array.isArray(this.state.frostExtensions)) {
+                        allLibraryExtensions.push(...this.state.frostExtensions);
                     }
                     
                     // 规范化 URL，用于匹配
@@ -840,6 +915,27 @@ class ExtensionLibrary extends React.PureComponent {
                 const locale = this.props.intl.locale;
                 library.push(
                     ...this.state.udbbsExtensions
+                        .map(i => translateGalleryItem(i, locale))
+                        .map(toLibraryItem)
+                );
+            }
+
+            // 添加 FrostEditor 扩展
+            if (this.state.frostExtensions && this.state.frostExtensions.length > 0) {
+                const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/');
+                library.push('---');
+                library.push(toLibraryItem({
+                    name: 'FrostEditor 扩展库',
+                    extensionId: 'frosteditor-gallery',
+                    iconURL: `${base}images/unknown.svg`,
+                    description: '来自 FrostEditor 的扩展收集',
+                    href: base,
+                    tags: ['frosteditor'],
+                    featured: true
+                }));
+                const locale = this.props.intl.locale;
+                library.push(
+                    ...this.state.frostExtensions
                         .map(i => translateGalleryItem(i, locale))
                         .map(toLibraryItem)
                 );

@@ -119,6 +119,7 @@ import ninetiesLogo from './nineties_logo.svg';
 import catLogo from './cat_logo.svg';
 import prehistoricLogo from './prehistoric-logo.svg';
 import oldtimeyLogo from './oldtimey-logo.svg';
+import frosteditorLogo from './frosteditor-logo.png';
 
 import sharedMessages from '../../lib/shared-messages';
 
@@ -373,7 +374,7 @@ class MenuBar extends React.Component {
             } else if (mode === '220022BC') {
                 document.getElementById('logo_img').src = prehistoricLogo;
             } else {
-                document.getElementById('logo_img').src = this.props.logo;
+                document.getElementById('logo_img').src = this.props.logo || frosteditorLogo;
             }
 
             this.props.onSetTimeTravelMode(mode);
@@ -569,6 +570,13 @@ class MenuBar extends React.Component {
                 )}
             >
                 <div className={styles.mainMenu}>
+                    <img
+                        id="logo_img"
+                        className={styles.logo}
+                        src={this.props.logo || frosteditorLogo}
+                        draggable={false}
+                        alt="FrostEditor"
+                    />
                     <div className={styles.fileGroup}>
                         {this.props.errors.length > 0 && <div>
                             <MenuLabel

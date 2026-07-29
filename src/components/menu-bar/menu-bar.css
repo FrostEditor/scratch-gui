@@ -77,6 +77,13 @@
     vertical-align: middle;
 }
 
+.logo {
+    height: 1.6rem;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+    border-radius: 6px;
+}
+
 .scratch-logo.clickable {
     cursor: pointer;
 }
