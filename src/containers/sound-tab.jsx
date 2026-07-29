@@ -208,63 +208,68 @@ class SoundTab extends React.Component {
 
     // 从网易云单曲链接里解析出歌曲 id（支持标准链接与 #/hash 链接）
     async handleNeteaseAdd (link) {
-        const songId = parseNeteaseId(link);
-        if (!songId) {
-            throw new Error('无法解析歌曲 ID，请确认是网易云单曲链接（需包含 id=数字）');
-        }
         const vm = this.props.vm;
         const storage = vm.runtime.storage;
         const targetId = vm.editingTarget.id;
+        const l = (link || '').trim();
 
         this.props.onShowImporting();
-        let name = `网易云_${songId}`;
+
+        // 判断是否为“直接音频直链”（用户从网易云复制到的音频文件 URL）。
+        // 这种情况下旧下载接口已失效，但代理仍可下载任意可跨域音频地址。
+        const isDirectUrl = /^(https?:\/\/).+\.(mp3|wav|ogg|flac|m4a|aac)(\?|#|$)/i.test(l) ||
+            (/^https?:\/\//i.test(l) && !/music\.163\.com\/.*song/i.test(l));
+
+        const songId = parseNeteaseId(l);
+        let audioUrl;
+        let name = songId ? `网易云_${songId}` : '网易云歌曲';
 
         try {
-            // 先尝试获取真实歌名（旧版未加密 detail 接口；失败则用兜底名）
-            try {
-                const dRes = await fetch(
-                    `/proxy?url=${encodeURIComponent(
-                        `https://music.163.com/api/song/detail/?id=${songId}&ids=%5B${songId}%5D`
-                    )}&referer=${encodeURIComponent('https://music.163.com/')}`
-                );
-                if (dRes.ok) {
-                    const d = await dRes.json();
-                    if (d && d.songs && d.songs[0]) {
-                        const s = d.songs[0];
-                        name = s.name + (s.artists && s.artists[0] ? ` - ${s.artists[0].name}` : '');
-                    }
+            if (isDirectUrl) {
+                // 直接音频直链：经 /proxy 下载
+                audioUrl = `/proxy?url=${encodeURIComponent(l)}`;
+            } else {
+                if (!songId) {
+                    throw new Error('无法解析歌曲 ID，请确认是网易云单曲链接（需包含 id=数字），或直接粘贴音频直链');
                 }
-            } catch (e) {
-                // 忽略，使用兜底名
+                // 先尝试拿真实歌名（未加密 detail 接口，失败则用兜底名）
+                try {
+                    const dRes = await fetch(
+                        `/proxy?url=${encodeURIComponent(
+                            `https://music.163.com/api/song/detail/?id=${songId}&ids=%5B${songId}%5D`
+                        )}&referer=${encodeURIComponent('https://music.163.com/')}`
+                    );
+                    if (dRes.ok) {
+                        const d = await dRes.json();
+                        if (d && d.songs && d.songs[0]) {
+                            const s = d.songs[0];
+                            name = s.name + (s.artists && s.artists[0] ? ` - ${s.artists[0].name}` : '');
+                        }
+                    }
+                } catch (e) {
+                    // 忽略，使用兜底名
+                }
+                // 现代网易云下载：由代理端完成 weapi 加密并流式返回音频（/netease?id=）
+                audioUrl = `/netease?id=${encodeURIComponent(songId)}`;
             }
 
-            // 真实下载音频并通过同源代理绕过跨域 + 提供 Referer
-            const targetUrl = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
             let res;
             try {
-                res = await fetch(
-                    `/proxy?url=${encodeURIComponent(targetUrl)}` +
-                    `&referer=${encodeURIComponent('https://music.163.com/')}`
-                );
+                res = await fetch(audioUrl);
             } catch (e) {
-                throw new Error('下载歌曲失败：无法连接代理 /proxy（本地请重启 npm start；线上需部署 Cloudflare Pages Function）');
+                throw new Error('下载失败：无法连接代理（本地请重启 npm start；线上需部署代理 Worker / Pages Function）');
             }
             if (!res.ok) {
-                let msg = `下载歌曲失败（HTTP ${res.status}）`;
+                let msg = `下载失败（HTTP ${res.status}）`;
                 try {
                     const t = await res.text();
-                    if (t) msg += `：${t.slice(0, 140)}`;
+                    if (t) msg += `：${t.slice(0, 160)}`;
                 } catch (e) { /* ignore */ }
-                // 网易云版权歌曲/已下架常见表现：代理返回 502/404
-                if (/music\.163\.com/.test(targetUrl) && (res.status === 502 || res.status === 404)) {
-                    msg = '该网易云歌曲无法下载：多为版权歌曲需登录网易云账号，或歌曲已下架。' +
-                        '建议：① 换一首免费歌曲再试；② 在网易云复制歌曲音频直链，用“上传声音”导入。';
-                }
                 throw new Error(msg);
             }
             const buf = await res.arrayBuffer();
             if (!buf || buf.byteLength < 1024) {
-                throw new Error('下载到的内容不是有效音频，可能该歌曲需要登录或已下架');
+                throw new Error('下载到的内容不是有效音频，可能该歌曲需要登录网易云账号或已下架。建议改用「上传声音」导入本地文件。');
             }
 
             await new Promise((resolve, reject) => {

@@ -70,6 +70,8 @@ const base = {
             }));
             const {corsProxyMiddleware} = require('./src/lib/tw-cors-proxy.js');
             app.use('/proxy', corsProxyMiddleware());
+            // tw: 网易云歌曲下载（weapi 加密 + 音频流），专用端点 /netease?id=<歌曲ID>
+            app.use('/netease', corsProxyMiddleware());
         },
         // allows ROUTING_STYLE=wildcard to work properly
         historyApiFallback: {

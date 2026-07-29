@@ -1,13 +1,16 @@
 /* eslint-disable */
 import axios from 'axios';
-import {FORUM_BASE_URL, FORUM_API_KEY} from './config.js';
+import {FORUM_BASE_URL, FORUM_API_KEY, IS_DESKTOP_APP} from './config.js';
 
 // 论坛 API 客户端。所有请求默认带 Bearer 凭证：
 // 优先使用用户登录后下发的个人 JWT（userToken），否则回退到客户端 API key。
+// 桌面端（tw-editor:// 自定义协议）下 XMLHttpRequest 对自定义协议支持不可靠，
+// 而协议声明了 supportFetchAPI，改用 axios 的 fetch 适配器保证请求走 fetch。
 const client = axios.create({
     baseURL: FORUM_BASE_URL,
     timeout: 30000,
-    headers: {'Content-Type': 'application/json'}
+    headers: {'Content-Type': 'application/json'},
+    ...(IS_DESKTOP_APP ? {adapter: 'fetch'} : {})
 });
 
 const TOKEN_KEY = 'tw_forum_user_token';
@@ -50,7 +53,9 @@ client.interceptors.response.use(
         let msg = (data && (data.message || data.error)) || '';
         if (!resp) {
             // 无响应：请求没真正发出去（被浏览器 CORS 拦截 / 代理未生效 / 断网）
-            msg = '无法连接论坛服务：请确认已重启 npm start（修改 devServer 代理配置后必须重启开发服务器，代理才会生效）。';
+            msg = IS_DESKTOP_APP
+                ? '无法连接论坛服务：请检查网络连接后重试。'
+                : '无法连接论坛服务：请确认已重启 npm start（修改 devServer 代理配置后必须重启开发服务器，代理才会生效）。';
         } else if (!msg) {
             msg = (err.message || '网络请求失败');
         }

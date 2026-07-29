@@ -126,6 +126,9 @@ const TwNeteaseSoundModal = function (props) {
                     粘贴网易云音乐<strong>单曲分享链接</strong>（形如
                     <code> music.163.com/song?id=… </code>），
                     点击添加后将<strong>真实下载</strong>该歌曲并作为声音加入当前角色。
+                    <br />
+                    若提示需登录/下架，可在浏览器登录网易云后复制<strong>音频直链</strong>（.mp3 结尾的链接）直接粘贴此处下载；
+                    或直接用「上传声音」导入本地音频文件。
                 </div>
                 <input
                     type="text"
