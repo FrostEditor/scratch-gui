@@ -2,6 +2,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {getCaptcha, solvePow, login, register, getMe} from '../../lib/forum/index.js';
+import AnimatedModal from './animated-modal.jsx';
 
 // 根据错误给出确定中文（服务端中文 message 偶发 GBK 乱码，故优先按状态码兜底）
 function errorMessage (err) {
