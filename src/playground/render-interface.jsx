@@ -47,7 +47,12 @@ import {setForumUser, logoutForumUser} from '../reducers/forum-user';
 
 import styles from './interface.css';
 
-const isInvalidEmbed = window.parent !== window;
+// tw: 允许将编辑器页通过 iframe 嵌入外部网站（舞台居中、隐藏编辑面板）。
+// 原逻辑在 iframe 嵌入时直接显示 InvalidEmbed 错误页，导致无法把编辑器页嵌出去。
+// 现在改为不拦截：被 iframe 嵌入时正常渲染 GUI，由 app-state-hoc 的 isEmbedded
+// 检测（window.parent !== window）驱动 embed 居中布局，无需额外参数即可让
+// 嵌入的编辑器页舞台水平+垂直居中。桌面端编辑器不在 iframe 内，不受影响。
+const isInvalidEmbed = false;
 
 const handleClickAddonSettings = addonId => {
     // addonId might be a string of the addon to focus on, undefined, or an event (treat like undefined)
