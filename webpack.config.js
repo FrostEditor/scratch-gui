@@ -125,7 +125,7 @@ const base = {
                     ['react-intl', {
                         messagesDir: './translations/messages/'
                     }]],
-                presets: ['@babel/preset-env', '@babel/preset-react']
+                presets: [['@babel/preset-env', {modules: false}], '@babel/preset-react']
             }
         },
         {
@@ -212,8 +212,28 @@ module.exports = [
             splitChunks: {
                 chunks: 'all',
                 minChunks: 2,
-                minSize: 50000,
-                maxInitialRequests: 5
+                minSize: 20000,
+                maxInitialRequests: 7,
+                cacheGroups: {
+                    react: {
+                        test: /[\\/]node_modules[\\/](react|react-dom|react-redux|react-intl|react-tabs|react-responsive)[\\/]/,
+                        name: 'vendors-react',
+                        chunks: 'all',
+                        priority: 10
+                    },
+                    scratch: {
+                        test: /[\\/]node_modules[\\/]scratch-(vm|blocks|render|storage)[\\/]/,
+                        name: 'vendors-scratch',
+                        chunks: 'all',
+                        priority: 10
+                    },
+                    peerjs: {
+                        test: /[\\/]node_modules[\\/]peerjs[\\/]/,
+                        name: 'vendors-peerjs',
+                        chunks: 'all',
+                        priority: 10
+                    }
+                }
             }
         },
         plugins: base.plugins.concat([
