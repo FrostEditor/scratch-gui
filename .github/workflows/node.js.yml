@@ -18,5 +18,17 @@ jobs:
         node-version: 22
         cache: npm
     - run: npm ci
+
+    # 供应链安全扫描：在构建前拦截已知恶意代码签名，并校验所有 github: 依赖
+    # 实际安装的 commit 是否等于 package.json 中钉死的 commit。
+    - name: Security scan (supply-chain malware)
+      run: npm run security:scan
+
+    # 已知漏洞审计（高危机）。continue-on-error 避免与业务无关的历史漏洞阻断部署，
+    # 但会在日志中暴露，便于跟踪修复。
+    - name: npm audit (known vulnerabilities)
+      run: npm audit --audit-level=high
+      continue-on-error: true
+
     - run: npm run build
     - run: npm run test:unit
