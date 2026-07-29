@@ -96,7 +96,7 @@
     "scratch-blocks": "github:TurboWarp/scratch-blocks#develop-builds",
     "scratch-paint": "github:AstraEditor/scratch-paint#develop",
     "scratch-render": "github:TurboWarp/scratch-render#develop",
-    "scratch-vm": "github:TurboWarp/scratch-vm#develop",
+    "scratch-vm": "github:TurboWarp/scratch-vm#c4823421cb7c17d8d8a89878851ce1668c26a21f",
     "style-loader": "^0.23.0",
     "text-encoding": "0.7.0",
     "to-style": "1.3.3",
