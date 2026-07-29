@@ -499,7 +499,8 @@ const mapStateToProps = state => ({
         state.scratchGui.mode.isPlayerOnly
     ),
     isColorPicking: state.scratchGui.colorPicker.active,
-    isFullScreen: state.scratchGui.mode.isFullScreen || state.scratchGui.mode.isEmbedded,
+    // tw: 同 gui.jsx，不再把 isEmbedded 并入 isFullScreen（否则 embed 页恒为“已全屏”）
+    isFullScreen: state.scratchGui.mode.isFullScreen,
     isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
     isRtl: state.locales.isRtl,
     isWindowFullScreen: state.scratchGui.tw.isWindowFullScreen,

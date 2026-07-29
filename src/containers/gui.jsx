@@ -275,7 +275,10 @@ const mapStateToProps = state => {
         error: state.scratchGui.projectState.error,
         isError: getIsError(loadingState),
         isEmbedded: state.scratchGui.mode.isEmbedded,
-        isFullScreen: state.scratchGui.mode.isFullScreen || state.scratchGui.mode.isEmbedded,
+        // tw: 不再把 isEmbedded 并入 isFullScreen，否则 embed 页 isFullScreen 恒为 true，
+        // 全屏按钮永远显示“退出”且永远无法触发真正的 requestStageFullscreen()（原生全屏进不去）。
+        // embed 的视觉布局由 isEmbedded 单独控制，isFullScreen 只反映真实的原生全屏状态。
+        isFullScreen: state.scratchGui.mode.isFullScreen,
         isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
         isRtl: state.locales.isRtl,
         isShowingProject: getIsShowingProject(loadingState),
