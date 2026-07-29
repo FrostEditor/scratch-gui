@@ -189,6 +189,13 @@ class GUI extends React.Component {
             // At this time the project view in www doesn't need to know when a project is unloaded
             this.props.onProjectLoaded();
         }
+        // tw: 协作——进入/离开「造型」「声音」标签页时通知协作管理器，
+        // 进入期间暂停远端整包应用，避免协作者发来的快照把正在编辑的画布/音频编辑器冲掉。
+        if (this.props.activeTabIndex !== prevProps.activeTabIndex) {
+            const isAsset = this.props.activeTabIndex === COSTUMES_TAB_INDEX ||
+                this.props.activeTabIndex === SOUNDS_TAB_INDEX;
+            collaborationManager.setAssetEditingTab(isAsset);
+        }
     }
     render () {
         if (this.props.isError) {

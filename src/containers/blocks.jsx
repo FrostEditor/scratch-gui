@@ -45,6 +45,7 @@ import AddonHooks from '../addons/hooks.js';
 import LoadScratchBlocksHOC from '../lib/tw-load-scratch-blocks-hoc.jsx';
 import {findTopBlock} from '../lib/backpack/code-payload.js';
 import {gentlyRequestPersistentStorage} from '../lib/tw-persistent-storage.js';
+import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 
 // TW: Strings we add to scratch-blocks are localized here
 const messages = defineMessages({
@@ -222,6 +223,40 @@ class Blocks extends React.Component {
         });
 
         this.attachVM();
+
+        // tw: 协作——用 scratch-blocks 的 isDragging() 检测任意积木拖动
+        // （工作区内重排 / 从积木栏拖到编辑器 / 拖出工作区），拖动期间通知协作管理器
+        // 暂停快照广播与远端整包应用，避免协作者看到「拖动虚影」。
+        this._blockDragActive = false;
+        this._blockDragInterval = null;
+        this._startBlockDragPoll = () => {
+            if (this._blockDragInterval) return;
+            this._blockDragInterval = setInterval(() => {
+                const dragging = !!(this.workspace && this.workspace.isDragging());
+                if (dragging !== this._blockDragActive) {
+                    this._blockDragActive = dragging;
+                    collaborationManager.setDraggingBlocks(dragging);
+                }
+            }, 80);
+        };
+        this._stopBlockDragPoll = () => {
+            if (this._blockDragInterval) {
+                clearInterval(this._blockDragInterval);
+                this._blockDragInterval = null;
+            }
+            if (this._blockDragActive) {
+                this._blockDragActive = false;
+                collaborationManager.setDraggingBlocks(false);
+            }
+        };
+        if (this.blocks) {
+            this.blocks.addEventListener('pointerdown', this._startBlockDragPoll);
+            this.blocks.addEventListener('touchstart', this._startBlockDragPoll, {passive: true});
+        }
+        window.addEventListener('pointerup', this._stopBlockDragPoll);
+        window.addEventListener('pointercancel', this._stopBlockDragPoll);
+        window.addEventListener('touchend', this._stopBlockDragPoll);
+
         // Only update blocks/vm locale when visible to avoid sizing issues
         // If locale changes while not visible it will get handled in didUpdate
         if (this.props.isVisible) {
@@ -294,6 +329,16 @@ class Blocks extends React.Component {
         this.unmounted = true;
         this.workspace.dispose();
         clearTimeout(this.toolboxUpdateTimeout);
+
+        // tw: 协作——移除积木拖动检测监听
+        if (this._stopBlockDragPoll) this._stopBlockDragPoll();
+        if (this.blocks) {
+            this.blocks.removeEventListener('pointerdown', this._startBlockDragPoll);
+            this.blocks.removeEventListener('touchstart', this._startBlockDragPoll);
+        }
+        window.removeEventListener('pointerup', this._stopBlockDragPoll);
+        window.removeEventListener('pointercancel', this._stopBlockDragPoll);
+        window.removeEventListener('touchend', this._stopBlockDragPoll);
 
         // Clear the flyout blocks so that they can be recreated on mount.
         this.props.vm.clearFlyoutBlocks();

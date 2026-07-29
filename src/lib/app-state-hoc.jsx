@@ -68,7 +68,18 @@ const AppStateHOC = function (WrappedComponent, localesOnly) {
                 } else if (props.showTelemetryModal) {
                     initializedGui = initTelemetryModal(initializedGui);
                 }
-                if (props.isEmbedded) {
+                // tw: 计算是否处于 embed（嵌入）模式：
+                //   1) 显式传入 isEmbedded（embed.jsx 播放页）；
+                //   2) 页面被嵌入到 iframe 中（window.self !== window.top）；
+                //   3) URL 带 ?embed 参数。
+                // 这样无论嵌入的是 embed 播放页、编辑器页还是首页，舞台都会居中、
+                // 隐藏代码面板（与 embed.jsx 行为一致）。桌面端编辑器不在 iframe 内、
+                // 也不带 ?embed，因此不受影响（保持完整编辑布局）。
+                const isEmbeddedActive = props.isEmbedded ||
+                    (typeof window !== 'undefined' && window.self !== window.top) ||
+                    (typeof window !== 'undefined' && window.location && typeof window.location.search === 'string' &&
+                        window.location.search.indexOf('embed') !== -1);
+                if (isEmbeddedActive) {
                     initializedGui = initEmbedded(initializedGui);
                 }
                 reducers = {

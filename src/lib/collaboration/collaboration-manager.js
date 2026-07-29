@@ -24,6 +24,29 @@ function requirePeer () {
     return Peer;
 }
 
+// 构造 PeerJS 连接选项。
+// 关键：桌面端页面运行在 tw-editor:// 自定义协议下，协议不是 https，
+// PeerJS 会据此默认走 ws://（非加密）。而 PeerJS 公共云只接受 wss://，
+// 于是桌面端连接会被云端 TLS 端点直接拒绝（表现为“无法创建/加入房间”“连接超时”）。
+// 这里强制 secure:true，统一走 wss://，桌面端即可正常连信令服务器。
+// 若想自建信令服务器（如 server.froste.top 上跑的 PeerServer），
+// 在页面里设置 window.FROSTE_COLLAB_PEER_OPTIONS = {host, port, path, secure} 即可覆盖。
+function getPeerOptions () {
+    const base = {
+        secure: true,
+        config: {
+            iceServers: [
+                {urls: 'stun:stun.l.google.com:19302'},
+                {urls: 'stun:stun1.l.google.com:19302'}
+            ]
+        }
+    };
+    if (typeof window !== 'undefined' && window.FROSTE_COLLAB_PEER_OPTIONS) {
+        return Object.assign({}, base, window.FROSTE_COLLAB_PEER_OPTIONS);
+    }
+    return base;
+}
+
 // peer id 前缀（自定协议，不再兼容 bilup/mw/02e/rw）
 const APP_PREFIX = 'froste';
 // 单条消息超过该长度（字符）则分片传输
@@ -101,6 +124,47 @@ class CollaborationManager {
         this._isApplyingRemote = false;
         this._vmListenersBound = false;
         this._lastMouseSendTime = 0;
+
+        // 交互门控：拖积木 / 在造型·声音编辑器里编辑时，暂停本地广播与远端应用，
+        // 避免拖动过程中反复整包 fromJSON 产生的「虚影」与编辑器被远端快照冲掉。
+        this.draggingBlocks = false;     // 本地正在拖动积木（含从积木栏拖到编辑器）
+        this.assetEditingTab = false;    // 本地正处于「造型」或「声音」标签页（可能正在编辑）
+        this._dirtyAfterInteraction = false; // 交互期间本地发生过改动，结束时补一次广播
+        this._pendingRemoteProject = null;   // 交互期间缓存的、待应用的最新远端快照
+        this._projectApplyQueue = [];        // 序列化远端快照应用，避免并发 fromJSON 互相覆盖
+        this._applyingProject = false;
+    }
+
+    // ========== 交互门控（拖动积木 / 造型·声音编辑） ==========
+    // 返回是否处于任意会被远端快照/本地广播打断的交互中
+    _isInteracting () {
+        return this.draggingBlocks || this.assetEditingTab;
+    }
+    // 本地开始/结束拖动积木。拖动期间暂停本地广播与远端应用，结束后补一次最终同步。
+    setDraggingBlocks (active) {
+        this.draggingBlocks = !!active;
+        if (!active) this._endInteraction();
+    }
+    // 本地进入/离开造型·声音标签页。进入期间暂停远端整包应用（保护正在编辑的画布/音频编辑器），
+    // 本地编辑仍会正常广播给协作者；离开时应用缓存的远端快照。
+    setAssetEditingTab (active) {
+        this.assetEditingTab = !!active;
+        if (!active) this._endInteraction();
+    }
+    _endInteraction () {
+        // 若仍处在另一种交互中（如拖动结束但仍在造型页），不要提前 flush
+        if (this._isInteracting()) return;
+        // 应用交互期间缓存的最远端快照
+        if (this._pendingRemoteProject) {
+            const p = this._pendingRemoteProject;
+            this._pendingRemoteProject = null;
+            this._applyProject(p);
+        }
+        // 补一次本地最终广播（拖动结果 / 编辑结果）
+        if (this._dirtyAfterInteraction) {
+            this._dirtyAfterInteraction = false;
+            this._captureAndBroadcast();
+        }
     }
 
     // ========== 事件系统 ==========
@@ -175,7 +239,13 @@ class CollaborationManager {
         if (!this.vm || !this.vm.runtime || this._vmListenersBound) return;
         this._vmListenersBound = true;
         const onChange = () => {
-            if (this._isApplyingRemote || !this.isConnected) return;
+            if (this._isApplyingRemote || this._applyingProject || !this.isConnected) return;
+            // 拖动积木期间不采样广播（避免把拖动过程整包发给协作者产生「虚影」），
+            // 记下脏标记，拖动结束时补发一次最终状态。
+            if (this.draggingBlocks) {
+                this._dirtyAfterInteraction = true;
+                return;
+            }
             if (this._snapshotTimer) clearTimeout(this._snapshotTimer);
             this._snapshotTimer = setTimeout(() => this._captureAndBroadcast(), SNAPSHOT_DEBOUNCE);
         };
@@ -232,7 +302,7 @@ class CollaborationManager {
         return new Promise((resolve, reject) => {
             let peer;
             try {
-                peer = new (requirePeer())(this.memberId);
+                peer = new (requirePeer())(this.memberId, getPeerOptions());
             } catch (e) {
                 this.isConnecting = false;
                 reject(e);
@@ -293,7 +363,7 @@ class CollaborationManager {
             this._joinResolved = false;
             let peer;
             try {
-                peer = new (requirePeer())(this.memberId);
+                peer = new (requirePeer())(this.memberId, getPeerOptions());
             } catch (e) {
                 this.isConnecting = false;
                 reject(e);
@@ -496,6 +566,11 @@ class CollaborationManager {
             break;
         case 'project-init':
         case 'project-update':
+            // 本地正在拖动积木或处于造型/声音编辑页时，缓存最新一份，避免整包 fromJSON 打断交互。
+            if (this.draggingBlocks || this.assetEditingTab) {
+                this._pendingRemoteProject = p;
+                return;
+            }
             this._applyProject(p);
             break;
         case 'cursor':
@@ -540,29 +615,61 @@ class CollaborationManager {
         }
     }
 
+    // 序列化远端快照应用：fromJSON(loadProject) 是异步的，并发调用会互相覆盖运行时/素材，
+    // 导致造型、声音、新角色加载异常。这里保证同一时刻只有一个应用在跑，并只保留最新一份。
     _applyProject (p) {
         if (!this.vm) return;
+        this._projectApplyQueue.push(p);
+        this._processProjectQueue();
+    }
+    _processProjectQueue () {
+        if (this._applyingProject) return;
+        if (this.draggingBlocks || this.assetEditingTab) {
+            // 交互中：等 _endInteraction 时再应用缓存的最新快照
+            if (this._pendingRemoteProject == null && this._projectApplyQueue.length) {
+                this._pendingRemoteProject = this._projectApplyQueue.pop();
+            }
+            this._projectApplyQueue.length = 0;
+            return;
+        }
+        if (this._projectApplyQueue.length === 0) return;
+        // 只保留队列里最新的快照，丢弃中间态
+        const p = this._projectApplyQueue.pop();
+        this._projectApplyQueue.length = 0;
+        this._applyingProject = true;
         this._isApplyingRemote = true;
-        try {
+
+        const run = () => {
             if (p.format === 'json') {
-                this.vm.fromJSON(p.data);
+                return Promise.resolve(this.vm.fromJSON(p.data));
             } else if (p.format === 'sb3' && p.data) {
-                // data 为 base64，转 ArrayBuffer 后 loadProject
                 const bin = atob(p.data);
                 const buf = new ArrayBuffer(bin.length);
                 const view = new Uint8Array(buf);
                 for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-                this.vm.loadProject(buf);
+                return Promise.resolve(this.vm.loadProject(buf));
             }
-            this.hasReceivedProject = true;
-            this.emit('project-updated', p);
-            this.emit('blocks-updated', p);
-            this.emit('blockly-event-applied', p);
-        } catch (e) {
-            console.warn('[协作] 应用远程项目失败:', e);
-        } finally {
-            setTimeout(() => { this._isApplyingRemote = false; }, 100);
-        }
+            return Promise.resolve();
+        };
+
+        const finish = () => {
+            this._applyingProject = false;
+            this._isApplyingRemote = false;
+            if (this._projectApplyQueue.length > 0) this._processProjectQueue();
+        };
+
+        Promise.resolve()
+            .then(run)
+            .then(() => {
+                this.hasReceivedProject = true;
+                this.emit('project-updated', p);
+                this.emit('blocks-updated', p);
+                this.emit('blockly-event-applied', p);
+            })
+            .catch(e => {
+                console.warn('[协作] 应用远程项目失败:', e);
+            })
+            .finally(finish);
     }
 
     _applyExtensionUpdate (p) {
@@ -670,6 +777,13 @@ class CollaborationManager {
         this.chatMessages = [];
         this._cleanupChunks();
         if (this._snapshotTimer) { clearTimeout(this._snapshotTimer); this._snapshotTimer = null; }
+        // 重置交互门控状态，避免离开房间后残留的暂停/队列影响后续协作
+        this.draggingBlocks = false;
+        this.assetEditingTab = false;
+        this._dirtyAfterInteraction = false;
+        this._pendingRemoteProject = null;
+        this._projectApplyQueue = [];
+        this._applyingProject = false;
         this.clearRoomInfo();
         this.emit('left');
     }
