@@ -220,6 +220,21 @@
     flex-basis: 0;
 }
 
+/* tw: embed 模式（被 iframe 嵌入 / embed.html 打开）时，隐藏左右编辑面板，
+   只保留舞台并水平+垂直居中。 */
+.embedded {
+    justify-content: center;
+    align-items: center;
+}
+.embedded .editor-wrapper,
+.embedded .target-wrapper {
+    display: none;
+}
+.embedded .stage-and-target-wrapper {
+    flex-basis: auto;
+    align-items: center;
+}
+
 .target-wrapper {
     display: flex;
     flex-grow: 1;

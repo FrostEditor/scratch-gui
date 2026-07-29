@@ -389,8 +389,8 @@ const GUIComponent = props => {
                         onLogoutForumUser={onLogoutForumUser}
                     />
                     <Box className={styles.bodyWrapper}>
-                        <Box className={styles.flexWrapper}>
-                            <Box className={styles.editorWrapper}>
+                        <Box className={classNames(styles.flexWrapper, isEmbedded && styles.embedded)}>
+                            {!isEmbedded && (<Box className={styles.editorWrapper}>
                                 <Tabs
                                     forceRenderTabPanel
                                     className={tabClassNames.tabs}
@@ -508,7 +508,7 @@ const GUIComponent = props => {
                                 {backpackVisible ? (
                                     <Backpack host={backpackHost} />
                                 ) : null}
-                            </Box>
+                            </Box>)}
 
                             <Box className={classNames(styles.stageAndTargetWrapper, styles[stageSize])}>
                                 <StageWrapper
@@ -518,12 +518,12 @@ const GUIComponent = props => {
                                     stageSize={stageSize}
                                     vm={vm}
                                 />
-                                <Box className={styles.targetWrapper}>
+                                {!isEmbedded && (<Box className={styles.targetWrapper}>
                                     <TargetPane
                                         stageSize={stageSize}
                                         vm={vm}
                                     />
-                                </Box>
+                                </Box>)}
                             </Box>
                         </Box>
                     </Box>
