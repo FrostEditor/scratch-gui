@@ -3,6 +3,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
 import {createProject, updateProject, uploadFile, validateSb3Blob, setResourcePublic} from '../../lib/forum/index.js';
+import AnimatedModal from './animated-modal.jsx';
 
 const overlay = {
     position: 'fixed', left: 0, top: 0, right: 0, bottom: 0,
@@ -151,33 +152,37 @@ class PublishProjectModal extends React.Component {
         }
     };
     render () {
-        if (!this.props.open) return null;
         const {title, summary, category, coverPreview, loading, error, done, progress} = this.state;
         return (
-            <div style={overlay} onMouseDown={(e) => {
-                if (e.target === e.currentTarget && !loading && this.props.onClose) this.props.onClose();
-            }}>
-                <div style={card}>
-                    <h3 style={{margin: '0 0 4px', fontSize: 18}}>{this.props.project ? '更新作品' : '发布作品'}</h3>
-                    <p style={{margin: '0 0 14px', fontSize: 12, color: '#888'}}>
-                        将当前作品发布到创客次元作品广场
-                    </p>
-                    {done ? (
-                        <div>
-                            <div style={{color: '#1a7f37', fontSize: 14, marginBottom: 10}}>
-                                {this.props.project ? '更新成功！' : '发布成功！'}
-                            </div>
-                            <div style={{fontSize: 13, color: '#555', marginBottom: 14}}>
-                                作品《{done.title || title}》已发布。
-                            </div>
-                            <button style={btn} onClick={() => {
-                                if (done.id) window.open(`https://forum.ctspace.xyz/projects/${done.id}`, '_blank');
-                                this.props.onClose && this.props.onClose();
-                            }}>
-                                查看作品
-                            </button>
+            <AnimatedModal
+                open={this.props.open}
+                overlay={overlay}
+                card={card}
+                onOverlayClick={(e) => {
+                    if (e.target === e.currentTarget && !loading && this.props.onClose) this.props.onClose();
+                }}
+            >
+                <h3 style={{margin: '0 0 4px', fontSize: 18}}>{this.props.project ? '更新作品' : '发布作品'}</h3>
+                <p style={{margin: '0 0 14px', fontSize: 12, color: '#888'}}>
+                    将当前作品发布到创客次元作品广场
+                </p>
+                {done ? (
+                    <div className="fe-success-pop">
+                        <div className="fe-success-check">✓</div>
+                        <div style={{color: '#1a7f37', fontSize: 15, fontWeight: 600, marginBottom: 8}}>
+                            {this.props.project ? '更新成功！' : '发布成功！'}
                         </div>
-                    ) : (
+                        <div style={{fontSize: 13, color: '#555', marginBottom: 14}}>
+                            作品《{done.title || title}》已发布。
+                        </div>
+                        <button style={btn} onClick={() => {
+                            if (done.id) window.open(`https://forum.ctspace.xyz/projects/${done.id}`, '_blank');
+                            this.props.onClose && this.props.onClose();
+                        }}>
+                            查看作品
+                        </button>
+                    </div>
+                ) : (
                         <div>
                             <label style={{fontSize: 13, color: '#333'}}>标题</label>
                             <input
@@ -228,8 +233,7 @@ class PublishProjectModal extends React.Component {
                             </button>
                         </div>
                     )}
-                </div>
-            </div>
+            </AnimatedModal>
         );
     }
 }

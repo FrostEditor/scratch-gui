@@ -124,20 +124,23 @@ class ForumAuthModal extends React.Component {
         }
     };
     render () {
-        if (!this.props.open) return null;
         const {captcha, loading, loadingCaptcha, error, powStatus} = this.state;
         const mode = this.props.mode || 'login';
         return (
-            <div style={overlay} onMouseDown={(e) => {
-                if (e.target === e.currentTarget && this.props.onClose) this.props.onClose();
-            }}>
-                <div style={card}>
-                    <h3 style={{margin: '0 0 4px', fontSize: 18}}>
-                        {mode === 'login' ? '登录' : '注册新账号'}
-                    </h3>
-                    <p style={{margin: '0 0 14px', fontSize: 12, color: '#888'}}>
-                        创客次元社区 · 铁元素编辑器
-                    </p>
+            <AnimatedModal
+                open={this.props.open}
+                overlay={overlay}
+                card={card}
+                onOverlayClick={(e) => {
+                    if (e.target === e.currentTarget && this.props.onClose) this.props.onClose();
+                }}
+            >
+                <h3 style={{margin: '0 0 4px', fontSize: 18}}>
+                    {mode === 'login' ? '登录' : '注册新账号'}
+                </h3>
+                <p style={{margin: '0 0 14px', fontSize: 12, color: '#888'}}>
+                    创客次元社区 · 铁元素编辑器
+                </p>
                     <form onSubmit={this.submit}>
                         <input
                             style={input} placeholder="用户名"
@@ -214,8 +217,7 @@ class ForumAuthModal extends React.Component {
                             {mode === 'login' ? '去注册' : '去登录'}
                         </span>
                     </div>
-                </div>
-            </div>
+            </AnimatedModal>
         );
     }
 }

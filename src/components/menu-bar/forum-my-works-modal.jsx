@@ -2,6 +2,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {myProjects, listProjects} from '../../lib/forum/index.js';
+import AnimatedModal from './animated-modal.jsx';
 
 const overlay = {
     position: 'fixed', left: 0, top: 0, right: 0, bottom: 0,
@@ -144,7 +145,6 @@ class ForumMyWorksModal extends React.Component {
         );
     };
     render () {
-        if (!this.props.open) return null;
         const {
             tab, list, loading, error,
             exploreList, exploreLoading, exploreError,
@@ -154,10 +154,14 @@ class ForumMyWorksModal extends React.Component {
         const exploreHasMore = explorePage * explorePageSize < exploreTotal;
         const exploreHasPrev = explorePage > 1;
         return (
-            <div style={overlay} onMouseDown={(e) => {
-                if (e.target === e.currentTarget && !this.state.loadingId && this.props.onClose) this.props.onClose();
-            }}>
-                <div style={card}>
+            <AnimatedModal
+                open={this.props.open}
+                overlay={overlay}
+                card={card}
+                onOverlayClick={(e) => {
+                    if (e.target === e.currentTarget && !this.state.loadingId && this.props.onClose) this.props.onClose();
+                }}
+            >
                     {this.props.showExplore ? (
                         <div style={{display: 'flex', borderBottom: '1px solid #eee', marginBottom: 12}}>
                             <button style={tabStyle(tab === 'mine')} onClick={() => this.switchTab('mine')}>
@@ -182,7 +186,7 @@ class ForumMyWorksModal extends React.Component {
                             {!loading && !error && list.length === 0 && (
                                 <div style={{fontSize: 13, color: '#888'}}>还没有作品，去发布一个吧</div>
                             )}
-                            <div style={{maxHeight: 360, overflowY: 'auto', marginTop: 6}}>
+                            <div className="fe-tab-fade" style={{maxHeight: 360, overflowY: 'auto', marginTop: 6}}>
                                 {list.map(p => this.renderWorkItem(p, true))}
                             </div>
                         </>
@@ -194,7 +198,7 @@ class ForumMyWorksModal extends React.Component {
                             {!exploreLoading && !exploreError && exploreList.length === 0 && (
                                 <div style={{fontSize: 13, color: '#888'}}>暂无作品</div>
                             )}
-                            <div style={{maxHeight: 360, overflowY: 'auto', marginTop: 6}}>
+                            <div className="fe-tab-fade" style={{maxHeight: 360, overflowY: 'auto', marginTop: 6}}>
                                 {exploreList.map(p => this.renderWorkItem(p, false))}
                             </div>
                             {!exploreLoading && exploreList.length > 0 && (
@@ -221,8 +225,7 @@ class ForumMyWorksModal extends React.Component {
                             )}
                         </>
                     )}
-                </div>
-            </div>
+            </AnimatedModal>
         );
     }
 }
