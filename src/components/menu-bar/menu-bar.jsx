@@ -32,6 +32,7 @@ import FramerateChanger from '../../containers/tw-framerate-changer.jsx';
 import ChangeUsername from '../../containers/tw-change-username.jsx';
 import CloudVariablesToggler from '../../containers/tw-cloud-toggler.jsx';
 import TWSaveStatus from './tw-save-status.jsx';
+import ForumUserCard from './forum-user-card.jsx'; // tw: 论坛登录卡片（社区入口：登录/注册/发布/我的作品）
 
 import {openTipsLibrary, openSettingsModal, openRestorePointModal} from '../../reducers/modals';
 import {setPlayer} from '../../reducers/mode';
@@ -1198,6 +1199,13 @@ class MenuBar extends React.Component {
                 </div>
 
                 <div className={styles.accountInfoGroup}>
+                    <span style={{marginLeft: 8}}>
+                        <ForumUserCard
+                            forumUser={this.props.forumUser}
+                            onSetForumUser={this.props.onSetForumUser}
+                            onLogoutForumUser={this.props.onLogoutForumUser}
+                        />
+                    </span>
                     <TWSaveStatus
                         showSaveFilePicker={this.props.showSaveFilePicker}
                     />
