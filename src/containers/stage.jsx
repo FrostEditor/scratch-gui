@@ -501,6 +501,7 @@ Stage.defaultProps = {
 const mapStateToProps = state => ({
     highQualityPen: state.scratchGui.tw.highQualityPen,
     customStageSize: state.scratchGui.customStageSize,
+    stageZoom: state.scratchGui.stageZoom,
     disableEditingTargetChange: (
         state.scratchGui.mode.isFullScreen ||
         state.scratchGui.mode.isEmbedded ||

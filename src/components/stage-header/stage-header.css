@@ -92,3 +92,92 @@
     /* relied on by addons */
     display: flex;
 }
+
+/* tw: 舞台大小二级菜单 */
+.stage-size-menu-wrapper {
+    position: relative;
+}
+
+.stage-button-active {
+    background-color: $looks-transparent;
+}
+
+.stage-size-menu {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    z-index: $z-index-stage-header;
+    min-width: 9rem;
+    padding: 0.375rem;
+    background-color: $ui-white;
+    border: 1px solid $ui-black-transparent;
+    border-radius: $form-radius;
+    box-shadow: 0 0.25rem 0.75rem $ui-black-transparent;
+}
+
+[dir="ltr"] .stage-size-menu {
+    left: 0;
+}
+[dir="rtl"] .stage-size-menu {
+    right: 0;
+}
+
+.stage-size-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: none;
+    border-radius: $form-radius;
+    background-color: transparent;
+    color: $text-primary;
+    font-size: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.stage-size-menu-item:hover {
+    background-color: $ui-tertiary;
+}
+
+.stage-size-menu-item-active {
+    background-color: $looks-transparent;
+    font-weight: bold;
+}
+
+.stage-size-menu-item-percent {
+    color: $text-primary-transparent;
+    font-size: 0.75rem;
+}
+
+.stage-size-menu-item-active .stage-size-menu-item-percent {
+    color: $text-primary;
+}
+
+.stage-size-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.375rem;
+    padding: 0.375rem 0.5rem 0.125rem;
+    border-top: 1px solid $ui-black-transparent;
+}
+
+.stage-size-slider-label {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: $text-primary;
+}
+
+.stage-size-slider {
+    flex-grow: 1;
+    width: 100%;
+    cursor: pointer;
+    accent-color: $ui-primary;
+}
+
+.stage-size-slider-value {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: $text-primary-transparent;
+}

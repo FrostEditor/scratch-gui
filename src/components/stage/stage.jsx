@@ -28,6 +28,7 @@ const StageComponent = props => {
         micIndicator,
         question,
         stageSize,
+        stageZoom,
         useEditorDragStyle,
         onDeactivateColorPicker,
         onDoubleClick,
@@ -55,7 +56,7 @@ const StageComponent = props => {
     // ===== 计算舞台尺寸（放在最前面，因为后续都会用到） =====
     // tw: 浮动窗口（作品控制页）原生全屏时，让舞台也跟着放大占满窗口
     const effectiveIsFullScreen = isFullScreen || isNativeFullscreen;
-    let stageDimensions = getStageDimensions(stageSize, customStageSize, effectiveIsFullScreen);
+    let stageDimensions = getStageDimensions(stageSize, customStageSize, effectiveIsFullScreen, stageZoom);
     // tw: 当舞台元素处于原生全屏（F11 式）时，让舞台真正铺满整个屏幕，
     // 而不是沿用 CSS 全屏尺寸（会留出控制条边距）。
     if (isNativeFullscreen) {
@@ -591,6 +592,7 @@ StageComponent.propTypes = {
     onQuestionAnswered: PropTypes.func,
     question: PropTypes.string,
     stageSize: PropTypes.oneOf(Object.keys(STAGE_DISPLAY_SIZES)).isRequired,
+    stageZoom: PropTypes.number,
     useEditorDragStyle: PropTypes.bool,
 };
 StageComponent.defaultProps = {

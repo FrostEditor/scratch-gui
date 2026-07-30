@@ -1,22 +1,19 @@
 import classNames from 'classnames';
 import {defineMessages, injectIntl, intlShape} from 'react-intl';
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {connect} from 'react-redux';
 import VM from 'scratch-vm';
 
 import Box from '../box/box.jsx';
 import Button from '../button/button.jsx';
-import ToggleButtons from '../toggle-buttons/toggle-buttons.jsx';
 import Controls from '../../containers/controls.jsx';
 import {getStageDimensions} from '../../lib/screen-utils';
 import {STAGE_DISPLAY_SIZES, STAGE_SIZE_MODES} from '../../lib/layout-constants';
 
 import fullScreenIcon from './icon--fullscreen.svg';
 import unFullScreenIcon from './icon--unfullscreen.svg';
-import largeStageIcon from '!../../lib/tw-recolor/build!./icon--large-stage.svg';
-import smallStageIcon from '!../../lib/tw-recolor/build!./icon--small-stage.svg';
-import fullStageIcon from '!../../lib/tw-recolor/build!./icon--full-stage.svg';
+import stageSizeIcon from '!../../lib/tw-recolor/build!./icon--stage-size.svg';
 import settingsIcon from './icon--settings.svg';
 import openEditorIcon from './icon--open-editor.svg';
 
@@ -92,8 +89,27 @@ const messages = defineMessages({
         defaultMessage: '在编辑器中打开',
         description: '按钮：在嵌入页面中打开完整的编辑器',
         id: 'tw.stageHeader.openEditor'
+    },
+    stageSizeMenuMessage: {
+        defaultMessage: '舞台大小',
+        description: 'Button to open the stage size menu',
+        id: 'tw.stageHeader.stageSizeMenu'
+    },
+    stageSizeCustomMessage: {
+        defaultMessage: '自定义',
+        description: 'Custom stage size option in the stage size menu',
+        id: 'tw.stageHeader.stageSizeCustom'
     }
 });
+
+// tw: 舞台大小菜单预设（显示缩放，不改变作品坐标系 / 分辨率）
+const STAGE_SIZE_PRESETS = [
+    {label: '超级小', zoom: 0.5},
+    {label: '小', zoom: 0.75},
+    {label: '中', zoom: 1},
+    {label: '大', zoom: 1.5},
+    {label: '超级大', zoom: 2}
+];
 
 // tw: 由当前 embed 页面的 URL 派生出对应的完整编辑器 URL
 // 语义：别的网站用 iframe 嵌入“我们”的编辑器时，点此按钮直接打开“我们”的
@@ -120,20 +136,47 @@ const StageHeaderComponent = function (props) {
         onKeyPress,
         onSetStageFullScreen,
         onSetStageUnFullScreen,
-        onSetStageLarge,
-        onSetStageSmall,
         onSetStageFull,
+        onSetStageZoom,
         onOpenSettings,
         isEmbedded,
         stageSize,
         stageSizeMode,
+        stageZoom,
         vm,
         codeLocked
     } = props;
 
+    // tw: 舞台大小菜单（二级菜单）状态
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+    const buttonRef = useRef(null);
+    useEffect(() => {
+        if (!menuOpen) return undefined;
+        const handlePointerDown = e => {
+            if (
+                menuRef.current && !menuRef.current.contains(e.target) &&
+                buttonRef.current && !buttonRef.current.contains(e.target)
+            ) {
+                setMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [menuOpen]);
+
+    const handleStageSizeSelect = zoom => {
+        // 固定为 full 模式（modeScale=1），让缩放值直接决定显示尺寸，避免与 small/large 模式叠加
+        onSetStageFull();
+        onSetStageZoom(zoom);
+        setMenuOpen(false);
+    };
+    const activePreset = STAGE_SIZE_PRESETS.find(p => Math.abs(p.zoom - stageZoom) < 0.01);
+    const isCustom = !activePreset;
+
     let header = null;
 
-    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen || isEmbedded);
+    const stageDimensions = getStageDimensions(stageSize, customStageSize, isFullScreen || isEmbedded, stageZoom);
 
     if (isFullScreen || isEmbedded) {
         const settingsButton = isEmbedded && enableSettingsButton ? (
@@ -235,40 +278,66 @@ const StageHeaderComponent = function (props) {
             </Box>
         );
     } else {
-        const stageControls =
-            isPlayerOnly ? (
-                []
-            ) : (
-                <div className={styles.stageSizeToggleGroup}>
-                    <ToggleButtons
-                        buttons={[
-                            {
-                                handleClick: onSetStageSmall,
-                                icon: smallStageIcon,
-                                iconClassName: styles.stageButtonIcon,
-                                isSelected: stageSizeMode === STAGE_SIZE_MODES.small,
-                                title: props.intl.formatMessage(messages.smallStageSizeMessage)
-                            },
-                            ...(showFixedLargeSize ? [
-                                {
-                                    handleClick: onSetStageLarge,
-                                    icon: largeStageIcon,
-                                    iconClassName: styles.stageButtonIcon,
-                                    isSelected: stageSizeMode === STAGE_SIZE_MODES.large,
-                                    title: props.intl.formatMessage(messages.largeStageSizeMessage)
-                                }
-                            ] : []),
-                            {
-                                handleClick: onSetStageFull,
-                                icon: showFixedLargeSize ? fullStageIcon : largeStageIcon,
-                                iconClassName: styles.stageButtonIcon,
-                                isSelected: stageSizeMode === STAGE_SIZE_MODES.full,
-                                title: props.intl.formatMessage(messages.fullStageSizeMessage)
-                            }
-                        ]}
+        const stageSizeButton = !isPlayerOnly && (
+            <div
+                className={styles.stageSizeMenuWrapper}
+                ref={buttonRef}
+            >
+                <Button
+                    className={classNames(styles.stageButton, {
+                        [styles.stageButtonActive]: menuOpen || !isCustom
+                    })}
+                    onClick={() => setMenuOpen(o => !o)}
+                >
+                    <img
+                        alt={props.intl.formatMessage(messages.stageSizeMenuMessage)}
+                        className={styles.stageButtonIcon}
+                        draggable={false}
+                        src={stageSizeIcon}
+                        title={props.intl.formatMessage(messages.stageSizeMenuMessage)}
                     />
-                </div>
-            );
+                </Button>
+                {menuOpen && (
+                    <div
+                        className={styles.stageSizeMenu}
+                        ref={menuRef}
+                    >
+                        {STAGE_SIZE_PRESETS.map(preset => (
+                            <button
+                                key={preset.label}
+                                type="button"
+                                className={classNames(styles.stageSizeMenuItem, {
+                                    [styles.stageSizeMenuItemActive]: Math.abs(preset.zoom - stageZoom) < 0.01
+                                })}
+                                onClick={() => handleStageSizeSelect(preset.zoom)}
+                            >
+                                <span className={styles.stageSizeMenuItemLabel}>{preset.label}</span>
+                                <span className={styles.stageSizeMenuItemPercent}>
+                                    {`${Math.round(preset.zoom * 100)}%`}
+                                </span>
+                            </button>
+                        ))}
+                        <div className={styles.stageSizeSliderRow}>
+                            <span className={styles.stageSizeSliderLabel}>
+                                {props.intl.formatMessage(messages.stageSizeCustomMessage)}
+                            </span>
+                            <input
+                                type="range"
+                                className={styles.stageSizeSlider}
+                                min={0.25}
+                                max={3}
+                                step={0.05}
+                                value={stageZoom}
+                                onChange={e => handleStageSizeSelect(Number(e.target.value))}
+                            />
+                            <span className={styles.stageSizeSliderValue}>
+                                {`${Math.round(stageZoom * 100)}%`}
+                            </span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
         header = (
             <Box
                 className={styles.stageHeaderWrapper}
@@ -284,7 +353,7 @@ const StageHeaderComponent = function (props) {
                         className={styles.stageSizeRow}
                         key="editor" // addons require the HTML element to be not be re-used by in-editor buttons
                     >
-                        {stageControls}
+                        {stageSizeButton}
                         <div>
                             <Button
                                 className={styles.stageButton}
@@ -313,6 +382,8 @@ const StageHeaderComponent = function (props) {
 const mapStateToProps = state => ({
     // This is the button's mode, as opposed to the actual current state
     stageSizeMode: state.scratchGui.stageSize.stageSize,
+    // tw: 舞台大小缩放
+    stageZoom: state.scratchGui.stageZoom,
     // tw: 代码锁定模式 —— 为 true 时隐藏“在编辑器中打开”按钮
     codeLocked: state.scratchGui.tw.codeLocked
 });
@@ -329,13 +400,13 @@ StageHeaderComponent.propTypes = {
     onKeyPress: PropTypes.func.isRequired,
     onSetStageFullScreen: PropTypes.func.isRequired,
     onSetStageUnFullScreen: PropTypes.func.isRequired,
-    onSetStageLarge: PropTypes.func.isRequired,
-    onSetStageSmall: PropTypes.func.isRequired,
     onSetStageFull: PropTypes.func.isRequired,
+    onSetStageZoom: PropTypes.func.isRequired,
     onOpenSettings: PropTypes.func.isRequired,
     isEmbedded: PropTypes.bool.isRequired,
     codeLocked: PropTypes.bool,
     stageSize: PropTypes.oneOf(Object.keys(STAGE_DISPLAY_SIZES)),
+    stageZoom: PropTypes.number,
     stageSizeMode: PropTypes.oneOf(Object.keys(STAGE_SIZE_MODES)),
     vm: PropTypes.instanceOf(VM).isRequired
 };

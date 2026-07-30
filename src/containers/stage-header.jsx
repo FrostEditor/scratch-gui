@@ -4,6 +4,7 @@ import bindAll from 'lodash.bindall';
 import VM from 'scratch-vm';
 import {STAGE_DISPLAY_SCALE_METADATA, STAGE_DISPLAY_SIZES, STAGE_SIZE_MODES} from '../lib/layout-constants';
 import {setStageSize} from '../reducers/stage-size';
+import {setStageZoom} from '../reducers/stage-zoom';
 import {setFullScreen} from '../reducers/mode';
 import {openSettingsModal} from '../reducers/modals';
 
@@ -85,6 +86,7 @@ StageHeader.propTypes = {
 const mapStateToProps = (state, ownProps) => ({
     customStageSize: state.scratchGui.customStageSize,
     stageSizeMode: state.scratchGui.stageSize.stageSize,
+    stageZoom: state.scratchGui.stageZoom,
     // tw: replace showBranding
     isEmbedded: state.scratchGui.mode.isEmbedded,
     // tw: 优先用显式传入的 isFullScreen（如 fullscreen.html 页面 StageWrapper 传 true），
@@ -100,6 +102,7 @@ const mapDispatchToProps = dispatch => ({
     onSetStageLarge: () => dispatch(setStageSize(STAGE_SIZE_MODES.large)),
     onSetStageSmall: () => dispatch(setStageSize(STAGE_SIZE_MODES.small)),
     onSetStageFull: () => dispatch(setStageSize(STAGE_SIZE_MODES.full)),
+    onSetStageZoom: zoom => dispatch(setStageZoom(zoom)),
     onSetStageFullScreen: () => dispatch(setFullScreen(true)),
     onSetStageUnFullScreen: () => dispatch(setFullScreen(false)),
     onOpenSettings: () => dispatch(openSettingsModal())

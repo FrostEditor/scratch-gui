@@ -44,9 +44,10 @@ const resolveStageSize = (stageSizeMode, isUnconstrained) => {
  * @param {STAGE_DISPLAY_SIZES} stageSize - the current fully-resolved stage size.
  * @param {{width: number, height: number}} customStageSize Custom stage size
  * @param {boolean} isFullScreen - true if full-screen mode is enabled.
+ * @param {number} [zoom=1] - tw: display zoom factor for the stage size menu (editor only).
  * @return {StageDimensions} - an object describing the dimensions of the stage.
  */
-const getStageDimensions = (stageSize, customStageSize, isFullScreen) => {
+const getStageDimensions = (stageSize, customStageSize, isFullScreen, zoom = 1) => {
     const stageDimensions = {
         heightDefault: customStageSize.height,
         widthDefault: customStageSize.width,
@@ -84,6 +85,13 @@ const getStageDimensions = (stageSize, customStageSize, isFullScreen) => {
             stageDimensions.height = stageDimensions.scale * stageDimensions.heightDefault;
             stageDimensions.width = stageDimensions.scale * stageDimensions.widthDefault;
         }
+
+        // tw: stage size menu zoom — scales the displayed stage without changing the
+        // project's internal coordinate system (customStageSize stays the resolution).
+        const safeZoom = isFinite(zoom) && zoom > 0 ? zoom : 1;
+        stageDimensions.width *= safeZoom;
+        stageDimensions.height *= safeZoom;
+        stageDimensions.scale *= safeZoom;
     }
 
     // Round off dimensions to prevent resampling/blurriness
