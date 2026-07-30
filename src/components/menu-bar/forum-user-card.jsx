@@ -139,7 +139,6 @@ class ForumUserCard extends React.Component {
                                 />
                             )}
                         </span>
-                        <span style={{fontSize: 13, color: '#333'}}>{name}</span>
                         {this.state.menuOpen && (
                             <div style={{
                                 position: 'absolute', top: 36, right: 0, background: '#fff',
