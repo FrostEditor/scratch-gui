@@ -3,6 +3,8 @@ import classNames from 'classnames';
 import PropTypes from 'prop-types';
 import React from 'react';
 import LazyScratchBlocks from '../../lib/tw-lazy-scratch-blocks';
+import defineDynamicBlock from '../../lib/define-dynamic-block';
+import {Theme} from '../../lib/themes';
 import styles from './extension-blocks-preview.css';
 
 // 预览工作区的选项——与 scratch-gui 自身的第二工作区（custom-procedures）
@@ -135,6 +137,68 @@ class ExtensionBlocksPreview extends React.Component {
         return [];
     }
 
+    // 关键修复：把浏览 VM 里已加载扩展的「积木视觉定义」补注册到全局 scratch-blocks。
+    //
+    // 编辑器里积木定义的注册链路是 blocks.jsx 监听主 VM 的 EXTENSION_ADDED →
+    // defineBlocksWithJsonArray / defineDynamicBlock。但「浏览积木」的扩展加载在
+    // 独立的浏览 VM 上，它的 EXTENSION_ADDED 没有任何人监听——积木类型从未注册，
+    // domToWorkspace 渲出来的就是残缺/错误积木（无文字、无形状、黑色裸块）。
+    //
+    // 这里在渲染前扫描浏览 VM runtime._blockInfo 的全部分类，把**缺失的**类型
+    // 补定义进全局 ScratchBlocks。只补缺、绝不覆盖编辑器已注册的同名定义，
+    // 避免影响主工作区。主题用默认三代配色（BLOCKS_THREE 下 inject 原样返回，
+    // 保留扩展自带颜色）。
+    defineMissingBlocks (ScratchBlocks) {
+        const runtime = this.props.vm && this.props.vm.runtime;
+        if (!runtime || !Array.isArray(runtime._blockInfo)) return;
+        const theme = Theme.light; // blocks === BLOCKS_THREE，不改扩展自带配色
+        for (const categoryInfo of runtime._blockInfo) {
+            const defineBlocks = blockInfoArray => {
+                if (!blockInfoArray || !blockInfoArray.length) return;
+                const staticBlocksJson = [];
+                blockInfoArray.forEach(blockInfo => {
+                    if (blockInfo && blockInfo.info && blockInfo.info.isDynamic) {
+                        const extendedOpcode = `${categoryInfo.id}_${blockInfo.info.opcode}`;
+                        if (!ScratchBlocks.Blocks[extendedOpcode]) {
+                            ScratchBlocks.Blocks[extendedOpcode] = defineDynamicBlock(
+                                ScratchBlocks,
+                                categoryInfo,
+                                blockInfo,
+                                extendedOpcode,
+                                theme
+                            );
+                        }
+                    } else if (blockInfo && blockInfo.json) {
+                        // 只补缺失的类型，避免重定义警告与覆盖编辑器主题化定义。
+                        if (blockInfo.json.type && !ScratchBlocks.Blocks[blockInfo.json.type]) {
+                            staticBlocksJson.push(blockInfo.json);
+                        }
+                    }
+                    // 其余为 '---' 之类的非积木条目，忽略。
+                });
+                if (staticBlocksJson.length) {
+                    try {
+                        ScratchBlocks.defineBlocksWithJsonArray(staticBlocksJson);
+                    } catch (e) {
+                        // 单个坏定义不应导致整个预览失败
+                        // eslint-disable-next-line no-console
+                        console.warn('EXTBLOCKS_DEFINE_WARN', e);
+                    }
+                }
+            };
+            try {
+                defineBlocks(
+                    Object.getOwnPropertyNames(categoryInfo.customFieldTypes || {})
+                        .map(fieldTypeName => categoryInfo.customFieldTypes[fieldTypeName].scratchBlocksDefinition));
+                defineBlocks(categoryInfo.menus);
+                defineBlocks(categoryInfo.blocks);
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.warn('EXTBLOCKS_DEFINE_WARN', e);
+            }
+        }
+    }
+
     // 手机端双指捏合缩放。本 fork 的 scratch-blocks 只支持单指触摸拖动，
     // 没有内置 pinch，这里在捕获阶段拦截双指手势自行缩放，
     // 单指平移仍然交给积木引擎处理。
@@ -244,6 +308,10 @@ class ExtensionBlocksPreview extends React.Component {
             this.setState({status: 'empty'});
             return;
         }
+
+        // 渲染前先把浏览 VM 中扩展的积木类型定义补进全局 ScratchBlocks，
+        // 否则 domToWorkspace 遇到未定义类型会渲出残缺/错误积木。
+        this.defineMissingBlocks(ScratchBlocks);
 
         // 在 inject 之前捕获编辑器的真实主工作区。inject 会覆盖
         // Blockly.mainWorkspace，注入后立即恢复。
