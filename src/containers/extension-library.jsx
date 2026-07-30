@@ -448,6 +448,28 @@ class ExtensionLibrary extends React.PureComponent {
     _getBrowseVM () {
         if (!this._browseVM) {
             this._browseVM = new VM();
+            // 关键修复：把主编辑器 VM 上由 TWSecurityManager 注入的安全策略复制给浏览 VM。
+            // 裸 new VM() 的默认策略是 'worker' 沙箱——在 Web Worker 里用跨域 importScripts
+            // 拉扩展 JS，网络稍有波动就报 "NetworkError: Failed to execute 'importScripts'"。
+            // 复制策略后，extensions.turbowarp.org / 自家扩展库等信任源与「添加扩展」一样
+            // 走无沙箱 fetch 加载，行为完全一致。
+            const mainSM = this.props.vm && this.props.vm.extensionManager &&
+                this.props.vm.extensionManager.securityManager;
+            const browseSM = this._browseVM.extensionManager.securityManager;
+            if (mainSM && browseSM) {
+                for (const method of Object.keys(mainSM)) {
+                    if (typeof mainSM[method] === 'function') {
+                        browseSM[method] = mainSM[method];
+                    }
+                }
+            }
+            // 信任源扩展直连失败、改经同源 /proxy 兜底重试时，代理 URL 同样按无沙箱加载。
+            // （内容与直连完全一致，只是换了通道，不放大信任面。）
+            this._browseTrustedProxyURLs = new Set();
+            const baseGetSandboxMode = browseSM.getSandboxMode.bind(browseSM);
+            browseSM.getSandboxMode = url => (
+                this._browseTrustedProxyURLs.has(url) ? 'unsandboxed' : baseGetSandboxMode(url)
+            );
         }
         return this._browseVM;
     }
@@ -522,33 +544,56 @@ class ExtensionLibrary extends React.PureComponent {
             (runtime && runtime._blockInfo) ? runtime._blockInfo.map(i => i.id) : []
         );
 
-        extensionManager.loadExtensionURL(url)
-            .then(() => {
-                // Find the newly added extension entry.
-                let loadedId = null;
+        const handleLoaded = () => {
+            // Find the newly added extension entry.
+            let loadedId = null;
+            if (runtime && runtime._blockInfo) {
+                const added = runtime._blockInfo.filter(i => !beforeIds.has(i.id));
+                if (added.length) {
+                    loadedId = added[added.length - 1].id;
+                }
+            }
+            let blocks = loadedId ? grabBlocksById(loadedId) : [];
+            if (blocks.length === 0) {
+                // Fallback: lookup by the original library extensionId.
+                blocks = grabBlocksById(extensionId);
+            }
+            if (blocks.length === 0) {
+                // Last resort: match by block type prefix (id transformed on load).
                 if (runtime && runtime._blockInfo) {
-                    const added = runtime._blockInfo.filter(i => !beforeIds.has(i.id));
-                    if (added.length) {
-                        loadedId = added[added.length - 1].id;
-                    }
+                    const info = runtime._blockInfo.find(i =>
+                        i.blocks && i.blocks.some(b =>
+                            b.info && b.info.opcode && b.info.opcode.startsWith(extensionId + '_')));
+                    blocks = info ? (info.blocks || []) : [];
                 }
-                let blocks = loadedId ? grabBlocksById(loadedId) : [];
-                if (blocks.length === 0) {
-                    // Fallback: lookup by the original library extensionId.
-                    blocks = grabBlocksById(extensionId);
-                }
-                if (blocks.length === 0) {
-                    // Last resort: match by block type prefix (id transformed on load).
-                    if (runtime && runtime._blockInfo) {
-                        const info = runtime._blockInfo.find(i =>
-                            i.blocks && i.blocks.some(b =>
-                                b.info && b.info.opcode && b.info.opcode.startsWith(extensionId + '_')));
-                        blocks = info ? (info.blocks || []) : [];
-                    }
-                }
-                openWithBlocks(blocks);
-            })
+            }
+            openWithBlocks(blocks);
+        };
+
+        extensionManager.loadExtensionURL(url)
+            .then(handleLoaded)
             .catch(err => {
+                // 直连失败（常见于 extensions.turbowarp.org 网络不通导致的
+                // importScripts / fetch NetworkError）→ 改经同源 /proxy 兜底重试。
+                if (/^https?:\/\//i.test(url)) {
+                    const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+                    const securityManager = extensionManager.securityManager;
+                    // 仅当原 URL 本身就是「无沙箱信任源」时，代理 URL 才继承无沙箱；
+                    // 否则第三方扩展会借代理绕过 iframe 沙箱。
+                    Promise.resolve(securityManager.getSandboxMode(url))
+                        .then(mode => {
+                            if (mode === 'unsandboxed' && this._browseTrustedProxyURLs) {
+                                this._browseTrustedProxyURLs.add(proxyUrl);
+                            }
+                            return extensionManager.loadExtensionURL(proxyUrl);
+                        })
+                        .then(handleLoaded)
+                        .catch(() => {
+                            // eslint-disable-next-line no-alert
+                            alert(err);
+                        });
+                    return;
+                }
                 // eslint-disable-next-line no-alert
                 alert(err);
             });
