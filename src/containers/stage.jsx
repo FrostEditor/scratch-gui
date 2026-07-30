@@ -2,6 +2,14 @@ import bindAll from 'lodash.bindall';
 import PropTypes from 'prop-types';
 import React from 'react';
 import Renderer from 'scratch-render';
+
+// tw: 优先使用高性能 GPU，提升作品运行与舞台渲染效率（网页版与桌面版通用）。
+// RenderWebGL 在创建 WebGL 上下文时会读取此静态属性。
+try {
+    Renderer.powerPreference = 'high-performance';
+} catch (e) {
+    // 某些环境不支持该属性，忽略即可
+}
 import VM from 'scratch-vm';
 import {connect} from 'react-redux';
 

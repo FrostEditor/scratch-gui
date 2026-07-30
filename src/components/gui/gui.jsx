@@ -178,7 +178,52 @@ const GUIComponent = props => {
         onLogoutForumUser,
         ...componentProps
     } = omit(props, 'dispatch');
-    
+
+    // tw: 积木整合区（左侧积木面板）宽度可调 —— 在舞台列与积木列之间加可拖拽竖条
+    const [blocksWidth, setBlocksWidth] = React.useState(() => {
+        const stored = parseInt(localStorage.getItem('frostBlocksWidth'), 10);
+        return Number.isFinite(stored) && stored >= 320 && stored <= 1100 ? stored : null;
+    });
+    const resizeState = React.useRef(null);
+
+    const handleResizeMove = React.useCallback((e) => {
+        const s = resizeState.current;
+        if (!s) return;
+        const delta = e.clientX - s.startX;
+        const deltaSigned = s.isRtl ? -delta : delta;
+        let next = s.startWidth + deltaSigned;
+        next = Math.max(320, Math.min(1100, next));
+        setBlocksWidth(next);
+    }, []);
+
+    const handleResizeEnd = React.useCallback(() => {
+        resizeState.current = null;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleResizeEnd);
+        setBlocksWidth(current => {
+            if (current) localStorage.setItem('frostBlocksWidth', String(current));
+            return current;
+        });
+    }, [handleResizeMove]);
+
+    const handleResizeStart = React.useCallback((e) => {
+        e.preventDefault();
+        const editorEl = e.currentTarget.previousElementSibling;
+        const startWidth = editorEl ? editorEl.offsetWidth : 600;
+        resizeState.current = {
+            startWidth,
+            startX: e.clientX,
+            isRtl: document.documentElement.dir === 'rtl'
+        };
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+        window.addEventListener('mousemove', handleResizeMove);
+        window.addEventListener('mouseup', handleResizeEnd);
+    }, [handleResizeMove, handleResizeEnd]);
+
+
     // 启动时自动检查更新（延迟 2 秒，不影响启动速度）
     React.useEffect(() => {
         const timer = setTimeout(async () => {
@@ -399,7 +444,10 @@ const GUIComponent = props => {
                     />
                     <Box className={styles.bodyWrapper}>
                         <Box className={classNames(styles.flexWrapper, isEmbedded && styles.embedded)}>
-                            {!isEmbedded && (<Box className={styles.editorWrapper}>
+                            {!isEmbedded && (<Box
+                                className={styles.editorWrapper}
+                                style={blocksWidth ? {flex: `0 1 ${blocksWidth}px`, minWidth: 320} : undefined}
+                            >
                                 <Tabs
                                     forceRenderTabPanel
                                     className={tabClassNames.tabs}
@@ -519,7 +567,18 @@ const GUIComponent = props => {
                                 ) : null}
                             </Box>)}
 
-                            <Box className={classNames(styles.stageAndTargetWrapper, styles[stageSize])}>
+                            {!isEmbedded && !isPhone && (
+                                <Box
+                                    className={styles.resizeHandle}
+                                    onMouseDown={handleResizeStart}
+                                    title="拖拽调整积木栏宽度"
+                                />
+                            )}
+
+                            <Box
+                                className={classNames(styles.stageAndTargetWrapper, styles[stageSize])}
+                                style={blocksWidth ? {flexGrow: 1} : undefined}
+                            >
                                 <StageWrapper
                                     isFullScreen={isFullScreen}
                                     isRendererSupported={isRendererSupported()}

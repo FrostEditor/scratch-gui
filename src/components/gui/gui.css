@@ -552,3 +552,42 @@ $fade-out-distance: 15px;
         transition: none !important;
     }
 }
+
+/* tw: 积木整合区宽度可调 —— 舞台列与积木列之间的拖拽把手 */
+.resize-handle {
+    flex: 0 0 6px;
+    align-self: stretch;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    z-index: 20;
+    transition: background 0.15s ease;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+    background: rgba(0, 240, 153, 0.25);
+}
+
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 36px;
+    border-radius: 2px;
+    background: $ui-black-transparent;
+    transition: background 0.15s ease;
+}
+
+.resize-handle:hover::after,
+.resize-handle:active::after {
+    background: #00f099;
+}
+
+/* 手机模式下整体改为竖向布局，隐藏拖拽把手（gui.jsx 也已条件渲染） */
+.phone-mode .resize-handle {
+    display: none;
+}
