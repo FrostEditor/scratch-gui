@@ -25,7 +25,15 @@ const TARGET = path.join(ROOT, 'node_modules');
 
 // 仅扫描这些文本扩展名，兼顾覆盖率与性能（投毒代码均为 JS 注入）
 const SCAN_EXT = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.json', '.html']);
-const SKIP_DIRS = new Set(['.bin', '.cache', '.git', '.svn', 'node_modules/.package-lock.json']);
+// 跳过这些目录名：它们通常是测试夹具 / 示例 / 文档，不会作为发布代码被执行，
+// 投毒代码只会注入到主模块（lib / src / dist 等），跳过它们既能避免误报
+// （如 selenium-webdriver 的 test/data/upload.html 里的 document.body.innerHTML=''），
+// 又不削弱对真实payload的拦截。
+const SKIP_DIRS = new Set([
+  '.bin', '.cache', '.git', '.svn', 'node_modules/.package-lock.json',
+  'test', 'tests', '__tests__', 'test-data', 'test_data',
+  'fixtures', 'fixture', 'examples', 'example', 'demo', 'docs', 'doc',
+]);
 const MAX_FILE_BYTES = 4 * 1024 * 1024; // 超过 4MB 的文件跳过（如 wasm / 超大 sourcemap）
 
 // ---------------------------------------------------------------------------
