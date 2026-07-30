@@ -553,6 +553,31 @@ $fade-out-distance: 15px;
     }
 }
 
+/* 代码文本编辑 矩形按钮（代码 / 造型 / 声音 / 作品说明 复用） */
+.tw-code-text-edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    z-index: 50;
+    border: 1px solid #00f099;
+    background: rgba(255, 255, 255, 0.92);
+    color: #0a8a6a;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.tw-code-text-edit-btn:hover {
+    background: #00f099;
+    color: #0a2a22;
+}
+/* 弹窗内的标签栏 / 舞台区若不需要按钮时隐藏（手机 & 嵌入） */
+.phone-mode .tw-code-text-edit-btn {
+    display: none;
+}
+
 /* tw: 积木整合区宽度可调 —— 舞台列与积木列之间的拖拽把手 */
 .resize-handle {
     flex: 0 0 6px;

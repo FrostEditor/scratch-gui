@@ -33,6 +33,8 @@ import collaborationManager from '../../lib/collaboration/collaboration-manager.
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
+import CodeTextModal from '../../containers/tw-code-text-modal.jsx';
+import CodeTextButton from '../tw-code-text-button.jsx';
 import TwCodeLockWarning from '../tw-code-lock-warning.jsx';
 import TWNews from '../menu-bar/tw-news.jsx';
 import TWSecurityManager from '../../containers/tw-security-manager.jsx';
@@ -184,6 +186,7 @@ const GUIComponent = props => {
         const stored = parseInt(localStorage.getItem('frostBlocksWidth'), 10);
         return Number.isFinite(stored) && stored >= 320 && stored <= 1100 ? stored : null;
     });
+    const [codeTextModal, setCodeTextModal] = React.useState(null);
     const resizeState = React.useRef(null);
 
     const handleResizeMove = React.useCallback((e) => {
@@ -276,6 +279,13 @@ const GUIComponent = props => {
                     <UpdateModal />
                     {usernameModalVisible && <TWUsernameModal />}
                     {settingsModalVisible && <TWSettingsModal />}
+                    {codeTextModal && (
+                        <CodeTextModal
+                            vm={vm}
+                            mode={codeTextModal}
+                            onClose={() => setCodeTextModal(null)}
+                        />
+                    )}
                     {customExtensionModalVisible && <TWCustomExtensionModal />}
                     {fontsModalVisible && <TWFontsModal />}
                     {unknownPlatformModalVisible && <TWUnknownPlatformModal />}
@@ -531,6 +541,9 @@ const GUIComponent = props => {
                                                 onOpenCustomExtensionModal={onOpenCustomExtensionModal}
                                                 theme={theme}
                                                 vm={vm}
+                                            />
+                                            <CodeTextButton
+                                                onClick={() => setCodeTextModal('code')}
                                             />
                                         </Box>
                                         <Box className={styles.extensionButtonContainer}>

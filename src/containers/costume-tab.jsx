@@ -13,6 +13,8 @@ import DragConstants from '../lib/drag-constants';
 import {emptyCostume} from '../lib/empty-assets';
 import sharedMessages from '../lib/shared-messages';
 import downloadBlob from '../lib/download-blob';
+import CodeTextModal from './tw-code-text-modal.jsx';
+import CodeTextButton from '../tw-code-text-button.jsx';
 
 import {
     openCostumeLibrary,
@@ -95,9 +97,9 @@ class CostumeTab extends React.Component {
         } = props;
         const target = editingTarget && sprites[editingTarget] ? sprites[editingTarget] : stage;
         if (target && target.currentCostume) {
-            this.state = {selectedCostumeIndex: target.currentCostume};
+            this.state = {selectedCostumeIndex: target.currentCostume, codeTextModal: null};
         } else {
-            this.state = {selectedCostumeIndex: 0};
+            this.state = {selectedCostumeIndex: 0, codeTextModal: null};
         }
     }
     componentWillReceiveProps (nextProps) {
@@ -274,7 +276,9 @@ class CostumeTab extends React.Component {
             dragPayload: costume
         })) : [];
         return (
-            <AssetPanel
+            <div style={{position: 'relative'}}>
+                <CodeTextButton onClick={() => this.setState({codeTextModal: 'costume'})} />
+                <AssetPanel
                 buttons={[
                     {
                         title: intl.formatMessage(addLibraryMessage),
