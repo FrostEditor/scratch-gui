@@ -26,7 +26,7 @@ import errorBoundaryHOC from '../lib/error-boundary-hoc.jsx';
 import DragConstants from '../lib/drag-constants';
 import downloadBlob from '../lib/download-blob';
 import CodeTextModal from './tw-code-text-modal.jsx';
-import CodeTextButton from '../tw-code-text-button.jsx';
+import CodeTextButton from '../components/tw-code-text-button.jsx';
 import SharedAudioContext from '../lib/audio/shared-audio-context.js';
 
 import {connect} from 'react-redux';

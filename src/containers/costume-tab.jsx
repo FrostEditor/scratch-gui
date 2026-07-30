@@ -14,7 +14,7 @@ import {emptyCostume} from '../lib/empty-assets';
 import sharedMessages from '../lib/shared-messages';
 import downloadBlob from '../lib/download-blob';
 import CodeTextModal from './tw-code-text-modal.jsx';
-import CodeTextButton from '../tw-code-text-button.jsx';
+import CodeTextButton from '../components/tw-code-text-button.jsx';
 
 import {
     openCostumeLibrary,

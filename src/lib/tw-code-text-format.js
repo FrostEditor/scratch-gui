@@ -142,10 +142,10 @@ export function nodeToText (node, indentLevel) {
     if (isContainer) {
         node._branches.forEach((children, bi) => {
             if (bi > 0) {
-                out.push(INDENT_UNIT.repeat(indentLevel) + INDENT_UNIT + 'else:');
+                out.push(INDENT_UNIT.repeat(indentLevel) + 'else:');
             }
             (children || []).forEach(child => {
-                out.push(nodeToText(child, indentLevel + 1 + (bi > 0 ? 1 : 0)));
+                out.push(nodeToText(child, indentLevel + 1));
             });
         });
     }
