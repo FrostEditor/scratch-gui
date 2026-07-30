@@ -39,29 +39,54 @@ class UpdateModal extends React.Component {
         this.setState({ isOpen: false });
     };
     
-    // 简单的 Markdown 解析（只处理标题、列表、粗体、链接）
+    // 安全的 Markdown 解析（只处理标题、列表、粗体、链接）。
+    //
+    // 安全策略：先对全部输入做 HTML 实体转义，再套 markdown 正则。
+    // 这样原始输入里的 <img onerror=...> 等会被转成 &lt;img...&gt; 当文本显示，
+    // 只有 markdown 转换产生的已知安全标签（h1/h2/h3/strong/a/li/ul/br）才会进入 DOM。
+    // 链接的 href 额外做协议白名单（仅 http/https/mailto），阻断 javascript: 注入。
     parseMarkdown(text) {
         if (!text) return '';
-        
+
+        // 1) 先转义所有 HTML 实体——这是防注入的关键步骤
         let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        // 2) 在已转义的文本上套 markdown 正则（只产生已知安全标签）
+        html = html
             // 标题
             .replace(/^### (.*$)/gim, '<h3>$1</h3>')
             .replace(/^## (.*$)/gim, '<h2>$1</h2>')
             .replace(/^# (.*$)/gim, '<h1>$1</h1>')
             // 粗体
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            // 链接
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+            // 链接：对 URL 做协议白名单，只允许 http(s)/mailto，其余降级为纯文本
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, rawUrl) => {
+                const decoded = rawUrl
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&#39;/g, "'");
+                if (/^(https?:|mailto:)/i.test(decoded)) {
+                    return `<a href="${decoded}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+                }
+                // 非白名单协议（javascript:、data: 等）：只保留链接文字，丢弃 URL
+                return label;
+            })
             // 无序列表
             .replace(/^- (.*$)/gim, '<li>$1</li>')
             // 换行
             .replace(/\n/g, '<br/>');
-        
-        // 把连续的 li 包在 ul 里
+
+        // 3) 把连续的 li 包在 ul 里
         html = html.replace(/(<li>.*<\/li>\s*)+/g, (match) => {
             return `<ul>${match}</ul>`;
         });
-        
+
         return html;
     }
     

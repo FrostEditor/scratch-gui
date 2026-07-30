@@ -207,6 +207,17 @@ export async function onRequest (context) {
                     const loc = res.headers.get('location');
                     if (!loc) break;
                     current = new URL(loc, current).toString().replace(/^http:\/\//i, 'https://');
+                    // SSRF 防护：重定向目标也必须过 isBlockedHost，否则攻击者可从公网域名
+                    // 302 跳到内网地址绕过初始检查。
+                    let redirParsed;
+                    try {
+                        redirParsed = new URL(current);
+                    } catch (e) {
+                        return new Response('Invalid redirect url', {status: 502});
+                    }
+                    if (isBlockedHost(redirParsed.hostname)) {
+                        return new Response('Blocked redirect host', {status: 403});
+                    }
                     continue;
                 }
                 break;

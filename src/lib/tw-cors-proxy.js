@@ -77,6 +77,17 @@ const fetchRemote = (targetUrl, redirectCount, extraHeaders) => new Promise((res
             }
             const next = new URL(res.headers.location, targetUrl).toString().replace(/^http:\/\//i, 'https://');
             res.resume();
+            // SSRF 防护：重定向目标也必须过 isBlockedHost，否则攻击者可从公网域名
+            // 302 跳到 http://127.0.0.1/ 等内网地址绕过初始检查。
+            let nextParsed;
+            try {
+                nextParsed = new URL(next);
+            } catch (e) {
+                return reject(new Error('Invalid redirect url'));
+            }
+            if (isBlockedHost(nextParsed.hostname)) {
+                return reject(new Error('Blocked redirect host'));
+            }
             return resolve(fetchRemote(next, redirectCount + 1, extraHeaders));
         }
         if (res.statusCode >= 400) {
