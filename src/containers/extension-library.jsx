@@ -925,6 +925,27 @@ class ExtensionLibrary extends React.PureComponent {
                 library.push(toLibraryItem(galleryLoading));
             }
 
+            // 添加 FrostEditor 官方扩展仓库（我们自己的扩展仓库，排在第三方库之前）
+            if (this.state.frostExtensions && this.state.frostExtensions.length > 0) {
+                const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/');
+                library.push('---');
+                library.push(toLibraryItem({
+                    name: 'FrostEditor 扩展库',
+                    extensionId: 'frosteditor-gallery',
+                    iconURL: `${base}frosteditor.png`,
+                    description: `来自 FrostEditor 官方扩展仓库的扩展收集，前往 ${base} 查看更多。`,
+                    href: base,
+                    tags: ['frosteditor'],
+                    featured: true
+                }));
+                const locale = this.props.intl.locale;
+                library.push(
+                    ...this.state.frostExtensions
+                        .map(i => translateGalleryItem(i, locale))
+                        .map(toLibraryItem)
+                );
+            }
+
             // 添加 AstraEditor 扩展
             if (this.state.astraExtensions && this.state.astraExtensions.length > 0) {
                 library.push('---');
@@ -965,26 +986,6 @@ class ExtensionLibrary extends React.PureComponent {
                 );
             }
 
-            // 添加 FrostEditor 扩展
-            if (this.state.frostExtensions && this.state.frostExtensions.length > 0) {
-                const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/');
-                library.push('---');
-                library.push(toLibraryItem({
-                    name: 'FrostEditor 扩展库',
-                    extensionId: 'frosteditor-gallery',
-                    iconURL: `${base}images/unknown.svg`,
-                    description: '来自 FrostEditor 的扩展收集',
-                    href: base,
-                    tags: ['frosteditor'],
-                    featured: true
-                }));
-                const locale = this.props.intl.locale;
-                library.push(
-                    ...this.state.frostExtensions
-                        .map(i => translateGalleryItem(i, locale))
-                        .map(toLibraryItem)
-                );
-            }
             
             // 去重：屏蔽与其他分类 ID 相同的扩展
             const seenExtensionIds = new Set();
