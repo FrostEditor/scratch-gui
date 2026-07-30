@@ -2,6 +2,8 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import styles from './project-statement.css';
 import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
+import CodeTextModal from '../../containers/tw-code-text-modal.jsx';
+import CodeTextButton from '../tw-code-text-button.jsx';
 
 class ProjectStatement extends React.Component {
     constructor (props) {
@@ -13,7 +15,8 @@ class ProjectStatement extends React.Component {
         this.state = {
             statement: savedStatement,
             isCollaborating: false,
-            remoteUser: ''
+            remoteUser: '',
+            codeTextModal: null
         };
         
         this.handleChange = this.handleChange.bind(this);
@@ -92,7 +95,9 @@ class ProjectStatement extends React.Component {
     
     render () {
         return (
-            <div className={styles.container}>
+            <div style={{position: 'relative'}}>
+                <CodeTextButton onClick={() => this.setState({codeTextModal: 'notes'})} />
+                <div className={styles.container}>
                 <div className={styles.header}>
                     <h2>作品声明 / 使用说明</h2>
                     <p className={styles.description}>
@@ -124,6 +129,13 @@ class ProjectStatement extends React.Component {
                         </span>
                     )}
                 </div>
+            </div>
+                {this.state.codeTextModal && (
+                    <CodeTextModal
+                        mode={this.state.codeTextModal}
+                        onClose={() => this.setState({codeTextModal: null})}
+                    />
+                )}
             </div>
         );
     }

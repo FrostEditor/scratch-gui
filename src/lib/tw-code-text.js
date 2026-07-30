@@ -36,24 +36,13 @@ function uid () {
     return `ct${Date.now().toString(36)}${_uidCounter.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 }
 
-function quote (s) {
-    return '"' + String(s)
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r') + '"';
-}
-
-function unquote (s) {
-    s = s.slice(1, -1);
-    return s
-        .replace(/\\r/g, '\r')
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
-}
-
-const INDENT_UNIT = '    ';
+/* 纯文本格式（无 VM 依赖）见 tw-code-text-format.js */
+import {
+    nodesToText,
+    parseTextToNodes,
+    argToText,
+    nodeToText
+} from './tw-code-text-format.js';
 
 /* --------------------- 友好别名（可读层，可选） --------------------- */
 // opcode -> 可读名。解析时反向匹配；未知 opcode 直接用 opcode 本身。
@@ -283,9 +272,9 @@ function blockToNode (runtime, blockId) {
                 node.args.push(inputToArg(runtime, block, argName));
             }
         });
-        def.branches.forEach(branchName => {
-            const branchNum = branchName === 'SUBSTACK' ? 1 : 2;
-            let childId = runtime.blocks.getBranch(blockId, branchNum);
+        if (def.blockType === 'hat') {
+            // 帽积木的主体在 next 链上，而非 SUBSTACK
+            let childId = runtime.blocks.getNextBlock(blockId);
             const children = [];
             while (childId) {
                 const cn = blockToNode(runtime, childId);
@@ -293,7 +282,19 @@ function blockToNode (runtime, blockId) {
                 childId = runtime.blocks.getNextBlock(childId);
             }
             node._branches.push(children);
-        });
+        } else {
+            def.branches.forEach(branchName => {
+                const branchNum = branchName === 'SUBSTACK' ? 1 : 2;
+                let childId = runtime.blocks.getBranch(blockId, branchNum);
+                const children = [];
+                while (childId) {
+                    const cn = blockToNode(runtime, childId);
+                    if (cn) children.push(cn);
+                    childId = runtime.blocks.getNextBlock(childId);
+                }
+                node._branches.push(children);
+            });
+        }
     } else {
         // 无定义时尽力而为：把 inputs 当 inline，fields 当 inline
         const inNames = block.inputs ? Object.keys(block.inputs) : [];
@@ -318,145 +319,8 @@ function scriptsToNodes (runtime, targetId) {
     return nodes;
 }
 
-/* --------------------- 文本节点树 -> 文本 --------------------- */
-
-function argToText (arg) {
-    if (!arg) return '_';
-    switch (arg.t) {
-    case 'num': return String(arg.v);
-    case 'str': return quote(arg.v);
-    case 'var': return '@' + arg.v;
-    case 'list': return '@' + arg.v;
-    case 'empty': return '_';
-    case 'block': return '(' + nodeToText(arg.node) + ')';
-    default: return '_';
-    }
-}
-
-function nodeToText (node, indentLevel) {
-    const indent = INDENT_UNIT.repeat(indentLevel);
-    const def = null; // 文本里不存 def，靠名字解析
-    const isContainer = node._branches && node._branches.length > 0;
-    const argsStr = (node.args || []).map(argToText).join(', ');
-    let line = node.name + '(' + argsStr + ')';
-    if (isContainer) line += ':';
-    let out = [indent + line];
-
-    if (isContainer) {
-        node._branches.forEach((children, bi) => {
-            if (bi > 0) {
-                // 第二个分支（if-else 的 else）
-                out.push(indent + INDENT_UNIT + 'else:');
-            }
-            (children || []).forEach(child => {
-                out.push(nodeToText(child, indentLevel + 1 + (bi > 0 ? 1 : 0)));
-            });
-        });
-    }
-    return out.join('\n');
-}
-
-function nodesToText (nodes) {
-    return nodes.map(n => nodeToText(n, 0)).join('\n\n') + '\n';
-}
-
-/* --------------------- 文本 -> 文本节点树 --------------------- */
-
-function splitTopLevel (s) {
-    const res = [];
-    let depth = 0;
-    let inStr = false;
-    let cur = '';
-    for (let i = 0; i < s.length; i++) {
-        const c = s[i];
-        if (c === '"' && s[i - 1] !== '\\') {
-            inStr = !inStr;
-            cur += c;
-        } else if (!inStr && c === '(') {
-            depth++;
-            cur += c;
-        } else if (!inStr && c === ')') {
-            depth--;
-            cur += c;
-        } else if (!inStr && depth === 0 && c === ',') {
-            res.push(cur);
-            cur = '';
-        } else {
-            cur += c;
-        }
-    }
-    if (cur.trim() !== '' || res.length > 0) res.push(cur);
-    return res;
-}
-
-function parseArg (tok) {
-    tok = tok.trim();
-    if (tok === '' || tok === '_') return {t: 'empty'};
-    if (tok.startsWith('(')) return {t: 'block', node: parseNode(tok.slice(1, -1))};
-    if (tok.startsWith('"')) return {t: 'str', v: unquote(tok)};
-    if (tok.startsWith('@')) return {t: 'var', v: tok.slice(1)};
-    if (/^-?\d+(\.\d+)?$/.test(tok)) return {t: 'num', v: parseFloat(tok)};
-    return {t: 'str', v: tok}; // 菜单裸词兜底
-}
-
-function parseNode (s) {
-    s = s.trim();
-    let m = s.match(/^([A-Za-z_][\w]*)\s*\((.*)\)$/s);
-    if (m) {
-        const name = m[1];
-        const inner = m[2];
-        const args = inner.trim() === '' ? [] : splitTopLevel(inner).map(parseArg);
-        return {name, args, _branches: []};
-    }
-    m = s.match(/^([A-Za-z_][\w]*)$/);
-    if (m) return {name: m[1], args: [], _branches: []};
-    // 退化：整段当名字
-    return {name: s, args: [], _branches: []};
-}
-
-function parseTextToNodes (text) {
-    const lines = text.split('\n').map(l => {
-        const mm = l.match(/^(\s*)(.*)$/);
-        const indent = mm[1].replace(/\t/g, INDENT_UNIT).length;
-        return {indent, content: mm[2].trim()};
-    }).filter(l => l.content !== '');
-    const {nodes} = parseLevel(lines, 0, 0);
-    return nodes;
-}
-
-function parseLevel (lines, idx, indent) {
-    const nodes = [];
-    while (idx < lines.length && lines[idx].indent === indent) {
-        const line = lines[idx];
-        const raw = line.content;
-        const isContainer = raw.endsWith(':');
-        const base = isContainer ? raw.slice(0, -1) : raw;
-        const node = parseNode(base);
-        idx++;
-        if (isContainer) {
-            const groups = [];
-            let cur = null;
-            while (idx < lines.length && lines[idx].indent > indent) {
-                if (lines[idx].content === 'else:') {
-                    idx++;
-                    cur = [];
-                    groups.push(cur);
-                    continue;
-                }
-                if (cur === null) {
-                    cur = [];
-                    groups.push(cur);
-                }
-                const sub = parseLevel(lines, idx, lines[idx].indent);
-                cur.push(...sub.nodes);
-                idx = sub.idx;
-            }
-            node._branches = groups;
-        }
-        nodes.push(node);
-    }
-    return {nodes, idx};
-}
+/* --------------------- 文本节点树 -> 文本 / 文本 -> 节点树 --------------------- */
+/* 见 tw-code-text-format.js（nodesToText / parseTextToNodes 等已从此导入） */
 
 /* --------------------- 文本节点树 -> 写回 VM --------------------- */
 
@@ -545,6 +409,19 @@ function createNode (runtime, target, node, parentId) {
         });
         block.inputs[bn] = [2, first];
     });
+
+    // 帽积木：主体在 next 链上
+    if (def.blockType === 'hat' && node._branches && node._branches[0] && node._branches[0].length) {
+        let first = null;
+        let prev = null;
+        node._branches[0].forEach(child => {
+            const cid = createNode(runtime, target, child, id);
+            if (!first) first = cid;
+            if (prev) runtime.blocks.getBlock(prev).next = cid;
+            prev = cid;
+        });
+        block.next = first;
+    }
 
     runtime.blocks.createBlock(block);
     return id;
@@ -681,7 +558,7 @@ export function applyNotes (text) {
     } catch (e) { /* ignore */ }
     // 通知 ProjectStatement 组件刷新
     try {
-        const collab = require('../lib/collaboration/collaboration-manager.js').default;
+        const collab = require('./collaboration/collaboration-manager.js').default;
         if (collab && typeof collab.emit === 'function') {
             collab.emit('statement-updated', {text});
         }

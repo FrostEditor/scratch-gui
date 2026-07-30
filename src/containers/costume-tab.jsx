@@ -328,6 +328,14 @@ class CostumeTab extends React.Component {
                     null
                 }
             </AssetPanel>
+                {this.state.codeTextModal && (
+                    <CodeTextModal
+                        vm={vm}
+                        mode={this.state.codeTextModal}
+                        onClose={() => this.setState({codeTextModal: null})}
+                    />
+                )}
+            </div>
         );
     }
 }
