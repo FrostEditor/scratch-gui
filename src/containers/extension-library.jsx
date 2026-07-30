@@ -18,6 +18,7 @@ import extensionIcon from '../components/action-menu/icon--sprite.svg';
 import ExtensionManagerModal from '../components/tw-extension-manager-modal/extension-manager-modal.jsx';
 import ExtensionBlocksModal from '../components/tw-extension-blocks-modal/extension-blocks-modal.jsx';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
+import {isTrustedExtension, manuallyTrustExtension} from './tw-security-manager.jsx';
 
 const messages = defineMessages({
     extensionTitle: {
@@ -421,6 +422,25 @@ class ExtensionLibrary extends React.PureComponent {
                     })
                     .catch(err => {
                         log.error(err);
+                        // 直连加载失败（网络原因 script.onerror）时，经同源 /proxy 兜底重试一次。
+                        // dev 走 devServer 代理、生产走 Cloudflare Worker、桌面端走协议处理器。
+                        if (/^https?:\/\//i.test(url)) {
+                            const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+                            // 仅原 URL 本就是无沙箱信任源时，代理 URL 才继承信任，
+                            // 防止第三方扩展借代理提权逃出沙箱。
+                            if (isTrustedExtension(url)) {
+                                manuallyTrustExtension(proxyUrl);
+                            }
+                            this.props.vm.extensionManager.loadExtensionURL(proxyUrl)
+                                .then(() => {
+                                    this.props.onCategorySelected(extensionId);
+                                })
+                                .catch(() => {
+                                    // eslint-disable-next-line no-alert
+                                    alert(err);
+                                });
+                            return;
+                        }
                         // eslint-disable-next-line no-alert
                         alert(err);
                     });
