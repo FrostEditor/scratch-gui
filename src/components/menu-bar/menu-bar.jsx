@@ -373,7 +373,7 @@ class MenuBar extends React.Component {
             } else if (mode === '220022BC') {
                 document.getElementById('logo_img').src = prehistoricLogo;
             } else {
-                document.getElementById('logo_img').src = this.props.logo || frosteditorLogo;
+                document.getElementById('logo_img').src = this.props.logo || scratchLogo;
             }
 
             this.props.onSetTimeTravelMode(mode);
@@ -572,7 +572,7 @@ class MenuBar extends React.Component {
                     <img
                         id="logo_img"
                         className={styles.logo}
-                        src={this.props.logo || frosteditorLogo}
+                        src={this.props.logo || scratchLogo}
                         draggable={false}
                         alt="FrostEditor"
                     />
@@ -1198,13 +1198,6 @@ class MenuBar extends React.Component {
                 </div>
 
                 <div className={styles.accountInfoGroup}>
-                    <span style={{marginLeft: 8}}>
-                        <ForumUserCard
-                            forumUser={this.props.forumUser}
-                            onSetForumUser={this.props.onSetForumUser}
-                            onLogoutForumUser={this.props.onLogoutForumUser}
-                        />
-                    </span>
                     <TWSaveStatus
                         showSaveFilePicker={this.props.showSaveFilePicker}
                     />
