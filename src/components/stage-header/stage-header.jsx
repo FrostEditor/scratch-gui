@@ -293,7 +293,7 @@ const StageHeaderComponent = function (props) {
                         alt={props.intl.formatMessage(messages.stageSizeMenuMessage)}
                         className={styles.stageButtonIcon}
                         draggable={false}
-                        src={stageSizeIcon}
+                        src={stageSizeIcon()}
                         title={props.intl.formatMessage(messages.stageSizeMenuMessage)}
                     />
                 </Button>

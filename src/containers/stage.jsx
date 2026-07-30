@@ -103,6 +103,7 @@ class Stage extends React.Component {
     }
     shouldComponentUpdate (nextProps, nextState) {
         return this.props.stageSize !== nextProps.stageSize ||
+            this.props.stageZoom !== nextProps.stageZoom ||
             this.props.isColorPicking !== nextProps.isColorPicking ||
             this.state.colorInfo !== nextState.colorInfo ||
             this.props.isFullScreen !== nextProps.isFullScreen ||
