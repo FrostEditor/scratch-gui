@@ -329,11 +329,11 @@ class ExtensionBlocksPreview extends React.Component {
             media = realMain.options.media;
         }
 
-        try {
-            const oldDefaultToolbox = ScratchBlocks.Blocks.defaultToolbox;
-            ScratchBlocks.Blocks.defaultToolbox = null;
-            // 手机端适配：小屏 / 触摸设备上显示缩放按钮、允许捏合缩放、
-            // 并用更小的初始比例让积木一屏内可见。
+        // 把「建工作区 + 放积木 + 排版」封装成 paint()，便于在渲染失败时
+        // 重新补注册积木定义并重试一次。
+        const paint = () => {
+            this._realMain = realMain; // 每次（含重试）重建前重新记住主工作区
+
             const touch = isTouchDevice();
             const small = isSmallScreen();
             const zoom = Object.assign({}, PREVIEW_OPTIONS.zoom, {
@@ -347,6 +347,9 @@ class ExtensionBlocksPreview extends React.Component {
                 media,
                 zoom
             });
+
+            const oldDefaultToolbox = ScratchBlocks.Blocks.defaultToolbox;
+            ScratchBlocks.Blocks.defaultToolbox = null;
             this.workspace = ScratchBlocks.inject(this.containerRef.current, config);
             ScratchBlocks.Blocks.defaultToolbox = oldDefaultToolbox;
 
@@ -354,15 +357,11 @@ class ExtensionBlocksPreview extends React.Component {
             if (realMain) {
                 try {
                     ScratchBlocks.mainWorkspace = realMain;
-                } catch (e) {
-                    // ignore
-                }
+                } catch (e) { /* ignore */ }
             }
 
             if (this.workspace.resize) {
-                try {
-                    this.workspace.resize();
-                } catch (e) { /* ignore */ }
+                try { this.workspace.resize(); } catch (e) { /* ignore */ }
             }
 
             const xml = `<xml xmlns="https://developers.google.com/blockly/xml">${xmls.join('')}</xml>`;
@@ -385,14 +384,10 @@ class ExtensionBlocksPreview extends React.Component {
             });
 
             if (this.workspace.render) {
-                try {
-                    this.workspace.render();
-                } catch (e) { /* ignore */ }
+                try { this.workspace.render(); } catch (e) { /* ignore */ }
             }
             if (this.workspace.resize) {
-                try {
-                    this.workspace.resize();
-                } catch (e) { /* ignore */ }
+                try { this.workspace.resize(); } catch (e) { /* ignore */ }
             }
 
             // 触摸设备：绑定双指捏合缩放。
@@ -407,24 +402,35 @@ class ExtensionBlocksPreview extends React.Component {
             [0, 150, 350].forEach(delay => {
                 const id = setTimeout(() => {
                     if (this.workspace && this.workspace.resize) {
-                        try {
-                            this.workspace.resize();
-                        } catch (e) { /* ignore */ }
+                        try { this.workspace.resize(); } catch (e) { /* ignore */ }
                     }
                 }, delay);
                 this.resizeTimers.push(id);
             });
+        };
+
+        try {
+            paint();
         } catch (e) {
-            // "container is not in current document" 是嵌套弹窗的时序问题——重试；
-            // 否则放弃并给出明确提示。
             if (this._attempts < this._maxAttempts &&
                 /not in current document|container/i.test((e && e.message) || '')) {
                 return this.scheduleRetry('inject-error');
             }
+            // 渲染过程抛错（最常见：某块积木类型未注册 → domToWorkspace 失败）。
+            // 再补注册一次并重建工作区重试；仍失败则降级为「无积木」而非
+            // 「渲染器不可用」——渲染器本身可用，只是这批积木无法呈现。
             // eslint-disable-next-line no-console
-            console.error('EXTBLOCKS_RENDER_ERROR', e && (e.stack || e.message || e));
-            this.disposeWorkspace();
-            this.setState({status: 'unavailable'});
+            console.warn('EXTBLOCKS_PAINT_WARN', e && (e.stack || e.message || e));
+            try {
+                this.defineMissingBlocks(ScratchBlocks);
+                this.disposeWorkspace();
+                paint();
+            } catch (e2) {
+                // eslint-disable-next-line no-console
+                console.error('EXTBLOCKS_PAINT_ERROR', e2 && (e2.stack || e2.message || e2));
+                this.disposeWorkspace();
+                this.setState({status: 'empty'});
+            }
         }
     }
 
