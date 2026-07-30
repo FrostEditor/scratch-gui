@@ -19,6 +19,12 @@ import ExtensionManagerModal from '../components/tw-extension-manager-modal/exte
 import ExtensionBlocksModal from '../components/tw-extension-blocks-modal/extension-blocks-modal.jsx';
 import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 import {isTrustedExtension, manuallyTrustExtension} from './tw-security-manager.jsx';
+import {
+    getMetadata,
+    subscribe,
+    registerRawFetchers,
+    refreshAll
+} from '../lib/tw-extension-library-cache.js';
 
 const messages = defineMessages({
     extensionTitle: {
@@ -48,187 +54,175 @@ const translateGalleryItem = (extension, locale) => ({
     description: extension.descriptionTranslations[locale] || extension.description
 });
 
-let cachedGallery = null;
-let cachedAstraExtensions = null;
-let cachedUdbbsExtensions = null;
-let cachedFrostExtensions = null;
+// Frost 扩展库基地址（同源 Cloudflare，国内访问快）
+const FROST_BASE = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/').replace(/\/$/, '');
 
-const fetchLibrary = async () => {
-    const res = await fetch('https://extensions.turbowarp.org/generated-metadata/extensions-v0.json');
-    if (!res.ok) {
-        throw new Error(`HTTP status ${res.status}`);
-    }
+// ---- 原始元数据拉取（纯 JSON，可序列化进 localStorage 缓存） ----
+const TW_META_URL = 'https://extensions.turbowarp.org/generated-metadata/extensions-v0.json';
+const ASTRA_META_URL = 'https://editors.astras.top/extensions/generated-metadata/extensions-v0.json';
+const UDBBS_META_URL = 'https://extensions.udbbs.top/json/exts.json';
+const FROST_META_URL = `${FROST_BASE}/generated-metadata/extensions-v0.json`;
+
+const fetchTwRaw = async () => {
+    const res = await fetch(TW_META_URL);
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
     const data = await res.json();
-    return data.extensions.map(extension => ({
+    return data.extensions;
+};
+
+const fetchAstraRaw = async () => {
+    const res = await fetch(ASTRA_META_URL);
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const data = await res.json();
+    return data.extensions;
+};
+
+const fetchUdbbsRaw = async () => {
+    const res = await fetch(UDBBS_META_URL);
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    return res.json();
+};
+
+const fetchFrostRaw = async () => {
+    const res = await fetch(FROST_META_URL);
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const data = await res.json();
+    return data.extensions || [];
+};
+
+// ---- 原始元数据 → 扩展库卡片（含 React 元素，不进缓存） ----
+const transformTw = raw => (raw || []).map(extension => ({
+    name: extension.name,
+    nameTranslations: extension.nameTranslations || {},
+    description: extension.description,
+    descriptionTranslations: extension.descriptionTranslations || {},
+    extensionId: extension.id,
+    extensionURL: `https://extensions.turbowarp.org/${extension.slug}.js`,
+    iconURL: `https://extensions.turbowarp.org/${extension.image || 'images/unknown.svg'}`,
+    tags: ['tw'],
+    credits: [
+        ...(extension.original || []),
+        ...(extension.by || [])
+    ].map(credit => (
+        credit.link ? (
+            <a
+                href={credit.link}
+                target="_blank"
+                rel="noreferrer"
+                key={credit.name}
+            >
+                {credit.name}
+            </a>
+        ) : credit.name
+    )),
+    docsURI: extension.docs ? `https://extensions.turbowarp.org/${extension.slug}` : null,
+    samples: extension.samples ? extension.samples.map(sample => ({
+        href: `${process.env.ROOT}editor?project_url=https://extensions.turbowarp.org/samples/${encodeURIComponent(sample)}.sb3`,
+        text: sample
+    })) : null,
+    incompatibleWithScratch: !extension.scratchCompatible,
+    featured: true
+}));
+
+const transformAstra = raw => (raw || []).map((extension, index) => {
+    const extensionId = extension.id || `astra-${index}-${extension.slug}`;
+    return {
         name: extension.name,
         nameTranslations: extension.nameTranslations || {},
         description: extension.description,
         descriptionTranslations: extension.descriptionTranslations || {},
-        extensionId: extension.id,
-        extensionURL: `https://extensions.turbowarp.org/${extension.slug}.js`,
-        iconURL: `https://extensions.turbowarp.org/${extension.image || 'images/unknown.svg'}`,
-        tags: ['tw'],
-        credits: [
-            ...(extension.original || []),
-            ...(extension.by || [])
-        ].map(credit => {
-            if (credit.link) {
-                return (
-                    <a
-                        href={credit.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        key={credit.name}
-                    >
-                        {credit.name}
-                    </a>
-                );
-            }
-            return credit.name;
-        }),
-        docsURI: extension.docs ? `https://extensions.turbowarp.org/${extension.slug}` : null,
-        samples: extension.samples ? extension.samples.map(sample => ({
-            href: `${process.env.ROOT}editor?project_url=https://extensions.turbowarp.org/samples/${encodeURIComponent(sample)}.sb3`,
-            text: sample
-        })) : null,
-        incompatibleWithScratch: !extension.scratchCompatible,
-        featured: true
-    }));
-};
+        extensionId,
+        extensionURL: `https://editors.astras.top/extensions/${extension.slug}.js`,
+        iconURL: `https://editors.astras.top/extensions/${extension.image || 'images/unknown.svg'}`,
+        tags: ['astra-editor'],
+        credits: (extension.by || []).map(credit => (
+            credit.link ? (
+                <a
+                    href={credit.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    key={credit.name}
+                >
+                    {credit.name}
+                </a>
+            ) : credit.name
+        )),
+        docsURI: extension.docs ? `https://editors.astras.top/extensions/${extension.slug}` : null,
+        incompatibleWithScratch: true,
+        featured: true,
+        disabled: false
+    };
+});
 
-const fetchAstraExtensions = async () => {
-    try {
-        const res = await fetch('https://editors.astras.top/extensions/generated-metadata/extensions-v0.json');
-        if (!res.ok) {
-            throw new Error(`HTTP status ${res.status}`);
-        }
-        const data = await res.json();
-        return data.extensions.map((extension, index) => {
-            const extensionId = extension.id || `astra-${index}-${extension.slug}`;
-            
-            return {
-                name: extension.name,
-                nameTranslations: extension.nameTranslations || {},
-                description: extension.description,
-                descriptionTranslations: extension.descriptionTranslations || {},
-                extensionId: extensionId,
-                extensionURL: `https://editors.astras.top/extensions/${extension.slug}.js`,
-                iconURL: `https://editors.astras.top/extensions/${extension.image || 'images/unknown.svg'}`,
-                tags: ['astra-editor'],
-                credits: (extension.by || []).map(credit => {
-                    if (credit.link) {
-                        return (
-                            <a
-                                href={credit.link}
-                                target="_blank"
-                                rel="noreferrer"
-                                key={credit.name}
-                            >
-                                {credit.name}
-                            </a>
-                        );
-                    }
-                    return credit.name;
-                }),
-                docsURI: extension.docs ? `https://editors.astras.top/extensions/${extension.slug}` : null,
-                incompatibleWithScratch: true,
-                featured: true,
-                disabled: false
-            };
-        });
-    } catch (error) {
-        console.error('Failed to load AstraEditor extensions:', error);
-        return [];
+const transformUdbbs = raw => (raw || []).map((extension, index) => {
+    const extensionId = `udbbs-${index}-${extension.name}`;
+    // 从 description 中提取作者信息
+    let credits = [];
+    const creditMatch = extension.description.match(/由<a[^>]*>([^<]+)<\/a>创建/);
+    if (creditMatch) {
+        credits.push(creditMatch[1]);
     }
-};
+    return {
+        name: extension.name,
+        nameTranslations: {},
+        description: extension.description.replace(/<[^>]*>/g, ''), // 移除 HTML 标签
+        descriptionTranslations: {},
+        extensionId,
+        extensionURL: extension.url,
+        iconURL: `https://extensions.udbbs.top/${extension.image || 'images/unknown.svg'}`,
+        tags: ['udbbs'],
+        credits,
+        docsURI: null,
+        incompatibleWithScratch: true,
+        featured: true,
+        disabled: false
+    };
+});
 
-const fetchUdbbsExtensions = async () => {
-    try {
-        const res = await fetch('https://extensions.udbbs.top/json/exts.json');
-        if (!res.ok) {
-            throw new Error(`HTTP status ${res.status}`);
-        }
-        const data = await res.json();
-        return data.map((extension, index) => {
-            const extensionId = `udbbs-${index}-${extension.name}`;
-            
-            // 从 description 中提取作者信息
-            let credits = [];
-            const creditMatch = extension.description.match(/由<a[^>]*>([^<]+)<\/a>创建/);
-            if (creditMatch) {
-                credits.push(creditMatch[1]);
-            }
-            
-            return {
-                name: extension.name,
-                nameTranslations: {},
-                description: extension.description.replace(/<[^>]*>/g, ''), // 移除 HTML 标签
-                descriptionTranslations: {},
-                extensionId: extensionId,
-                extensionURL: extension.url,
-                iconURL: `https://extensions.udbbs.top/${extension.image || 'images/unknown.svg'}`,
-                tags: ['udbbs'],
-                credits: credits,
-                docsURI: null,
-                incompatibleWithScratch: true,
-                featured: true,
-                disabled: false
-            };
-        });
-    } catch (error) {
-        console.error('Failed to load UDBBS extensions:', error);
-        return [];
-    }
-};
+const transformFrost = raw => (raw || []).map(extension => ({
+    name: extension.name,
+    nameTranslations: extension.nameTranslations || {},
+    description: extension.description,
+    descriptionTranslations: extension.descriptionTranslations || {},
+    extensionId: extension.id,
+    extensionURL: `${FROST_BASE}/${extension.slug}.js`,
+    iconURL: `${FROST_BASE}/${extension.image || 'images/unknown.svg'}`,
+    tags: ['frosteditor'],
+    credits: [
+        ...(extension.original || []),
+        ...(extension.by || [])
+    ].map(credit => (
+        credit.link ? (
+            <a
+                href={credit.link}
+                target="_blank"
+                rel="noreferrer"
+                key={credit.name}
+            >
+                {credit.name}
+            </a>
+        ) : credit.name
+    )),
+    docsURI: extension.docs ? `${FROST_BASE}/${extension.slug}` : null,
+    samples: extension.samples ? extension.samples.map(sample => ({
+        href: `${process.env.ROOT}editor?project_url=${FROST_BASE}/samples/${encodeURIComponent(sample)}.sb3`,
+        text: sample
+    })) : null,
+    incompatibleWithScratch: !extension.scratchCompatible,
+    featured: true
+}));
 
-const fetchFrostEditorExtensions = async () => {
-    const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/').replace(/\/$/, '');
-    try {
-        const res = await fetch(`${base}/generated-metadata/extensions-v0.json`);
-        if (!res.ok) {
-            throw new Error(`HTTP status ${res.status}`);
-        }
-        const data = await res.json();
-        return (data.extensions || []).map(extension => ({
-            name: extension.name,
-            nameTranslations: extension.nameTranslations || {},
-            description: extension.description,
-            descriptionTranslations: extension.descriptionTranslations || {},
-            extensionId: extension.id,
-            extensionURL: `${base}/${extension.slug}.js`,
-            iconURL: `${base}/${extension.image || 'images/unknown.svg'}`,
-            tags: ['frosteditor'],
-            credits: [
-                ...(extension.original || []),
-                ...(extension.by || [])
-            ].map(credit => {
-                if (credit.link) {
-                    return (
-                        <a
-                            href={credit.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            key={credit.name}
-                        >
-                            {credit.name}
-                        </a>
-                    );
-                }
-                return credit.name;
-            }),
-            docsURI: extension.docs ? `${base}/${extension.slug}` : null,
-            samples: extension.samples ? extension.samples.map(sample => ({
-                href: `${process.env.ROOT}editor?project_url=${base}/samples/${encodeURIComponent(sample)}.sb3`,
-                text: sample
-            })) : null,
-            incompatibleWithScratch: !extension.scratchCompatible,
-            featured: true
-        }));
-    } catch (error) {
-        console.error('Failed to load FrostEditor extensions:', error);
-        return [];
-    }
-};
+// 注册原始拉取函数，供缓存模块在启动预加载 / 后台刷新时调用
+registerRawFetchers({
+    tw: fetchTwRaw,
+    astra: fetchAstraRaw,
+    udbbs: fetchUdbbsRaw,
+    frost: fetchFrostRaw
+});
+
+// 启动即预加载：应用加载阶段就在后台拉取并写入缓存，
+// 用户打开扩展库面板时直接从缓存秒开，不依赖远端网络。
+refreshAll();
 
 class ExtensionLibrary extends React.PureComponent {
     constructor (props) {
@@ -243,15 +237,19 @@ class ExtensionLibrary extends React.PureComponent {
             ,'handleBrowseBlocksClose'
             ,'getLoadedExtensions'
         ]);
+        const twCache = getMetadata('tw');
+        const astraCache = getMetadata('astra');
+        const udbbsCache = getMetadata('udbbs');
+        const frostCache = getMetadata('frost');
         this.state = {
-            gallery: cachedGallery,
+            gallery: twCache ? transformTw(twCache) : null,
             galleryError: null,
-            galleryTimedOut: false,
-            astraExtensions: cachedAstraExtensions,
+            galleryTimedOut: !twCache,
+            astraExtensions: astraCache ? transformAstra(astraCache) : null,
             astraError: null,
-            udbbsExtensions: cachedUdbbsExtensions,
+            udbbsExtensions: udbbsCache ? transformUdbbs(udbbsCache) : null,
             udbbsError: null,
-            frostExtensions: cachedFrostExtensions,
+            frostExtensions: frostCache ? transformFrost(frostCache) : null,
             frostError: null,
             extensionManagerOpen: false,
             loadedExtensions: [],
@@ -270,81 +268,36 @@ class ExtensionLibrary extends React.PureComponent {
         }
     }
     componentDidMount () {
-        if (!this.state.gallery) {
-            const timeout = setTimeout(() => {
-                this.setState({
-                    galleryTimedOut: true
-                });
-            }, 750);
+        // 订阅缓存更新：缓存被后台刷新写入后立即同步到面板（秒级刷新，无需重新打开）。
+        const apply = () => {
+            const tw = getMetadata('tw');
+            const astra = getMetadata('astra');
+            const udbbs = getMetadata('udbbs');
+            const frost = getMetadata('frost');
+            this.setState({
+                gallery: tw ? transformTw(tw) : this.state.gallery,
+                galleryTimedOut: tw ? false : this.state.galleryTimedOut,
+                astraExtensions: astra ? transformAstra(astra) : this.state.astraExtensions,
+                udbbsExtensions: udbbs ? transformUdbbs(udbbs) : this.state.udbbsExtensions,
+                frostExtensions: frost ? transformFrost(frost) : this.state.frostExtensions
+            });
+        };
+        this._unsub = subscribe(apply);
+        apply();
 
-            fetchLibrary()
-                .then(gallery => {
-                    cachedGallery = gallery;
-                    this.setState({
-                        gallery
-                    });
-                    clearTimeout(timeout);
-                })
-                .catch(error => {
-                    log.error(error);
-                    this.setState({
-                        galleryError: error
-                    });
-                    clearTimeout(timeout);
-                });
-        }
+        // 后台刷新（缓存未过期则跳过网络）；刷新结束后对仍无数据的源标记错误以便展示。
+        refreshAll().then(() => {
+            const sets = {galleryTimedOut: false};
+            if (!getMetadata('tw')) sets.galleryError = new Error('无法加载 TurboWarp 扩展库');
+            if (!getMetadata('astra')) sets.astraError = new Error('无法加载 AstraEditor 扩展库');
+            if (!getMetadata('udbbs')) sets.udbbsError = new Error('无法加载 UDBBS 扩展库');
+            if (!getMetadata('frost')) sets.frostError = new Error('无法加载 FrostEditor 扩展库');
+            this.setState(sets);
+        }).catch(() => {});
 
-        if (!this.state.astraExtensions) {
-            fetchAstraExtensions()
-                .then(extensions => {
-                    cachedAstraExtensions = extensions;
-                    this.setState({
-                        astraExtensions: extensions
-                    });
-                })
-                .catch(error => {
-                    log.error(error);
-                    this.setState({
-                        astraError: error
-                    });
-                });
-        }
-
-        if (!this.state.udbbsExtensions) {
-            fetchUdbbsExtensions()
-                .then(extensions => {
-                    cachedUdbbsExtensions = extensions;
-                    this.setState({
-                        udbbsExtensions: extensions
-                    });
-                })
-                .catch(error => {
-                    log.error(error);
-                    this.setState({
-                        udbbsError: error
-                    });
-                });
-        }
-
-        if (!this.state.frostExtensions) {
-            fetchFrostEditorExtensions()
-                .then(extensions => {
-                    cachedFrostExtensions = extensions;
-                    this.setState({
-                        frostExtensions: extensions
-                    });
-                })
-                .catch(error => {
-                    log.error(error);
-                    this.setState({
-                        frostError: error
-                    });
-                });
-        }
-        
         // 监听扩展添加事件，保存扩展信息
         this.props.vm.on('EXTENSION_ADDED', this.handleExtensionAdded);
-        
+
         // 初始化已加载扩展的信息（对于组件挂载前就加载的扩展）
         this.initLoadedExtensionsInfo();
     }
@@ -354,24 +307,24 @@ class ExtensionLibrary extends React.PureComponent {
         if (runtime && runtime._blockInfo) {
             const extensionInfoMap = {};
             const coreExtensions = [
-                'motion', 'looks', 'sound', 'events', 'control', 'sensing', 
+                'motion', 'looks', 'sound', 'events', 'control', 'sensing',
                 'operators', 'variables', 'myBlocks'
             ];
-            
+
             for (const blockInfo of runtime._blockInfo) {
                 // 跳过核心扩展
                 if (coreExtensions.includes(blockInfo.id)) {
                     continue;
                 }
-                
+
                 extensionInfoMap[blockInfo.id] = {
                     id: blockInfo.id,
                     name: blockInfo.name,
                     iconURL: blockInfo.blockIconURI || blockInfo.menuIconURI || null
                 };
             }
-            
-            this.setState({ extensionInfoMap });
+
+            this.setState({extensionInfoMap});
         }
     }
     handleExtensionAdded (extensionInfo) {
@@ -388,7 +341,8 @@ class ExtensionLibrary extends React.PureComponent {
         }));
     }
     componentWillUnmount () {
-        // 移除事件监听
+        // 移除订阅与事件监听
+        if (this._unsub) this._unsub();
         if (this.props.vm) {
             this.props.vm.removeListener('EXTENSION_ADDED', this.handleExtensionAdded);
         }
@@ -651,13 +605,13 @@ class ExtensionLibrary extends React.PureComponent {
         const extensionManager = this.props.vm.extensionManager;
         const runtime = this.props.vm.runtime;
         const loadedExtensions = [];
-        
+
         // 核心扩展列表（这些是 Scratch 核心分类，不是扩展）
         const coreExtensions = [
-            'motion', 'looks', 'sound', 'events', 'control', 'sensing', 
+            'motion', 'looks', 'sound', 'events', 'control', 'sensing',
             'operators', 'variables', 'myBlocks'
         ];
-        
+
         // 从 _loadedExtensions 获取已加载的扩展
         if (extensionManager._loadedExtensions) {
             for (const [extensionId, serviceName] of extensionManager._loadedExtensions.entries()) {
@@ -665,30 +619,30 @@ class ExtensionLibrary extends React.PureComponent {
                 if (coreExtensions.includes(extensionId)) {
                     continue;
                 }
-                
+
                 // 跳过自定义扩展入口
                 if (extensionId === 'customExtension') {
                     continue;
                 }
-                
+
                 // 从 runtime._blockInfo 中获取该扩展的积木信息
                 let extBlockInfo = null;
                 if (runtime && runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
                     extBlockInfo = runtime._blockInfo.find(info => info.id === extensionId);
                 }
-                
+
                 // 优先从事件保存的扩展信息中获取
                 const savedInfo = this.state.extensionInfoMap[extensionId];
                 let name = extensionId;
                 let description = serviceName;
                 let iconURL = null;
                 let isBuiltin = false;
-                
+
                 // 检查是否是内置扩展
                 if (extensionManager.isBuiltinExtension && extensionManager.isBuiltinExtension(extensionId)) {
                     isBuiltin = true;
                 }
-                
+
                 if (savedInfo) {
                     name = savedInfo.name || extensionId;
                     iconURL = savedInfo.iconURL || null;
@@ -696,31 +650,31 @@ class ExtensionLibrary extends React.PureComponent {
                 } else {
                     description = isBuiltin ? '内置扩展' : serviceName;
                 }
-                
+
                 // 如果没有保存的信息，尝试从扩展库中匹配
                 if (!savedInfo) {
                     // 获取已加载扩展的 URL
                     const extensionURLs = extensionManager.getExtensionURLs ? extensionManager.getExtensionURLs() : {};
                     const extURL = extensionURLs[extensionId];
-                    
+
                     // 收集所有扩展库中的扩展，用于匹配
                     const allLibraryExtensions = [];
-                    
+
                     // 添加本地扩展
                     if (extensionLibraryContent && Array.isArray(extensionLibraryContent)) {
                         allLibraryExtensions.push(...extensionLibraryContent);
                     }
-                    
+
                     // 添加 TurboWarp 扩展
                     if (this.state.gallery && Array.isArray(this.state.gallery)) {
                         allLibraryExtensions.push(...this.state.gallery);
                     }
-                    
+
                     // 添加 AstraEditor 扩展
                     if (this.state.astraExtensions && Array.isArray(this.state.astraExtensions)) {
                         allLibraryExtensions.push(...this.state.astraExtensions);
                     }
-                    
+
                     // 添加 UDBBS 扩展
                     if (this.state.udbbsExtensions && Array.isArray(this.state.udbbsExtensions)) {
                         allLibraryExtensions.push(...this.state.udbbsExtensions);
@@ -730,7 +684,7 @@ class ExtensionLibrary extends React.PureComponent {
                     if (this.state.frostExtensions && Array.isArray(this.state.frostExtensions)) {
                         allLibraryExtensions.push(...this.state.frostExtensions);
                     }
-                    
+
                     // 规范化 URL，用于匹配
                     const normalizeURL = (url) => {
                         if (!url) return '';
@@ -741,30 +695,30 @@ class ExtensionLibrary extends React.PureComponent {
                             return url.toLowerCase();
                         }
                     };
-                    
+
                     // 尝试通过 URL 匹配
                     let matchedExtension = null;
                     if (extURL) {
                         const normalizedURL = normalizeURL(extURL);
-                        matchedExtension = allLibraryExtensions.find(ext => 
+                        matchedExtension = allLibraryExtensions.find(ext =>
                             ext.extensionURL && normalizeURL(ext.extensionURL) === normalizedURL
                         );
                     }
-                    
+
                     // 如果没找到，尝试通过 extensionId 匹配
                     if (!matchedExtension) {
-                        matchedExtension = allLibraryExtensions.find(ext => 
+                        matchedExtension = allLibraryExtensions.find(ext =>
                             ext.extensionId === extensionId
                         );
                     }
-                    
+
                     if (matchedExtension) {
                         name = matchedExtension.name || extensionId;
                         description = isBuiltin ? '内置扩展' : (matchedExtension.description || '');
                         iconURL = matchedExtension.iconURL || null;
                     }
                 }
-                
+
                 loadedExtensions.push({
                     id: extensionId,
                     name: name,
@@ -775,14 +729,14 @@ class ExtensionLibrary extends React.PureComponent {
                 });
             }
         }
-        
+
         return loadedExtensions;
     }
 
     handleRemoveExtension (extensionId) {
         const extensionManager = this.props.vm.extensionManager;
         const runtime = this.props.vm.runtime;
-        
+
         try {
             // 0. 获取该扩展的所有积木 opcode
             //    注意：runtime._blockInfo 里每个 block 的结构是
@@ -807,11 +761,11 @@ class ExtensionLibrary extends React.PureComponent {
                     }
                 }
             }
-            
+
             // 0.1 从 VM 中删除积木
             if (runtime && runtime.targets && extensionOpcodes.size > 0) {
                 const blocksToDelete = [];
-                
+
                 for (const target of runtime.targets) {
                     if (target.blocks && target.blocks._blocks) {
                         const blocks = target.blocks._blocks;
@@ -819,20 +773,20 @@ class ExtensionLibrary extends React.PureComponent {
                             if (Object.prototype.hasOwnProperty.call(blocks, blockId)) {
                                 const block = blocks[blockId];
                                 if (block.opcode && extensionOpcodes.has(block.opcode)) {
-                                    blocksToDelete.push({ target, blockId });
+                                    blocksToDelete.push({target, blockId});
                                 }
                             }
                         }
                     }
                 }
-                
-                for (const { target, blockId } of blocksToDelete) {
+
+                for (const {target, blockId} of blocksToDelete) {
                     if (target.blocks && target.blocks.deleteBlock) {
                         target.blocks.deleteBlock(blockId);
                     }
                 }
             }
-            
+
             // 0.2 直接从 Blockly 工作区删除积木（确保 UI 上也消失）
             const Blockly = window.ScratchBlocks || window.Blockly;
             if (Blockly) {
@@ -852,7 +806,7 @@ class ExtensionLibrary extends React.PureComponent {
             if (this.props.vm.emitWorkspaceUpdate) {
                 this.props.vm.emitWorkspaceUpdate();
             }
-            
+
             // 1. 检查扩展是否存在并获取 serviceName
             let serviceName = null;
             if (extensionManager._loadedExtensions instanceof Map) {
@@ -860,12 +814,12 @@ class ExtensionLibrary extends React.PureComponent {
             } else if (typeof extensionManager._loadedExtensions === 'object') {
                 serviceName = extensionManager._loadedExtensions[extensionId];
             }
-            
+
             if (!serviceName) {
                 alert(`扩展 ${extensionId} 未找到`);
                 return;
             }
-            
+
             // 2. 从 runtime 的 _blockInfo 中移除扩展分类
             if (runtime._blockInfo && Array.isArray(runtime._blockInfo)) {
                 const blockInfoIndex = runtime._blockInfo.findIndex(info => info.id === extensionId);
@@ -873,7 +827,7 @@ class ExtensionLibrary extends React.PureComponent {
                     runtime._blockInfo.splice(blockInfoIndex, 1);
                 }
             }
-            
+
             // 3. 清理 worker 相关信息（如果是 worker 模式）
             if (typeof serviceName === 'string') {
                 const workerIdMatch = serviceName.match(/extension_(\d+)_/);
@@ -887,17 +841,17 @@ class ExtensionLibrary extends React.PureComponent {
                     }
                 }
             }
-            
+
             // 4. 从 _loadedExtensions 中移除
             if (extensionManager._loadedExtensions instanceof Map) {
                 extensionManager._loadedExtensions.delete(extensionId);
             } else if (typeof extensionManager._loadedExtensions === 'object') {
                 delete extensionManager._loadedExtensions[extensionId];
             }
-            
+
             // 5. 触发扩展移除事件，通知 UI 更新
             if (this.props.vm.emit) {
-                this.props.vm.emit('EXTENSION_REMOVED', { id: extensionId });
+                this.props.vm.emit('EXTENSION_REMOVED', {id: extensionId});
             }
 
             // 6. 同步到协作房间（如果在协作中）
@@ -914,7 +868,7 @@ class ExtensionLibrary extends React.PureComponent {
             this.setState({
                 loadedExtensions: loadedExtensions
             });
-            
+
             // 7. 提示用户
             alert(`扩展 ${extensionId} 已卸载。`);
         } catch (error) {
@@ -928,7 +882,11 @@ class ExtensionLibrary extends React.PureComponent {
         // "Browse blocks" button) are visible even before the online gallery
         // finishes loading or fails.
         let library = extensionLibraryContent.map(toLibraryItem);
-        if (this.state.gallery || this.state.galleryError || this.state.galleryTimedOut) {
+        const remoteReady = this.state.gallery || this.state.galleryError || this.state.galleryTimedOut ||
+            this.state.astraExtensions || this.state.astraError ||
+            this.state.udbbsExtensions || this.state.udbbsError ||
+            this.state.frostExtensions || this.state.frostError;
+        if (remoteReady) {
             library.push('---');
             if (this.state.gallery) {
                 library.push(toLibraryItem(galleryMore));
@@ -947,14 +905,13 @@ class ExtensionLibrary extends React.PureComponent {
 
             // 添加 FrostEditor 官方扩展仓库（我们自己的扩展仓库，排在第三方库之前）
             if (this.state.frostExtensions && this.state.frostExtensions.length > 0) {
-                const base = (process.env.EXTENSIONS_URL || 'https://extensions.froste.top/');
                 library.push('---');
                 library.push(toLibraryItem({
                     name: 'FrostEditor 扩展库',
                     extensionId: 'frosteditor-gallery',
-                    iconURL: `${base}frosteditor.png`,
-                    description: `来自 FrostEditor 官方扩展仓库的扩展收集，前往 ${base} 查看更多。`,
-                    href: base,
+                    iconURL: `${FROST_BASE}frosteditor.png`,
+                    description: `来自 FrostEditor 官方扩展仓库的扩展收集，前往 ${FROST_BASE} 查看更多。`,
+                    href: FROST_BASE,
                     tags: ['frosteditor'],
                     featured: true
                 }));
@@ -1006,18 +963,18 @@ class ExtensionLibrary extends React.PureComponent {
                 );
             }
 
-            
+
             // 去重：屏蔽与其他分类 ID 相同的扩展
             const seenExtensionIds = new Set();
             const deduplicatedLibrary = [];
-            
+
             for (const item of library) {
                 // 分隔符直接添加
                 if (item === '---') {
                     deduplicatedLibrary.push(item);
                     continue;
                 }
-                
+
                 // 如果是对象且有 extensionId，检查是否重复
                 if (typeof item === 'object' && item.extensionId) {
                     // 跳过特殊的分类标题项（如 gallery 标题）
@@ -1025,17 +982,17 @@ class ExtensionLibrary extends React.PureComponent {
                         deduplicatedLibrary.push(item);
                         continue;
                     }
-                    
+
                     // 如果已经出现过相同的 extensionId，跳过
                     if (seenExtensionIds.has(item.extensionId)) {
                         continue;
                     }
                     seenExtensionIds.add(item.extensionId);
                 }
-                
+
                 deduplicatedLibrary.push(item);
             }
-            
+
             library = deduplicatedLibrary;
         }
 
