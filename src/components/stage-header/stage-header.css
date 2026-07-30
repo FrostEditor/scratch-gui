@@ -136,6 +136,12 @@
     user-select: none;
 }
 
+.stage-size-menu-item-label {
+    flex-grow: 1;
+    text-align: left;
+    white-space: nowrap;
+}
+
 .stage-size-menu-item:hover {
     background-color: $ui-tertiary;
 }

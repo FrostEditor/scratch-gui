@@ -94,11 +94,6 @@ const messages = defineMessages({
         defaultMessage: '舞台大小',
         description: 'Button to open the stage size menu',
         id: 'tw.stageHeader.stageSizeMenu'
-    },
-    stageSizeCustomMessage: {
-        defaultMessage: '自定义',
-        description: 'Custom stage size option in the stage size menu',
-        id: 'tw.stageHeader.stageSizeCustom'
     }
 });
 
@@ -171,8 +166,6 @@ const StageHeaderComponent = function (props) {
         onSetStageZoom(zoom);
         setMenuOpen(false);
     };
-    const activePreset = STAGE_SIZE_PRESETS.find(p => Math.abs(p.zoom - stageZoom) < 0.01);
-    const isCustom = !activePreset;
 
     let header = null;
 
@@ -285,7 +278,7 @@ const StageHeaderComponent = function (props) {
             >
                 <Button
                     className={classNames(styles.stageButton, {
-                        [styles.stageButtonActive]: menuOpen || !isCustom
+                        [styles.stageButtonActive]: menuOpen
                     })}
                     onClick={() => setMenuOpen(o => !o)}
                 >
@@ -317,23 +310,6 @@ const StageHeaderComponent = function (props) {
                                 </span>
                             </button>
                         ))}
-                        <div className={styles.stageSizeSliderRow}>
-                            <span className={styles.stageSizeSliderLabel}>
-                                {props.intl.formatMessage(messages.stageSizeCustomMessage)}
-                            </span>
-                            <input
-                                type="range"
-                                className={styles.stageSizeSlider}
-                                min={0.25}
-                                max={3}
-                                step={0.05}
-                                value={stageZoom}
-                                onChange={e => handleStageSizeSelect(Number(e.target.value))}
-                            />
-                            <span className={styles.stageSizeSliderValue}>
-                                {`${Math.round(stageZoom * 100)}%`}
-                            </span>
-                        </div>
                     </div>
                 )}
             </div>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="20px" height="20px" viewBox="0 0 20 20" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Code Text</title>
+    <g id="code-text" stroke="#855CD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M7 4 C 4.5 4, 4.5 7.5, 6 10 C 4.5 12.5, 4.5 16, 7 16"/>
+        <path d="M13 4 C 15.5 4, 15.5 7.5, 14 10 C 15.5 12.5, 15.5 16, 13 16"/>
+    </g>
+</svg>
