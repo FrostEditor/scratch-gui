@@ -67,7 +67,7 @@ class ExtensionBlocksPreview extends React.Component {
         this.workspace = null;
         this._realMain = null;
         this._attempts = 0;
-        this._maxAttempts = 30; // 最多约 3s 重试，等待引擎 / 容器挂载
+        this._maxAttempts = 60; // 最多约 6s 重试，等待引擎 / 容器挂载（嵌入模式首次需动态加载 chunk）
         this._retryReason = null;
         this._pinchContainer = null;
         this.resizeTimers = [];
@@ -97,14 +97,17 @@ class ExtensionBlocksPreview extends React.Component {
     }
 
     // 取得编辑器真正使用的 scratch-blocks 单例。
+    //
+    // 优先用 LazyScratchBlocks：它与 blocks.jsx / scratch-vm 通过 webpack 共享同一份
+    // scratch-blocks 模块实例，补注册进去的积木定义在编辑器主工作区与浏览预览里通用。
+    // 直接访问（非嵌入）时_blocks.jsx 会在挂载时把同一份实例挂到 window.ScratchBlocks，
+    // 这里两种来源都认，保证任何上下文都能拿到渲染器。
     getScratchBlocks () {
-        try {
+        if (LazyScratchBlocks.isLoaded()) {
             const sb = LazyScratchBlocks.get();
             if (sb && sb.inject) {
                 return sb;
             }
-        } catch (e) {
-            // 忽略，回退到 window.ScratchBlocks
         }
         if (typeof window !== 'undefined' && window.ScratchBlocks && window.ScratchBlocks.inject) {
             return window.ScratchBlocks;
@@ -286,6 +289,22 @@ class ExtensionBlocksPreview extends React.Component {
     renderBlocks () {
         const ScratchBlocks = this.getScratchBlocks();
         if (!ScratchBlocks || !ScratchBlocks.inject) {
+            // 嵌入模式（isEmbedded）下 GUI 不会挂载 Blocks 容器，window.ScratchBlocks
+            // 永不被设置，也没有人预先加载 scratch-blocks 模块——浏览积木因此始终拿不到
+            // 渲染器。这里主动触发懒加载，使后续重试能拿到同一份实例。
+            if (!LazyScratchBlocks.isLoaded()) {
+                LazyScratchBlocks.load()
+                    .then(sb => {
+                        // 让其他仍依赖 window.ScratchBlocks 的代码在嵌入模式也能用。
+                        if (typeof window !== 'undefined' && !window.ScratchBlocks && sb) {
+                            window.ScratchBlocks = sb;
+                        }
+                    })
+                    .catch(e => {
+                        // eslint-disable-next-line no-console
+                        console.warn('EXTBLOCKS_LOAD_WARN', e);
+                    });
+            }
             // 引擎还没就绪——稍后重试。
             if (this._attempts < this._maxAttempts) {
                 this._attempts++;
