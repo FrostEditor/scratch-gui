@@ -43,6 +43,7 @@ import TWUnknownPlatformModal from '../../containers/tw-unknown-platform-modal.j
 import TWInvalidProjectModal from '../../containers/tw-invalid-project-modal.jsx';
 import CollaborationCursor from '../collaboration-cursor/collaboration-cursor.jsx';
 import UpdateModal from '../tw-update-modal/update-modal.jsx';
+import Onboarding from '../onboarding/onboarding.jsx';
 import {checkForUpdates} from '../../lib/update-checker';
 
 import {
@@ -290,6 +291,7 @@ const GUIComponent = props => {
                     {...componentProps}
                 >
                     {alwaysEnabledModals}
+                    <Onboarding />
                     {telemetryModalVisible ? (
                         <TelemetryModal
                             isRtl={isRtl}
