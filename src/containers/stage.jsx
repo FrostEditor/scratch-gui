@@ -110,6 +110,7 @@ class Stage extends React.Component {
             this.props.isColorPicking !== nextProps.isColorPicking ||
             this.state.colorInfo !== nextState.colorInfo ||
             this.props.isFullScreen !== nextProps.isFullScreen ||
+            this.props.isEmbedded !== nextProps.isEmbedded ||
             this.props.isWindowFullScreen !== nextProps.isWindowFullScreen ||
             this.props.dimensions !== nextProps.dimensions ||
             this.state.question !== nextState.question ||
@@ -509,6 +510,7 @@ Stage.propTypes = {
     }),
     disableEditingTargetChange: PropTypes.bool,
     isColorPicking: PropTypes.bool,
+    isEmbedded: PropTypes.bool,
     isFullScreen: PropTypes.bool.isRequired,
     isPlayerOnly: PropTypes.bool,
     isRtl: PropTypes.bool,
@@ -537,7 +539,9 @@ const mapStateToProps = state => ({
         state.scratchGui.mode.isPlayerOnly
     ),
     isColorPicking: state.scratchGui.colorPicker.active,
-    // tw: 同 gui.jsx，不再把 isEmbedded 并入 isFullScreen（否则 embed 页恒为“已全屏”）
+    // tw: embed 模式需要传入 isEmbedded，让 stage 组件按窗口尺寸铺满舞台
+    isEmbedded: state.scratchGui.mode.isEmbedded,
+    // tw: 同 gui.jsx，不再把 isEmbedded 并入 isFullScreen（否则 embed 页恒为"已全屏"）
     isFullScreen: state.scratchGui.mode.isFullScreen,
     isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
     isRtl: state.locales.isRtl,
