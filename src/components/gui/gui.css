@@ -201,23 +201,17 @@
     position: relative;
 }
 
-.stage-and-target-wrapper {
-    /*
-        Makes rows for children:
-          1) stage menu
-          2) stage
-          3) sprite/stage selectors
-        Only reason we need this, is so .targetWrapper, which holds the selectors,
-        goes to full vertical height of the window
-    */
+.stage-column {
     display: flex;
     flex-direction: column;
     /* pad entire wrapper to the left and right; allow children to fill width */
     padding-left: $space;
     padding-right: $space;
 
-    /* this will only ever be as wide as the stage */
+    /* 中栏吸收积木栏 / 角色栏之外的剩余空间 */
+    flex-grow: 1;
     flex-basis: 0;
+    min-width: 0;
 }
 
 /* tw: embed 模式（被 iframe 嵌入 / embed.html 打开）时，隐藏左右编辑面板，
@@ -249,10 +243,11 @@
     justify-content: center;
 }
 .embedded .editor-wrapper,
-.embedded .target-wrapper {
+.embedded .target-wrapper,
+.embedded .target-column {
     display: none;
 }
-.embedded .stage-and-target-wrapper {
+.embedded .stage-column {
     flex-basis: auto;
     align-items: center;
 }
@@ -271,6 +266,47 @@
     */
     /* TODO this also breaks the thermometer menu */
     /* overflow: hidden; */
+}
+
+/* 三栏布局：右栏（角色 / 舞台选择器），宽度可拖拽调整 */
+.target-column {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 240px;
+    flex-shrink: 0;
+    min-height: 0;
+    padding-left: $space;
+    padding-right: $space;
+    padding-top: $space;
+    background-color: $ui-primary;
+}
+
+/* 可拖拽分隔条（积木栏 ↔ 角色栏 之间） */
+.resize-handle {
+    flex: 0 0 6px;
+    align-self: stretch;
+    cursor: col-resize;
+    background-color: transparent;
+    position: relative;
+    z-index: 5;
+}
+
+.resize-handle::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    background-color: $ui-black-transparent;
+    transition: background-color 0.15s ease, width 0.15s ease;
+}
+
+.resize-handle:hover::after,
+.resize-handle:active::after {
+    background-color: $ui-border;
+    width: 3px;
 }
 
 .extension-button-container {
@@ -395,7 +431,7 @@ $fade-out-distance: 15px;
     flex-direction: column;
 }
 
-.phone-mode .stage-and-target-wrapper {
+.phone-mode .stage-column {
     order: 1;
     flex: 0 0 auto;
     flex-basis: auto;
@@ -415,11 +451,16 @@ $fade-out-distance: 15px;
 }
 
 /* 精灵/舞台选择面板：全宽、限高，内部自行滚动。 */
-.phone-mode .target-wrapper {
+.phone-mode .target-column {
+    order: 3;
     width: 100%;
     max-height: 8.5rem;
     padding-top: 0.25rem;
     overflow: hidden;
+}
+
+.phone-mode .resize-handle {
+    display: none;
 }
 
 /* 标签栏铺满宽度，方便手指点按。 */
@@ -455,7 +496,7 @@ $fade-out-distance: 15px;
     animation: tw-gui-slide-in-left 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
 }
 
-.stage-and-target-wrapper {
+.stage-column {
     animation: tw-gui-slide-in-right 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
 }
 
@@ -541,7 +582,7 @@ $fade-out-distance: 15px;
     .body-wrapper,
     .flex-wrapper,
     .editor-wrapper,
-    .stage-and-target-wrapper,
+    .stage-column,
     .tab-list,
     .tab-panel.is-selected,
     .extension-button-container {

@@ -186,6 +186,10 @@ const GUIComponent = props => {
         const stored = parseInt(localStorage.getItem('frostBlocksWidth'), 10);
         return Number.isFinite(stored) && stored >= 320 && stored <= 1100 ? stored : null;
     });
+    const [targetWidth, setTargetWidth] = React.useState(() => {
+        const stored = parseInt(localStorage.getItem('frostTargetWidth'), 10);
+        return Number.isFinite(stored) && stored >= 200 && stored <= 600 ? stored : null;
+    });
     const resizeState = React.useRef(null);
 
     const handleResizeMove = React.useCallback((e) => {
@@ -194,8 +198,13 @@ const GUIComponent = props => {
         const delta = e.clientX - s.startX;
         const deltaSigned = s.isRtl ? -delta : delta;
         let next = s.startWidth + deltaSigned;
-        next = Math.max(320, Math.min(1100, next));
-        setBlocksWidth(next);
+        if (s.which === 'blocks') {
+            next = Math.max(320, Math.min(1100, next));
+            setBlocksWidth(next);
+        } else {
+            next = Math.max(200, Math.min(600, next));
+            setTargetWidth(next);
+        }
     }, []);
 
     const handleResizeEnd = React.useCallback(() => {
@@ -208,16 +217,22 @@ const GUIComponent = props => {
             if (current) localStorage.setItem('frostBlocksWidth', String(current));
             return current;
         });
+        setTargetWidth(current => {
+            if (current) localStorage.setItem('frostTargetWidth', String(current));
+            return current;
+        });
     }, [handleResizeMove]);
 
-    const handleResizeStart = React.useCallback((e) => {
+    // which: 'blocks' 调左栏（积木）宽度；'target' 调右栏（角色）宽度
+    const handleResizeStart = React.useCallback((which) => (e) => {
         e.preventDefault();
-        const editorEl = e.currentTarget.previousElementSibling;
-        const startWidth = editorEl ? editorEl.offsetWidth : 600;
+        const colEl = e.currentTarget.previousElementSibling;
+        const startWidth = colEl ? colEl.offsetWidth : (which === 'blocks' ? 600 : 300);
         resizeState.current = {
             startWidth,
             startX: e.clientX,
-            isRtl: document.documentElement.dir === 'rtl'
+            isRtl: document.documentElement.dir === 'rtl',
+            which
         };
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'col-resize';
@@ -584,14 +599,14 @@ const GUIComponent = props => {
                             {!isEmbedded && !isPhone && (
                                 <Box
                                     className={styles.resizeHandle}
-                                    onMouseDown={handleResizeStart}
+                                    onMouseDown={handleResizeStart('blocks')}
                                     title="拖拽调整积木栏宽度"
                                 />
                             )}
 
                             <Box
-                                className={classNames(styles.stageAndTargetWrapper, styles[stageSize])}
-                                style={blocksWidth ? {flexGrow: 1} : undefined}
+                                className={classNames(styles.stageColumn, styles[stageSize])}
+                                style={blocksWidth || targetWidth ? {flexGrow: 1} : undefined}
                             >
                                 <StageWrapper
                                     isFullScreen={isFullScreen}
@@ -600,13 +615,27 @@ const GUIComponent = props => {
                                     stageSize={stageSize}
                                     vm={vm}
                                 />
-                                {!isEmbedded && (<Box className={styles.targetWrapper}>
+                            </Box>
+
+                            {!isEmbedded && !isPhone && (
+                                <Box
+                                    className={styles.resizeHandle}
+                                    onMouseDown={handleResizeStart('target')}
+                                    title="拖拽调整角色栏宽度"
+                                />
+                            )}
+
+                            {!isEmbedded && (
+                                <Box
+                                    className={styles.targetColumn}
+                                    style={targetWidth ? {flex: `0 1 ${targetWidth}px`, minWidth: 200} : undefined}
+                                >
                                     <TargetPane
                                         stageSize={stageSize}
                                         vm={vm}
                                     />
-                                </Box>)}
-                            </Box>
+                                </Box>
+                            )}
                         </Box>
                     </Box>
                     <DragLayer />
