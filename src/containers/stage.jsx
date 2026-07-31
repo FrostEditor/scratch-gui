@@ -130,6 +130,7 @@ class Stage extends React.Component {
             this.props.stageSize !== prevProps.stageSize ||
             this.props.stageZoom !== prevProps.stageZoom ||
             this.props.isFullScreen !== prevProps.isFullScreen ||
+            this.props.isEmbedded !== prevProps.isEmbedded ||
             this.props.isWindowFullScreen !== prevProps.isWindowFullScreen ||
             this.props.customStageSize !== prevProps.customStageSize
         ) {

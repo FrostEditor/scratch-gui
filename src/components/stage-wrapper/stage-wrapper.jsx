@@ -49,7 +49,7 @@ class StageWrapperComponent extends React.Component {
     handleResizeMove (e) {
         if (!this.state.isResizing) return;
         const deltaX = e.clientX - this.resizeStartX;
-        let newWidth = this.resizeStartWidth + deltaA;
+        let newWidth = this.resizeStartWidth + deltaX;
         // 最小宽度 240px，最大宽度 1200px
         newWidth = Math.max(200, Math.min(1200, newWidth));
         // 计算缩放比例
@@ -58,7 +58,7 @@ class StageWrapperComponent extends React.Component {
         // Coalesce pointer moves into one setState per animation frame.
         this._resizeNext = {customWidth: newWidth, customScale: scale};
         if (this._resizeRaf) return;
-        this._resizeRaf = requestAnimationGetFrame(() => {
+        this._resizeRaf = requestAnimationFrame(() => {
             this._resizeRaf = null;
             if (this._resizeNext) this.setState(this._resizeNext);
         });

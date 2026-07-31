@@ -20,6 +20,7 @@ const StageComponent = props => {
         customStageSize,
         dragRef,
         isColorPicking,
+        isEmbedded,
         isFullScreen,
         isPlayerOnly,
         isStarted,
@@ -55,7 +56,9 @@ const StageComponent = props => {
 
     // ===== 计算舞台尺寸（放在最前面，因为后续都会用到） =====
     // tw: 浮动窗口（作品控制页）原生全屏时，让舞台也跟着放大占满窗口
-    const effectiveIsFullScreen = isFullScreen || isNativeFullscreen;
+    // tw: embed 模式（被 iframe 嵌入）时，舞台按窗口（即 iframe）尺寸铺满，
+    // 与原生全屏 / 浮动窗口全屏走同一条 getStageDimensions 全屏分支。
+    const effectiveIsFullScreen = isFullScreen || isNativeFullscreen || isEmbedded;
     let stageDimensions = getStageDimensions(stageSize, customStageSize, effectiveIsFullScreen, stageZoom);
     // tw: 当舞台元素处于原生全屏（F11 式）时，让舞台真正铺满整个屏幕，
     // 而不是沿用 CSS 全屏尺寸（会留出控制条边距）。
@@ -595,6 +598,7 @@ StageComponent.propTypes = {
     colorInfo: Loupe.propTypes.colorInfo,
     dragRef: PropTypes.func,
     isColorPicking: PropTypes.bool,
+    isEmbedded: PropTypes.bool,
     isFullScreen: PropTypes.bool.isRequired,
     isPlayerOnly: PropTypes.bool,
     isRtl: PropTypes.bool,
