@@ -47,6 +47,7 @@ class Stage extends React.Component {
             'onWheel',
             'onContextMenu',
             'updateRect',
+            'scheduleUpdateRect',
             'questionListener',
             'setDragCanvas',
             'clearDragCanvas',
@@ -99,6 +100,8 @@ class Stage extends React.Component {
         this.attachMouseEvents(this.canvas);
         this.updateRect();
         this.renderer.resize(this.rect.width, this.rect.height);
+        this._lastResizeW = Math.round(this.rect.width);
+        this._lastResizeH = Math.round(this.rect.height);
         this.props.vm.runtime.addListener('QUESTION', this.questionListener);
     }
     shouldComponentUpdate (nextProps, nextState) {
@@ -120,8 +123,24 @@ class Stage extends React.Component {
         } else if (!this.props.isColorPicking && prevProps.isColorPicking) {
             this.stopColorPickingLoop();
         }
-        this.updateRect();
-        this.renderer.resize(this.rect.width, this.rect.height);
+        // 仅在影响舞台显示尺寸的 prop 变化时才重算矩形与 WebGL 分辨率，
+        // 避免每次（如问答框、麦克风指示、高亮等）都触发强制布局回流 + 昂贵的 renderer.resize()。
+        if (this.props.dimensions !== prevProps.dimensions ||
+            this.props.stageSize !== prevProps.stageSize ||
+            this.props.stageZoom !== prevProps.stageZoom ||
+            this.props.isFullScreen !== prevProps.isFullScreen ||
+            this.props.isWindowFullScreen !== prevProps.isWindowFullScreen ||
+            this.props.customStageSize !== prevProps.customStageSize
+        ) {
+            this.updateRect();
+            const w = Math.round(this.rect.width);
+            const h = Math.round(this.rect.height);
+            if (w !== this._lastResizeW || h !== this._lastResizeH) {
+                this.renderer.resize(w, h);
+                this._lastResizeW = w;
+                this._lastResizeH = h;
+            }
+        }
     }
     componentWillUnmount () {
         this.detachMouseEvents(this.canvas);
@@ -170,15 +189,24 @@ class Stage extends React.Component {
         canvas.removeEventListener('contextmenu', this.onContextMenu);
     }
     attachRectEvents () {
-        window.addEventListener('resize', this.updateRect);
-        window.addEventListener('scroll', this.updateRect);
+        window.addEventListener('resize', this.scheduleUpdateRect);
+        window.addEventListener('scroll', this.scheduleUpdateRect, {passive: true});
     }
     detachRectEvents () {
-        window.removeEventListener('resize', this.updateRect);
-        window.removeEventListener('scroll', this.updateRect);
+        window.removeEventListener('resize', this.scheduleUpdateRect);
+        window.removeEventListener('scroll', this.scheduleUpdateRect);
+        if (this._rectRafId != null) cancelAnimationFrame(this._rectRafId);
     }
     updateRect () {
         this.rect = this.canvas.getBoundingClientRect();
+    }
+    // 滚动/缩放时合并到下一帧再读取布局，避免滚动主线程上的同步布局抖动（layout thrashing）。
+    scheduleUpdateRect () {
+        if (this._rectRafId != null) return;
+        this._rectRafId = requestAnimationFrame(() => {
+            this._rectRafId = null;
+            this.rect = this.canvas.getBoundingClientRect();
+        });
     }
     getScratchCoords (x, y) {
         const nativeSize = this.renderer.getNativeSize();

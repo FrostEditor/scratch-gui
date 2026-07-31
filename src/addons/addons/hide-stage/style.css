@@ -10,16 +10,16 @@
 }
 
 /* [class*="gui_flex-wrapper_"] is for specificity over hide-flyout */
-.sa-stage-hidden [class*="gui_flex-wrapper_"] [class*="gui_stage-column_"],
+.sa-stage-hidden [class*="gui_flex-wrapper_"] [class*="gui_stage-and-target-wrapper_"],
 .sa-stage-hidden [class*="stage-wrapper_stage-wrapper_"]:not([class*="stage-wrapper_full-screen_"]),
-.sa-stage-hidden [class*="gui_target-column_"] {
+.sa-stage-hidden [class*="gui_target-wrapper_"] {
   padding: 0;
 }
 
 .sa-stage-hidden
   [class*="stage-wrapper_stage-wrapper_"]:not([class*="stage-wrapper_full-screen_"])
   [class*="controls_controls-container_"],
-.sa-stage-hidden [class*="gui_target-column_"] {
+.sa-stage-hidden [class*="gui_target-wrapper_"] {
   display: none;
 }
 .sa-stage-hidden

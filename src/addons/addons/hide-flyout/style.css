@@ -99,7 +99,7 @@
   filter: var(--editorDarkMode-primary-filter, none);
 }
 
-.sa-hide-flyout-not-fullscreen .sa-body-editor [class*="gui_stage-column"] {
+.sa-hide-flyout-not-fullscreen .sa-body-editor [class*="gui_stage-and-target-wrapper"] {
   position: relative;
   /* We need to be above these to hide the flyout while dragging blocks: */
   /* .blocklyFlyout (z-index: 20) */
@@ -112,7 +112,7 @@
   background-color: var(--editorDarkMode-page, hsl(215, 100%, 95%));
 }
 
-[class*="gui_stage-column_"] {
+[class*="gui_stage-and-target-wrapper_"] {
   padding: 0;
 }
 

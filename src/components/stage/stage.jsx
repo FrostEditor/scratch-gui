@@ -147,33 +147,9 @@ const StageComponent = props => {
     const dragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
     const positionRef = useRef({ x: windowPos.x, y: windowPos.y });
 
-    // FPS 相关
-    const [fps, setFps] = useState(0);
-    const [isFpsCollapsed, setIsFpsCollapsed] = useState(false);
-    const [fpsPos, setFpsPos] = useState({ x: 20, y: 20 });
-    const fpsRef = useRef(null);
-    const fpsDragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
-    const fpsTitleRef = useRef(null);
-    const fpsBallRef = useRef(null);
-
-    // FPS 测量
-    useEffect(() => {
-        let frameCount = 0;
-        let lastTime = performance.now();
-        let rafId = null;
-        const measure = () => {
-            const now = performance.now();
-            frameCount++;
-            if (now - lastTime >= 1000) {
-                setFps(frameCount);
-                frameCount = 0;
-                lastTime = now;
-            }
-            rafId = requestAnimationFrame(measure);
-        };
-        measure();
-        return () => cancelAnimationFrame(rafId);
-    }, []);
+    // FPS 计数器已抽离为独立的 <FpsWindow /> 子组件（见文件底部）。
+    // 仅在浮动窗口模式（windowMode）开启时挂载并运行 rAF，
+    // 避免默认情况下每秒强制重渲染整个舞台子树。
 
     // 监听原生全屏变化
     useEffect(() => {
@@ -247,76 +223,7 @@ const StageComponent = props => {
         };
     }, [windowPos]);
 
-    // FPS 小窗口拖拽
-    useEffect(() => {
-        const target = isFpsCollapsed ? fpsBallRef.current : fpsTitleRef.current;
-        if (!target || !fpsRef.current) return;
-
-        const container = fpsRef.current.parentElement;
-        if (!container) return;
-
-        const onFpsDragStart = (e) => {
-            if (isFpsCollapsed) return;
-            e.preventDefault();
-            const rect = fpsRef.current.getBoundingClientRect();
-            const clientX = e.clientX || e.touches?.[0]?.clientX;
-            const clientY = e.clientY || e.touches?.[0]?.clientY;
-            if (clientX == null) return;
-            fpsDragData.current = {
-                isDragging: true,
-                offsetX: clientX - rect.left,
-                offsetY: clientY - rect.top,
-            };
-
-            const onMove = (ev) => {
-                if (!fpsDragData.current.isDragging) return;
-                const cx = ev.clientX || ev.touches?.[0]?.clientX;
-                const cy = ev.clientY || ev.touches?.[0]?.clientY;
-                if (cx == null) return;
-                const containerRect = container.getBoundingClientRect();
-                const winWidth = fpsRef.current.offsetWidth;
-                const winHeight = fpsRef.current.offsetHeight;
-                let newX = cx - containerRect.left - fpsDragData.current.offsetX;
-                let newY = cy - containerRect.top - fpsDragData.current.offsetY;
-                const maxX = Math.max(0, containerRect.width - winWidth);
-                const maxY = Math.max(0, containerRect.height - winHeight);
-                newX = Math.max(0, Math.min(newX, maxX));
-                newY = Math.max(0, Math.min(newY, maxY));
-                if (fpsRef.current) {
-                    fpsRef.current.style.left = newX + 'px';
-                    fpsRef.current.style.top = newY + 'px';
-                }
-                fpsDragData.current.lastPos = { x: newX, y: newY };
-            };
-
-            const onUp = () => {
-                fpsDragData.current.isDragging = false;
-                if (fpsDragData.current.lastPos) {
-                    setFpsPos(fpsDragData.current.lastPos);
-                }
-                window.removeEventListener('mousemove', onMove);
-                window.removeEventListener('mouseup', onUp);
-                window.removeEventListener('touchmove', onMove);
-                window.removeEventListener('touchend', onUp);
-            };
-
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-            window.addEventListener('touchmove', onMove, { passive: false });
-            window.addEventListener('touchend', onUp);
-        };
-
-        target.addEventListener('mousedown', onFpsDragStart);
-        target.addEventListener('touchstart', onFpsDragStart, { passive: false });
-
-        return () => {
-            target.removeEventListener('mousedown', onFpsDragStart);
-            target.removeEventListener('touchstart', onFpsDragStart);
-        };
-    }, [isFpsCollapsed]);
-
     const toggleMinimize = useCallback(() => setIsMinimized(prev => !prev), []);
-    const toggleFpsCollapse = useCallback(() => setIsFpsCollapsed(prev => !prev), []);
     const toggleFullscreen = useCallback(async () => {
         if (!windowRef.current) return;
         try {
@@ -331,123 +238,11 @@ const StageComponent = props => {
     }, []);
 
     // FPS 小窗口 JSX
-    const fpsWindow = (
-        <div
-            ref={fpsRef}
-            style={{
-                position: 'absolute',
-                left: fpsPos.x,
-                top: fpsPos.y,
-                zIndex: 100000,
-                userSelect: 'none',
-                fontFamily: 'Segoe UI, sans-serif',
-                pointerEvents: 'auto',
-                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                transform: isFpsCollapsed ? 'scale(0.7)' : 'scale(1)',
-                opacity: 1,
-            }}
-        >
-            {isFpsCollapsed ? (
-                <div
-                    ref={fpsBallRef}
-                    onClick={toggleFpsCollapse}
-                    style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        background: 'rgba(30,30,30,0.85)',
-                        backdropFilter: 'blur(4px)',
-                        border: '2px solid rgba(0,255,0,0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#0f0',
-                        fontSize: '18px',
-                        fontWeight: 'bold',
-                        fontFamily: 'monospace',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
-                        cursor: 'pointer',
-                        pointerEvents: 'auto',
-                    }}
-                    title="展开 FPS"
-                >
-                    {fps}
-                </div>
-            ) : (
-                <div
-                    style={{
-                        width: '160px',
-                        backgroundColor: 'rgba(30,30,30,0.85)',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-                        backdropFilter: 'blur(8px)',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        pointerEvents: 'auto',
-                    }}
-                >
-                    <div
-                        ref={fpsTitleRef}
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '8px 12px',
-                            backgroundColor: 'rgba(0,0,0,0.3)',
-                            borderRadius: '8px 8px 0 0',
-                            cursor: 'grab',
-                            color: '#ddd',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            userSelect: 'none',
-                            pointerEvents: 'auto',
-                        }}
-                    >
-                        <span>📊 FPS</span>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsFpsCollapsed(true);
-                            }}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#aaa',
-                                fontSize: '18px',
-                                cursor: 'pointer',
-                                padding: '0 4px',
-                                lineHeight: 1,
-                                pointerEvents: 'auto',
-                            }}
-                            title="折叠"
-                        >
-                            ➖
-                        </button>
-                    </div>
-                    <div
-                        style={{
-                            padding: '14px 10px 16px',
-                            textAlign: 'center',
-                            color: '#0f0',
-                            fontFamily: 'monospace',
-                            fontSize: '28px',
-                            fontWeight: 'bold',
-                            letterSpacing: '1px',
-                            textShadow: '0 0 12px rgba(0,255,0,0.3)',
-                        }}
-                    >
-                        {fps}
-                        <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-
-    // 带 FPS 的舞台内容（用于浮动窗口）
+    // FPS 浮窗仅在浮动窗口模式下挂载（<FpsWindow /> 内部自带 rAF 与拖拽逻辑，见文件底部）
     const stageContentWithFPS = (
         <>
             {originalStageContent}
-            {fpsWindow}
+            <FpsWindow />
         </>
     );
 
@@ -570,6 +365,224 @@ const StageComponent = props => {
                 >
                     ⛶
                 </button>
+            )}
+        </div>
+    );
+};
+
+/**
+ * 独立的 FPS 浮窗组件。
+ * 关键性能优化：整个 rAF 测量循环与 fps 状态都局限在本组件内部，
+ * 且仅在浮动窗口模式（windowMode）开启、本组件被挂载时才运行。
+ * 这样默认情况下舞台主组件 StageComponent 不会再因为 FPS 计数而每秒重渲染，
+ * 从而避免连带重渲染监视器列表、高亮、绿旗遮罩等整棵舞台子树。
+ */
+const FpsWindow = () => {
+    const [fps, setFps] = useState(0);
+    const [isFpsCollapsed, setIsFpsCollapsed] = useState(false);
+    const [fpsPos, setFpsPos] = useState({ x: 20, y: 20 });
+    const fpsRef = useRef(null);
+    const fpsTitleRef = useRef(null);
+    const fpsBallRef = useRef(null);
+    const fpsDragData = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
+
+    // FPS 测量：仅在本组件挂载（浮动窗口开启）时运行，卸载即停止。
+    useEffect(() => {
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let rafId = null;
+        const measure = () => {
+            const now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 1000) {
+                setFps(frameCount);
+                frameCount = 0;
+                lastTime = now;
+            }
+            rafId = requestAnimationFrame(measure);
+        };
+        rafId = requestAnimationFrame(measure);
+        return () => cancelAnimationFrame(rafId);
+    }, []);
+
+    const toggleFpsCollapse = useCallback(() => setIsFpsCollapsed(prev => !prev), []);
+
+    // FPS 小窗口拖拽
+    useEffect(() => {
+        const target = isFpsCollapsed ? fpsBallRef.current : fpsTitleRef.current;
+        if (!target || !fpsRef.current) return;
+
+        const container = fpsRef.current.parentElement;
+        if (!container) return;
+
+        const onFpsDragStart = (e) => {
+            if (isFpsCollapsed) return;
+            e.preventDefault();
+            const rect = fpsRef.current.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (clientX == null) return;
+            fpsDragData.current = {
+                isDragging: true,
+                offsetX: clientX - rect.left,
+                offsetY: clientY - rect.top,
+            };
+
+            const onMove = (ev) => {
+                if (!fpsDragData.current.isDragging) return;
+                const cx = ev.clientX || ev.touches?.[0]?.clientX;
+                const cy = ev.clientY || ev.touches?.[0]?.clientY;
+                if (cx == null) return;
+                const containerRect = container.getBoundingClientRect();
+                const winWidth = fpsRef.current.offsetWidth;
+                const winHeight = fpsRef.current.offsetHeight;
+                let newX = cx - containerRect.left - fpsDragData.current.offsetX;
+                let newY = cy - containerRect.top - fpsDragData.current.offsetY;
+                const maxX = Math.max(0, containerRect.width - winWidth);
+                const maxY = Math.max(0, containerRect.height - winHeight);
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                if (fpsRef.current) {
+                    fpsRef.current.style.left = newX + 'px';
+                    fpsRef.current.style.top = newY + 'px';
+                }
+                fpsDragData.current.lastPos = { x: newX, y: newY };
+            };
+
+            const onUp = () => {
+                fpsDragData.current.isDragging = false;
+                if (fpsDragData.current.lastPos) {
+                    setFpsPos(fpsDragData.current.lastPos);
+                }
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onUp);
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
+        };
+
+        target.addEventListener('mousedown', onFpsDragStart);
+        target.addEventListener('touchstart', onFpsDragStart, { passive: false });
+
+        return () => {
+            target.removeEventListener('mousedown', onFpsDragStart);
+            target.removeEventListener('touchstart', onFpsDragStart);
+        };
+    }, [isFpsCollapsed]);
+
+    return (
+        <div
+            ref={fpsRef}
+            style={{
+                position: 'absolute',
+                left: fpsPos.x,
+                top: fpsPos.y,
+                zIndex: 100000,
+                userSelect: 'none',
+                fontFamily: 'Segoe UI, sans-serif',
+                pointerEvents: 'auto',
+                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                transform: isFpsCollapsed ? 'scale(0.7)' : 'scale(1)',
+                opacity: 1,
+            }}
+        >
+            {isFpsCollapsed ? (
+                <div
+                    ref={fpsBallRef}
+                    onClick={toggleFpsCollapse}
+                    style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: 'rgba(30,30,30,0.85)',
+                        backdropFilter: 'blur(4px)',
+                        border: '2px solid rgba(0,255,0,0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#0f0',
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        fontFamily: 'monospace',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+                        cursor: 'pointer',
+                        pointerEvents: 'auto',
+                    }}
+                    title="展开 FPS"
+                >
+                    {fps}
+                </div>
+            ) : (
+                <div
+                    style={{
+                        width: '160px',
+                        backgroundColor: 'rgba(30,30,30,0.85)',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        pointerEvents: 'auto',
+                    }}
+                >
+                    <div
+                        ref={fpsTitleRef}
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            backgroundColor: 'rgba(0,0,0,0.3)',
+                            borderRadius: '8px 8px 0 0',
+                            cursor: 'grab',
+                            color: '#ddd',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            userSelect: 'none',
+                            pointerEvents: 'auto',
+                        }}
+                    >
+                        <span>📊 FPS</span>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsFpsCollapsed(true);
+                            }}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#aaa',
+                                fontSize: '18px',
+                                cursor: 'pointer',
+                                padding: '0 4px',
+                                lineHeight: 1,
+                                pointerEvents: 'auto',
+                            }}
+                            title="折叠"
+                        >
+                            ➖
+                        </button>
+                    </div>
+                    <div
+                        style={{
+                            padding: '14px 10px 16px',
+                            textAlign: 'center',
+                            color: '#0f0',
+                            fontFamily: 'monospace',
+                            fontSize: '28px',
+                            fontWeight: 'bold',
+                            letterSpacing: '1px',
+                            textShadow: '0 0 12px rgba(0,255,0,0.3)',
+                        }}
+                    >
+                        {fps}
+                        <span style={{ fontSize: '14px', color: '#888', marginLeft: '6px' }}>fps</span>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -29,7 +29,10 @@
     /* reset dark styles inherited from dark mode */
     color-scheme: light;
     color: $text-primary-default;
-    
+
+    /* 提升为合成层：缩放/拖拽舞台时由 GPU 合成，减少主线程重绘与重排 */
+    will-change: transform;
+
     /* 增加质感的阴影 */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 4px 24px rgba(0, 0, 0, 0.1);
 }
