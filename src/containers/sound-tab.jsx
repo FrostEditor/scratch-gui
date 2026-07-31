@@ -25,8 +25,6 @@ import {handleFileUpload, soundUpload} from '../lib/file-uploader.js';
 import errorBoundaryHOC from '../lib/error-boundary-hoc.jsx';
 import DragConstants from '../lib/drag-constants';
 import downloadBlob from '../lib/download-blob';
-import CodeTextModal from './tw-code-text-modal.jsx';
-import CodeTextButton from '../components/tw-code-text-button.jsx';
 import SharedAudioContext from '../lib/audio/shared-audio-context.js';
 
 import {connect} from 'react-redux';
@@ -88,7 +86,7 @@ class SoundTab extends React.Component {
             'handleDrop',
             'setFileInput'
         ]);
-        this.state = {selectedSoundIndex: 0, neteaseModalOpen: false, codeTextModal: null};
+        this.state = {selectedSoundIndex: 0, neteaseModalOpen: false};
     }
 
     componentWillReceiveProps (nextProps) {
@@ -349,7 +347,6 @@ class SoundTab extends React.Component {
 
         return (
             <div style={{position: 'relative'}}>
-                <CodeTextButton onClick={() => this.setState({codeTextModal: 'sound'})} />
                 <AssetPanel
                 buttons={isSupported ? [{
                     title: intl.formatMessage(messages.addSound),
@@ -418,13 +415,6 @@ class SoundTab extends React.Component {
                     />
                 ) : null}
             </AssetPanel>
-                {this.state.codeTextModal && (
-                    <CodeTextModal
-                        vm={vm}
-                        mode={this.state.codeTextModal}
-                        onClose={() => this.setState({codeTextModal: null})}
-                    />
-                )}
             </div>
         );
     }

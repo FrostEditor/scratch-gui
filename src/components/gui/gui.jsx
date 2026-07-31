@@ -33,7 +33,6 @@ import collaborationManager from '../../lib/collaboration/collaboration-manager.
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
-import CodeTextPanel from '../../containers/tw-code-text-panel.jsx';
 import TwCodeLockWarning from '../tw-code-lock-warning.jsx';
 import TWNews from '../menu-bar/tw-news.jsx';
 import TWSecurityManager from '../../containers/tw-security-manager.jsx';
@@ -64,7 +63,6 @@ import codeIcon from '!../../lib/tw-recolor/build!./icon--code.svg';
 import costumesIcon from '!../../lib/tw-recolor/build!./icon--costumes.svg';
 import soundsIcon from '!../../lib/tw-recolor/build!./icon--sounds.svg';
 import statementIcon from '!../../lib/tw-recolor/build!./icon--statement.svg';
-import codeTextTabIcon from '!../../lib/tw-recolor/build!./icon--code-text.svg';
 
 const messages = defineMessages({
     addExtension: {
@@ -531,15 +529,6 @@ const GUIComponent = props => {
                                                 <span>作品说明</span>
                                             </div>
                                         </Tab>
-                                        <Tab className={tabClassNames.tab}>
-                                            <img
-                                                draggable={false}
-                                                src={codeTextTabIcon()}
-                                                alt="代码文本编辑"
-                                                title="代码文本编辑"
-                                            />
-                                            <span>代码文本编辑</span>
-                                        </Tab>
                                     </TabList>
                                     <TabPanel className={tabClassNames.tabPanel}>
                                         <Box className={styles.blocksWrapper}>
@@ -584,9 +573,6 @@ const GUIComponent = props => {
                                     </TabPanel>
                                     <TabPanel className={tabClassNames.tabPanel}>
                                         <ProjectStatement vm={vm} />
-                                    </TabPanel>
-                                    <TabPanel className={tabClassNames.tabPanel}>
-                                        <CodeTextPanel mode="code" vm={vm} />
                                     </TabPanel>
                                 </Tabs>
                                 {backpackVisible ? (
