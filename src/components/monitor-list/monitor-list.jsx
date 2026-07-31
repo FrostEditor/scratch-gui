@@ -7,7 +7,7 @@ import {stageSizeToTransform} from '../../lib/screen-utils';
 
 import styles from './monitor-list.css';
 
-const MonitorList = props => (
+const MonitorList = React.memo(props => (
     <Box
         // Use static `monitor-overlay` class for bounds of draggables
         className={classNames(styles.monitorList, 'monitor-overlay')}
@@ -44,7 +44,7 @@ const MonitorList = props => (
                 ))}
         </Box>
     </Box>
-);
+));
 
 MonitorList.propTypes = {
     draggable: PropTypes.bool.isRequired,

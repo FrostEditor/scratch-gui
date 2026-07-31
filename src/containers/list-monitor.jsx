@@ -146,24 +146,38 @@ class ListMonitor extends React.Component {
         this.initialWidth = this.state.width;
         this.initialHeight = this.state.height;
 
+        let resizeRaf = null;
+        let resizeLatest = null;
         const onMouseMove = ev => {
             const newPosition = getEventXY(ev);
             const dx = newPosition.x - this.initialPosition.x;
             const dy = newPosition.y - this.initialPosition.y;
-            this.setState({
+            resizeLatest = {
                 width: Math.max(Math.min(this.initialWidth + dx, this.props.customStageSize.width), 100),
                 height: Math.max(Math.min(this.initialHeight + dy, this.props.customStageSize.height), 60)
+            };
+            // Coalesce pointer moves into one setState per animation frame.
+            if (resizeRaf) return;
+            resizeRaf = requestAnimationFrame(() => {
+                resizeRaf = null;
+                if (resizeLatest) this.setState(resizeLatest);
             });
         };
 
         const onMouseUp = ev => {
-            onMouseMove(ev); // Make sure width/height are up-to-date
+            if (resizeRaf) {
+                cancelAnimationFrame(resizeRaf);
+                resizeRaf = null;
+            }
+            if (resizeLatest) this.setState(resizeLatest);
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
+            // Use the final computed size rather than potentially stale this.state.
+            const finalSize = resizeLatest || {width: this.state.width, height: this.state.height};
             this.props.vm.runtime.requestUpdateMonitor({
                 id: this.props.id,
-                height: this.state.height,
-                width: this.state.width
+                height: finalSize.height,
+                width: finalSize.width
             });
         };
 

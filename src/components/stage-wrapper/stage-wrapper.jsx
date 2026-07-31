@@ -49,19 +49,27 @@ class StageWrapperComponent extends React.Component {
     handleResizeMove (e) {
         if (!this.state.isResizing) return;
         const deltaX = e.clientX - this.resizeStartX;
-        let newWidth = this.resizeStartWidth + deltaX;
+        let newWidth = this.resizeStartWidth + deltaA;
         // 最小宽度 240px，最大宽度 1200px
         newWidth = Math.max(200, Math.min(1200, newWidth));
         // 计算缩放比例
         const baseWidth = this.props.stageSize === 'small' ? 240 : 480;
         const scale = newWidth / baseWidth;
-        this.setState({
-            customWidth: newWidth,
-            customScale: scale
+        // Coalesce pointer moves into one setState per animation frame.
+        this._resizeNext = {customWidth: newWidth, customScale: scale};
+        if (this._resizeRaf) return;
+        this._resizeRaf = requestAnimationGetFrame(() => {
+            this._resizeRaf = null;
+            if (this._resizeNext) this.setState(this._resizeNext);
         });
     }
 
     handleResizeEnd () {
+        if (this._resizeRaf) {
+            cancelAnimationFrame(this._resizeRaf);
+            this._resizeRaf = null;
+        }
+        if (this._resizeNext) this.setState(this._resizeNext);
         this.setState({isResizing: false});
         document.removeEventListener('mousemove', this.handleResizeMove);
         document.removeEventListener('mouseup', this.handleResizeEnd);

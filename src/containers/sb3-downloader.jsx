@@ -86,7 +86,7 @@ class SB3Downloader extends React.Component {
             return;
         }
         this.startedSaving();
-        this.props.saveProjectSb3().then(content => {
+        this.props.vm.saveProjectSb3().then(content => {
             this.finishedSaving();
             downloadBlob(this.props.projectFilename, content);
         });
@@ -142,7 +142,7 @@ class SB3Downloader extends React.Component {
         await new Promise((resolve, reject) => {
             // Projects can be very large, so we'll utilize JSZip's stream API to avoid having the
             // entire sb3 in memory at the same time.
-            const jszipStream = this.props.saveProjectSb3Stream();
+            const jszipStream = this.props.vm.saveProjectSb3Stream();
 
             const abortController = new AbortController();
             jszipStream.on('error', error => {
@@ -282,8 +282,7 @@ SB3Downloader.propTypes = {
     }),
     onSaveFinished: PropTypes.func,
     projectFilename: PropTypes.string,
-    saveProjectSb3: PropTypes.func,
-    saveProjectSb3Stream: PropTypes.func,
+    vm: PropTypes.object,
     canSaveProject: PropTypes.bool,
     onSetFileHandle: PropTypes.func,
     onSetProjectTitle: PropTypes.func,
@@ -302,8 +301,11 @@ SB3Downloader.defaultProps = {
 
 const mapStateToProps = state => ({
     fileHandle: state.scratchGui.tw.fileHandle,
-    saveProjectSb3: state.scratchGui.vm.saveProjectSb3.bind(state.scratchGui.vm),
-    saveProjectSb3Stream: state.scratchGui.vm.saveProjectSb3Stream.bind(state.scratchGui.vm),
+    // Return the stable vm reference instead of .bind()-ing the methods here.
+    // .bind() returned a NEW function on every dispatch, defeating connect()'s
+    // shallow compare and forcing this component to re-render on every store
+    // change (including the per-frame MONITORS_UPDATE). Callers use this.props.vm.
+    vm: state.scratchGui.vm,
     canSaveProject: getIsShowingProject(state.scratchGui.projectState.loadingState),
     projectFilename: getProjectFilename(state.scratchGui.projectTitle, projectTitleInitialState)
 });

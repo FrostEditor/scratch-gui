@@ -22,6 +22,7 @@ import StageSelectorComponent from '../components/stage-selector/stage-selector.
 import {getBackdropLibrary} from '../lib/libraries/tw-async-libraries';
 import {handleFileUpload, costumeUpload} from '../lib/file-uploader.js';
 import {placeInViewport} from '../lib/backpack/code-payload.js';
+import getCostumeUrl from '../lib/get-costume-url';
 
 const dragTypes = [
     DragConstants.COSTUME,
@@ -201,7 +202,7 @@ StageSelector.propTypes = {
 
 const mapStateToProps = (state, {asset, id}) => ({
     isRtl: state.locales.isRtl,
-    url: asset && asset.encodeDataURI(),
+    url: asset && getCostumeUrl(asset),
     vm: state.scratchGui.vm,
     receivedBlocks: state.scratchGui.hoveredTarget.receivedBlocks &&
             state.scratchGui.hoveredTarget.sprite === id,

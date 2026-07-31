@@ -65,7 +65,6 @@ const vmListenerHOC = function (WrappedComponent) {
             this.props.vm.on('PROJECT_START', this.props.onGreenFlag);
             this.props.vm.on('PERIPHERAL_CONNECTION_LOST_ERROR', this.props.onShowExtensionAlert);
             this.props.vm.on('MIC_LISTENING', this.props.onMicListeningUpdate);
-            this.props.vm.on('MIC_LISTENING', this.props.onMicListeningUpdate);
             // tw: add handlers for our events
             this.props.vm.on('HAS_CLOUD_DATA_UPDATE', this.handleCloudDataUpdate);
             this.props.vm.on('COMPILER_OPTIONS_CHANGED', this.props.onCompilerOptionsChanged);
@@ -114,7 +113,6 @@ const vmListenerHOC = function (WrappedComponent) {
             this.props.vm.off('RUNTIME_STOPPED', this.props.onRuntimeStopped);
             this.props.vm.off('PROJECT_START', this.props.onGreenFlag);
             this.props.vm.off('PERIPHERAL_CONNECTION_LOST_ERROR', this.props.onShowExtensionAlert);
-            this.props.vm.off('MIC_LISTENING', this.props.onMicListeningUpdate);
             this.props.vm.off('MIC_LISTENING', this.props.onMicListeningUpdate);
             this.props.vm.off('HAS_CLOUD_DATA_UPDATE', this.handleCloudDataUpdate);
             this.props.vm.off('COMPILER_OPTIONS_CHANGED', this.props.onCompilerOptionsChanged);

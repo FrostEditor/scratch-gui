@@ -187,6 +187,10 @@ const GUIComponent = props => {
         return Number.isFinite(stored) && stored >= 320 && stored <= 1100 ? stored : null;
     });
     const resizeState = React.useRef(null);
+    // rAF coalescing for the resize drag so pointermove (which can fire far
+    // more often than 60Hz) doesn't trigger a full React re-render per event.
+    const resizeRaf = React.useRef(null);
+    const resizeNext = React.useRef(null);
 
     const handleResizeMove = React.useCallback((e) => {
         const s = resizeState.current;
@@ -195,10 +199,19 @@ const GUIComponent = props => {
         const deltaSigned = s.isRtl ? -delta : delta;
         let next = s.startWidth + deltaSigned;
         next = Math.max(320, Math.min(1100, next));
-        setBlocksWidth(next);
+        resizeNext.current = next;
+        if (resizeRaf.current) return;
+        resizeRaf.current = requestAnimationFrame(() => {
+            resizeRaf.current = null;
+            setBlocksWidth(resizeNext.current);
+        });
     }, []);
 
     const handleResizeEnd = React.useCallback(() => {
+        if (resizeRaf.current) {
+            cancelAnimationFrame(resizeRaf.current);
+            resizeRaf.current = null;
+        }
         resizeState.current = null;
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
