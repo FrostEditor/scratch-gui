@@ -11,7 +11,6 @@ import VM from 'scratch-vm';
 
 import Box from '../box/box.jsx';
 import Button from '../button/button.jsx';
-import CommunityButton from './community-button.jsx';
 import ShareButton from './share-button.jsx';
 import {ComingSoonTooltip} from '../coming-soon/coming-soon.jsx';
 import Divider from '../divider/divider.jsx';
@@ -32,7 +31,6 @@ import FramerateChanger from '../../containers/tw-framerate-changer.jsx';
 import ChangeUsername from '../../containers/tw-change-username.jsx';
 import CloudVariablesToggler from '../../containers/tw-cloud-toggler.jsx';
 import TWSaveStatus from './tw-save-status.jsx';
-import ForumUserCard from './forum-user-card.jsx'; // tw: 论坛登录卡片（社区入口：登录/注册/发布/我的作品）
 
 import {openTipsLibrary, openSettingsModal, openRestorePointModal} from '../../reducers/modals';
 import {setPlayer} from '../../reducers/mode';
@@ -110,10 +108,6 @@ import settingsIcon from './icon--settings.svg';
 import addonsIcon from './addons.svg';
 import errorIcon from './tw-error.svg';
 import advancedIcon from './tw-advanced.svg';
-import CollaborationIcon from './collaboration-icon.jsx';
-import CollaborationModal from '../tw-collaboration-modal/collaboration-modal.jsx';
-import ChatModal from '../tw-chat-modal/chat-modal.jsx';
-import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 
 import ninetiesLogo from './nineties_logo.svg';
 import catLogo from './cat_logo.svg';
@@ -230,12 +224,7 @@ MenuItemLink.propTypes = {
 class MenuBar extends React.Component {
     constructor (props) {
         super(props);
-        this.state = {
-            collaborationModalOpen: false,
-            isCollaborating: false,
-            memberCount: 0,
-            chatModalOpen: false
-        };
+        this.state = {};
         bindAll(this, [
             'handleClickSeeInside',
             'handleClickNew',
@@ -252,39 +241,14 @@ class MenuBar extends React.Component {
             'handleKeyPress',
             'handleRestoreOption',
             'getSaveToComputerHandler',
-            'restoreOptionMessage',
-            'handleClickCollaboration',
-            'handleCloseCollaboration',
-            'handleCollaborationConnected',
-            'handleCollaborationDisconnected',
-            'handleMembersUpdated',
-            'handleOpenChat',
-            'handleCloseChat'
+            'restoreOptionMessage'
         ]);
     }
     componentDidMount () {
         document.addEventListener('keydown', this.handleKeyPress);
-
-        // 监听协作状态
-        collaborationManager.on('connected', this.handleCollaborationConnected);
-        collaborationManager.on('disconnected', this.handleCollaborationDisconnected);
-        collaborationManager.on('members-updated', this.handleMembersUpdated);
-        
-        // 检查初始状态
-        if (collaborationManager.isConnected && collaborationManager.roomKey) {
-            this.setState({
-                isCollaborating: true,
-                memberCount: collaborationManager.members.length
-            });
-        }
     }
     componentWillUnmount () {
         document.removeEventListener('keydown', this.handleKeyPress);
-        
-        // 移除协作状态监听
-        collaborationManager.off('connected', this.handleCollaborationConnected);
-        collaborationManager.off('disconnected', this.handleCollaborationDisconnected);
-        collaborationManager.off('members-updated', this.handleMembersUpdated);
     }
     handleClickNew () {
         // if the project is dirty, and user owns the project, we will autosave.
@@ -439,35 +403,6 @@ class MenuBar extends React.Component {
     }
     handleClickSeeInside () {
         this.props.onClickSeeInside();
-    }
-    handleClickCollaboration () {
-        this.setState({collaborationModalOpen: true});
-    }
-    handleCloseCollaboration () {
-        this.setState({collaborationModalOpen: false});
-    }
-    handleCollaborationConnected () {
-        this.setState({
-            isCollaborating: true,
-            memberCount: collaborationManager.members.length
-        });
-    }
-    handleCollaborationDisconnected () {
-        this.setState({
-            isCollaborating: false,
-            memberCount: 0
-        });
-    }
-    handleMembersUpdated (members) {
-        this.setState({
-            memberCount: members.length
-        });
-    }
-    handleOpenChat () {
-        this.setState({chatModalOpen: true});
-    }
-    handleCloseChat () {
-        this.setState({chatModalOpen: false});
     }
     buildAboutMenu (onClickAbout) {
         if (!onClickAbout) {
@@ -1055,21 +990,6 @@ class MenuBar extends React.Component {
                             </MenuLabel>
                         )}
 
-                        <div
-                            className={classNames(styles.menuBarItem, styles.hoverable)}
-                            onClick={this.handleClickCollaboration}
-                            title="多人协作"
-                        >
-                            <CollaborationIcon width={20} height={20} />
-                            <span className={styles.collapsibleLabel}>
-                                <FormattedMessage
-                                    defaultMessage="协作"
-                                    description="Menu bar item for collaboration"
-                                    id="tw.menuBar.collaboration"
-                                />
-                            </span>
-                        </div>
-
                         {this.props.onClickAddonSettings && (
                             <div
                                 className={classNames(styles.menuBarItem, styles.hoverable)}
@@ -1168,44 +1088,20 @@ class MenuBar extends React.Component {
                         </div>
                     )}
                     <div className={classNames(styles.menuBarItem, styles.communityButtonWrapper)}>
-                        {this.props.enableCommunity ? (
-                            (this.props.isShowingProject || this.props.isUpdating) && (
-                                <ProjectWatcher onDoneUpdating={this.props.onSeeCommunity}>
-                                    {
-                                        waitForUpdate => (
-                                            <CommunityButton
-                                                className={styles.menuBarButton}
-                                                /* eslint-disable react/jsx-no-bind */
-                                                onClick={() => {
-                                                    this.handleClickSeeCommunity(waitForUpdate);
-                                                }}
-                                                /* eslint-enable react/jsx-no-bind */
-                                            />
-                                        )
-                                    }
-                                </ProjectWatcher>
-                            )
-                        ) : (this.props.showComingSoon ? (
+                        {this.props.showComingSoon ? (
                             <MenuBarItemTooltip id="community-button">
-                                <CommunityButton className={styles.menuBarButton} />
+                                <div className={styles.menuBarButton} style={{display: 'none'}} />
                             </MenuBarItemTooltip>
                         ) : (this.props.enableSeeInside ? (
                             <SeeInsideButton
                                 className={styles.menuBarButton}
                                 onClick={this.handleClickSeeInside}
                             />
-                        ) : []))}
+                        ) : [])}
                     </div>
                 </div>
 
                 <div className={styles.accountInfoGroup}>
-                    <span style={{marginLeft: 8}}>
-                        <ForumUserCard
-                            forumUser={this.props.forumUser}
-                            onSetForumUser={this.props.onSetForumUser}
-                            onLogoutForumUser={this.props.onLogoutForumUser}
-                        />
-                    </span>
                     <TWSaveStatus
                         showSaveFilePicker={this.props.showSaveFilePicker}
                     />
@@ -1215,29 +1111,7 @@ class MenuBar extends React.Component {
             </Box>
         );
 
-        return (
-            <React.Fragment>
-                {menuBar}
-                {this.state.collaborationModalOpen && (
-                    <CollaborationModal
-                        forumUser={this.props.forumUser}
-                        onSetForumUser={this.props.onSetForumUser}
-                        onLogoutForumUser={this.props.onLogoutForumUser}
-                        onClose={this.handleCloseCollaboration}
-                    />
-                )}
-                {this.state.chatModalOpen && (
-                    <ChatModal
-                        onClose={this.handleCloseChat}
-                    />
-                )}
-                {this.state.chatModalOpen && (
-                    <ChatModal
-                        onClose={this.handleCloseChat}
-                    />
-                )}
-            </React.Fragment>
-        );
+        return menuBar;
     }
 }
 
@@ -1338,13 +1212,6 @@ MenuBar.propTypes = {
     settingsMenuOpen: PropTypes.bool,
     shouldSaveBeforeTransition: PropTypes.func,
     showSaveFilePicker: PropTypes.func,
-    forumUser: PropTypes.shape({
-        user: PropTypes.object,
-        loggedIn: PropTypes.bool,
-        status: PropTypes.string
-    }),
-    onSetForumUser: PropTypes.func,
-    onLogoutForumUser: PropTypes.func,
     showComingSoon: PropTypes.bool,
     username: PropTypes.string,
     userOwnsProject: PropTypes.bool,

@@ -11,7 +11,8 @@ import {isRtl} from '@turbowarp/scratch-l10n';
 
 import styles from './sprite-selector.css';
 
-import {IS_DESKTOP_APP} from '../../lib/forum/config.js';
+// tw: 桌面端检测（自定义协议 tw-editor:）
+const IS_DESKTOP_APP = typeof window !== 'undefined' && window.location.protocol === 'tw-editor:';
 
 import fileUploadIcon from '../action-menu/icon--file-upload.svg';
 import paintIcon from '../action-menu/icon--paint.svg';

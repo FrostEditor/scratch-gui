@@ -38,13 +38,10 @@ import cloudManagerHOC from '../lib/cloud-manager-hoc.jsx';
 
 import GUIComponent from '../components/gui/gui.jsx';
 import {setIsScratchDesktop} from '../lib/isScratchDesktop.js';
-import {getMe, logout as forumLogout, getUserToken, clearUserToken} from '../lib/forum/index.js'; // tw: 论坛登录
-import {setForumUser, logoutForumUser} from '../reducers/forum-user.js';
 import TWFullScreenResizerHOC from '../lib/tw-fullscreen-resizer-hoc.jsx';
 import TWStageFullScreenHOC from '../lib/tw-stage-fullscreen-hoc.jsx'; // tw: 编辑器页原生 F11 式全屏（运行当前作品、退出不丢）
 import TWThemeManagerHOC from './tw-theme-manager-hoc.jsx';
 import {initBackgroundObserver} from '../lib/custom-background.js';
-import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 import defaultProjectData from '../lib/default-project/project-data.js';
 import loadRandomDefaultCostume from '../lib/random-default-costume.js';
 import {countProjectBlocks} from '../lib/project-blocks.js'; // tw: 统计加载作品的积木总数
@@ -70,8 +67,6 @@ class GUI extends React.Component {
         setProjectIdMetadata(this.props.projectId);
         // 初始化自定义背景
         initBackgroundObserver();
-        // 初始化协作管理器
-        collaborationManager.setVM(this.props.vm);
         
         // 初始化积木分类图标设置（默认关闭，只有用户显式开启过才启用）
         const blockPaletteIcons = localStorage.getItem('tw-blockPaletteIcons');
@@ -88,20 +83,6 @@ class GUI extends React.Component {
         if (window.electronAPI) {
             this.setupElectronListeners();
         }
-        // tw: 论坛自动登录——仅当用户之前登录过（本地存有个人 token）才自动恢复登录态；
-        // 否则保持未登录，显示登录/注册按钮，让用户主动登录自己的账号。
-        const savedToken = getUserToken();
-        if (savedToken) {
-            getMe()
-                .then(user => {
-                    if (user) this.props.onSetForumUser(user);
-                })
-                .catch(() => {
-                    clearUserToken();
-                    this.props.onLogoutForumUser();
-                });
-        }
-
         // tw: 包装 vm.loadProject，加载作品时把积木总数写入 redux，供 Loader 显示进度。
         // 放在此处可一次性覆盖所有加载入口（菜单打开/Electron/默认项目/协作等）。
         this.wrapLoadProjectForBlockCount();
@@ -189,13 +170,6 @@ class GUI extends React.Component {
             // At this time the project view in www doesn't need to know when a project is unloaded
             this.props.onProjectLoaded();
         }
-        // tw: 协作——进入/离开「造型」「声音」标签页时通知协作管理器，
-        // 进入期间暂停远端整包应用，避免协作者发来的快照把正在编辑的画布/音频编辑器冲掉。
-        if (this.props.activeTabIndex !== prevProps.activeTabIndex) {
-            const isAsset = this.props.activeTabIndex === COSTUMES_TAB_INDEX ||
-                this.props.activeTabIndex === SOUNDS_TAB_INDEX;
-            collaborationManager.setAssetEditingTab(isAsset);
-        }
     }
     render () {
         if (this.props.isError) {
@@ -249,7 +223,6 @@ GUI.propTypes = {
     isTotallyNormal: PropTypes.bool,
     loadingStateVisible: PropTypes.bool,
     onProjectLoaded: PropTypes.func,
-    onSeeCommunity: PropTypes.func,
     onStorageInit: PropTypes.func,
     onUpdateProjectId: PropTypes.func,
     onVmInit: PropTypes.func,
@@ -282,9 +255,6 @@ const mapStateToProps = state => {
         error: state.scratchGui.projectState.error,
         isError: getIsError(loadingState),
         isEmbedded: state.scratchGui.mode.isEmbedded,
-        // tw: 不再把 isEmbedded 并入 isFullScreen，否则 embed 页 isFullScreen 恒为 true，
-        // 全屏按钮永远显示“退出”且永远无法触发真正的 requestStageFullscreen()（原生全屏进不去）。
-        // embed 的视觉布局由 isEmbedded 单独控制，isFullScreen 只反映真实的原生全屏状态。
         isFullScreen: state.scratchGui.mode.isFullScreen,
         isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
         isRtl: state.locales.isRtl,
@@ -304,8 +274,7 @@ const mapStateToProps = state => {
         fontsModalVisible: state.scratchGui.modals.fontsModal,
         unknownPlatformModalVisible: state.scratchGui.modals.unknownPlatformModal,
         invalidProjectModalVisible: state.scratchGui.modals.invalidProjectModal,
-        vm: state.scratchGui.vm,
-        forumUser: state.scratchGui.forumUser
+        vm: state.scratchGui.vm
     };
 };
 
@@ -317,11 +286,6 @@ const mapDispatchToProps = dispatch => ({
     onRequestCloseBackdropLibrary: () => dispatch(closeBackdropLibrary()),
     onRequestCloseCostumeLibrary: () => dispatch(closeCostumeLibrary()),
     onRequestCloseTelemetryModal: () => dispatch(closeTelemetryModal()),
-    onSetForumUser: user => dispatch(setForumUser(user)),
-    onLogoutForumUser: () => {
-        forumLogout();
-        dispatch(logoutForumUser());
-    },
     onSetProjectBlockTotal: total => dispatch(setProjectBlockTotal(total)) // tw: 加载作品的积木总数
 });
 
@@ -330,9 +294,6 @@ const ConnectedGUI = injectIntl(connect(
     mapDispatchToProps
 )(GUI));
 
-// note that redux's 'compose' function is just being used as a general utility to make
-// the hierarchy of HOC constructor calls clearer here; it has nothing to do with redux's
-// ability to compose reducers.
 const WrappedGui = compose(
     LocalizationHOC,
     ErrorBoundaryHOC('Top Level App'),
@@ -340,7 +301,6 @@ const WrappedGui = compose(
     TWFullScreenResizerHOC,
     TWStageFullScreenHOC, // tw: 编辑器页原生 F11 式全屏（不跳转、运行当前作品、退出不丢）
     FontLoaderHOC,
-    // QueryParserHOC, // tw: HOC is unused
     ProjectFetcherHOC,
     TitledHOC,
     ProjectSaverHOC,

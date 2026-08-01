@@ -29,7 +29,6 @@ import Cards from '../../containers/cards.jsx';
 import Alerts from '../../containers/alerts.jsx';
 import DragLayer from '../../containers/drag-layer.jsx';
 import ConnectionModal from '../../containers/connection-modal.jsx';
-import collaborationManager from '../../lib/collaboration/collaboration-manager.js';
 import TelemetryModal from '../telemetry-modal/telemetry-modal.jsx';
 import TWUsernameModal from '../../containers/tw-username-modal.jsx';
 import TWSettingsModal from '../../containers/tw-settings-modal.jsx';
@@ -43,7 +42,6 @@ import TWUnknownPlatformModal from '../../containers/tw-unknown-platform-modal.j
 import TWInvalidProjectModal from '../../containers/tw-invalid-project-modal.jsx';
 import CollaborationCursor from '../collaboration-cursor/collaboration-cursor.jsx';
 import UpdateModal from '../tw-update-modal/update-modal.jsx';
-import Onboarding from '../onboarding/onboarding.jsx';
 import {checkForUpdates} from '../../lib/update-checker';
 
 import {
@@ -173,9 +171,6 @@ const GUIComponent = props => {
         unknownPlatformModalVisible,
         invalidProjectModalVisible,
         vm,
-        forumUser,
-        onSetForumUser,
-        onLogoutForumUser,
         ...componentProps
     } = omit(props, 'dispatch');
 
@@ -349,7 +344,6 @@ const GUIComponent = props => {
                     {...componentProps}
                 >
                     {alwaysEnabledModals}
-                    <Onboarding />
                     {telemetryModalVisible ? (
                         <TelemetryModal
                             isRtl={isRtl}
@@ -451,9 +445,6 @@ const GUIComponent = props => {
                         onShare={onShare}
                         onStartSelectingFileUpload={onStartSelectingFileUpload}
                         onToggleLoginOpen={onToggleLoginOpen}
-                        forumUser={forumUser}
-                        onSetForumUser={onSetForumUser}
-                        onLogoutForumUser={onLogoutForumUser}
                     />
                     <Box className={styles.bodyWrapper}>
                         <Box className={classNames(styles.flexWrapper, isEmbedded && styles.embedded)}>
@@ -677,13 +668,6 @@ GUIComponent.propTypes = {
     onRequestCloseTelemetryModal: PropTypes.func,
     onSeeCommunity: PropTypes.func,
     onShare: PropTypes.func,
-    forumUser: PropTypes.shape({
-        user: PropTypes.object,
-        loggedIn: PropTypes.bool,
-        status: PropTypes.string
-    }),
-    onSetForumUser: PropTypes.func,
-    onLogoutForumUser: PropTypes.func,
     onShowPrivacyPolicy: PropTypes.func,
     onStartSelectingFileUpload: PropTypes.func,
     onTabSelect: PropTypes.func,

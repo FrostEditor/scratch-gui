@@ -17,7 +17,6 @@ import libraryStyles from '../components/library/library.css';
 import extensionIcon from '../components/action-menu/icon--sprite.svg';
 import ExtensionManagerModal from '../components/tw-extension-manager-modal/extension-manager-modal.jsx';
 import ExtensionBlocksModal from '../components/tw-extension-blocks-modal/extension-blocks-modal.jsx';
-import collaborationManager from '../lib/collaboration/collaboration-manager.js';
 import {isTrustedExtension, manuallyTrustExtension} from './tw-security-manager.jsx';
 import {
     getMetadata,
@@ -854,14 +853,14 @@ class ExtensionLibrary extends React.PureComponent {
                 this.props.vm.emit('EXTENSION_REMOVED', {id: extensionId});
             }
 
-            // 6. 同步到协作房间（如果在协作中）
-            try {
-                if (collaborationManager && collaborationManager.isConnected) {
-                    collaborationManager.sendExtensionUnload(extensionId);
-                }
-            } catch (e) {
-                // 忽略协作同步错误
-            }
+            // 6. 协作同步已禁用
+            // try {
+            //     if (collaborationManager && collaborationManager.isConnected) {
+            //         collaborationManager.sendExtensionUnload(extensionId);
+            //     }
+            // } catch (e) {
+            //     // 忽略协作同步错误
+            // }
 
             // 7. 刷新扩展列表
             const loadedExtensions = this.getLoadedExtensions();

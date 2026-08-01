@@ -43,19 +43,13 @@ import {loadServiceWorker} from './load-service-worker';
 import runAddons from '../addons/entry';
 import InvalidEmbed from '../components/tw-invalid-embed/invalid-embed.jsx';
 import {APP_NAME} from '../lib/brand.js';
-import {setForumUser, logoutForumUser} from '../reducers/forum-user';
 
 import styles from './interface.css';
 
 // tw: 允许将编辑器页通过 iframe 嵌入外部网站（舞台居中、隐藏编辑面板）。
-// 原逻辑在 iframe 嵌入时直接显示 InvalidEmbed 错误页，导致无法把编辑器页嵌出去。
-// 现在改为不拦截：被 iframe 嵌入时正常渲染 GUI，由 app-state-hoc 的 isEmbedded
-// 检测（window.parent !== window）驱动 embed 居中布局，无需额外参数即可让
-// 嵌入的编辑器页舞台水平+垂直居中。桌面端编辑器不在 iframe 内，不受影响。
 const isInvalidEmbed = false;
 
 const handleClickAddonSettings = addonId => {
-    // addonId might be a string of the addon to focus on, undefined, or an event (treat like undefined)
     const path = process.env.ROUTING_STYLE === 'wildcard' ? 'addons' : 'addons.html';
     const url = `${process.env.ROOT}${path}${typeof addonId === 'string' ? `#${addonId}` : ''}`;
     window.open(url);
@@ -126,10 +120,7 @@ class Interface extends React.Component {
         this.handleUpdateProjectTitle = this.handleUpdateProjectTitle.bind(this);
     }
     componentDidMount () {
-        // tw: fullscreen.jsx 以 isFullScreen 渲染本页时，把状态同步到 redux，
-        // 让 stage-header 等子组件也能感知“已进入全屏”，从而显示“退出全屏”按钮。
         if (this.props.isFullScreen) {
-            // 通过全局 store 直接 dispatch，避免依赖 HOC 链传递的 dispatch prop
             if (window.ReduxStore) {
                 window.ReduxStore.dispatch({type: 'scratch-gui/mode/SET_FULL_SCREEN', isFullScreen: true});
             }
@@ -153,7 +144,6 @@ class Interface extends React.Component {
         }
 
         const {
-            /* eslint-disable no-unused-vars */
             intl,
             hasCloudVariables,
             description,
@@ -162,10 +152,6 @@ class Interface extends React.Component {
             isPlayerOnly,
             isRtl,
             projectId,
-            forumUser,
-            onSetForumUser,
-            onLogoutForumUser,
-            /* eslint-enable no-unused-vars */
             ...props
         } = this.props;
         const isHomepage = isPlayerOnly && !isFullScreen;
@@ -187,16 +173,12 @@ class Interface extends React.Component {
                             canChangeTheme
                             enableSeeInside
                             onClickAddonSettings={handleClickAddonSettings}
-                            forumUser={forumUser}
-                            onSetForumUser={onSetForumUser}
-                            onLogoutForumUser={onLogoutForumUser}
                         />
                     </div>
                 ) : null}
                 <div
                     className={styles.center}
                     style={isPlayerOnly ? ({
-                        // + 2 accounts for 1px border on each side of the stage
                         width: `${Math.max(480, props.customStageSize.width) + 2}px`
                     }) : null}
                 >
@@ -218,7 +200,6 @@ class Interface extends React.Component {
                                 <ProjectInput />
                             </div>
                             {(
-                                // eslint-disable-next-line max-len
                                 description.instructions === 'unshared' || description.credits === 'unshared'
                             ) && (
                                 <div className={classNames(styles.infobox, styles.unsharedUpdate)}>
@@ -249,7 +230,6 @@ class Interface extends React.Component {
                                     </p>
                                     <p>
                                         <FormattedMessage
-                                            // eslint-disable-next-line max-len
                                             defaultMessage="If the project was shared recently, this message may appear incorrectly for a few minutes."
                                             description="Appears on unshared projects"
                                             id="tw.unshared.cache"
@@ -257,7 +237,6 @@ class Interface extends React.Component {
                                     </p>
                                     <p>
                                         <FormattedMessage
-                                            // eslint-disable-next-line max-len
                                             defaultMessage="If this project is actually shared, please report a bug."
                                             description="Appears on unshared projects"
                                             id="tw.unshared.bug"
@@ -282,7 +261,6 @@ class Interface extends React.Component {
                             <div className={styles.section}>
                                 <p>
                                     <FormattedMessage
-                                        // eslint-disable-next-line max-len
                                         defaultMessage="{APP_NAME} is a Scratch mod that compiles projects to JavaScript to make them run really fast. Try it out by inputting a project ID or URL above or choosing a featured project below."
                                         description="Description of TurboWarp on the homepage"
                                         id="tw.home.description"
@@ -331,19 +309,12 @@ const mapStateToProps = state => ({
     isLoading: getIsLoading(state.scratchGui.projectState.loadingState),
     isPlayerOnly: state.scratchGui.mode.isPlayerOnly,
     isRtl: state.locales.isRtl,
-    projectId: state.scratchGui.projectState.projectId,
-    // tw: 首页菜单栏显示登录态（头像/昵称）
-    forumUser: state.scratchGui.forumUser
-});
-
-const mapDispatchToProps = dispatch => ({
-    onSetForumUser: user => dispatch(setForumUser(user)),
-    onLogoutForumUser: () => dispatch(logoutForumUser())
+    projectId: state.scratchGui.projectState.projectId
 });
 
 const ConnectedInterface = injectIntl(connect(
     mapStateToProps,
-    mapDispatchToProps
+    () => ({})
 )(Interface));
 
 const WrappedInterface = compose(

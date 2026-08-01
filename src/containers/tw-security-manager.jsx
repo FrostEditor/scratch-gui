@@ -10,6 +10,32 @@ import {getPersistedUnsandboxed, setPersistedUnsandboxed} from '../lib/tw-persis
 /* eslint-disable require-atomic-updates */
 
 /**
+ * 黑名单：禁止嵌入/加载的主机名（forum.ctspace.xyz 等社区域名）。
+ * 这些域名无法被嵌入到作品或扩展中。
+ */
+const EMBED_BLACKLIST = new Set([
+    'forum.ctspace.xyz',
+    'www.forum.ctspace.xyz'
+]);
+
+/**
+ * 检查 URL 的主机名是否在黑名单中（支持子域名匹配）。
+ * @param {URL|null} parsed 解析后的 URL 对象
+ * @returns {boolean}
+ */
+const matchesBlacklist = (parsed) => {
+    if (!parsed || !parsed.host) return false;
+    const host = parsed.host.toLowerCase();
+    if (EMBED_BLACKLIST.has(host)) return true;
+    const parts = host.split('.');
+    for (let i = 0; i < parts.length - 1; i++) {
+        const domain = parts.slice(i).join('.');
+        if (EMBED_BLACKLIST.has(domain)) return true;
+    }
+    return false;
+};
+
+/**
  * Set of extension URLs that the user has manually trusted to load unsandboxed.
  */
 const extensionsTrustedByUser = new Set();
@@ -262,6 +288,16 @@ class TWSecurityManagerComponent extends React.Component {
             log.info(`Loading extension ${url} automatically`);
             return true;
         }
+        // 解析 URL 检查黑名单
+        let parsed;
+        try {
+            parsed = new URL(url);
+        } catch (e) {
+            // data: URL 等无法定义 host 的，跳过黑名单检查
+        }
+        if (parsed && matchesBlacklist(parsed)) {
+            return false;
+        }
         const {showModal} = await this.acquireModalLock();
         if (url.startsWith('data:')) {
             const allowed = await showModal(SecurityModals.LoadExtension, {
@@ -290,6 +326,9 @@ class TWSecurityManagerComponent extends React.Component {
     async canFetch (url) {
         const parsed = parseURL(url, FETCHABLE_PROTOCOLS);
         if (!parsed) {
+            return false;
+        }
+        if (matchesBlacklist(parsed)) {
             return false;
         }
         if (isAlwaysTrustedForFetching(parsed)) {
@@ -407,6 +446,9 @@ class TWSecurityManagerComponent extends React.Component {
     async canEmbed (url) {
         const parsed = parseURL(url, FETCHABLE_PROTOCOLS);
         if (!parsed) {
+            return false;
+        }
+        if (matchesBlacklist(parsed)) {
             return false;
         }
         const host = (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.host : null;

@@ -29,7 +29,8 @@ import SharedAudioContext from '../lib/audio/shared-audio-context.js';
 
 import {connect} from 'react-redux';
 
-import {IS_DESKTOP_APP} from '../lib/forum/config.js';
+// tw: 桌面端检测（自定义协议 tw-editor:）
+const IS_DESKTOP_APP = typeof window !== 'undefined' && window.location.protocol === 'tw-editor:';
 
 import {
     closeSoundLibrary,
